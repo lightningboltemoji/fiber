@@ -46,7 +46,7 @@ chrome/ content/ components/
 |---|---|---|---|
 | `browser/` | C++ (`.mm` only where it calls the bridge) | Implements Chrome's interfaces (`BrowserWindow`, `LocationBar`, dialog views…), watches Chrome's models, and owns Fiber's own per-profile models. | Creates or lays out views. |
 | `bridge/` | Objective-C headers | Declares the protocols and immutable value types the other two layers talk through. | Mentions C++ or Chromium. |
-| `ui/` | Swift | Windows, toolbar, tab picker, omnibox, dialogs, design system. | Imports anything except the bridge and Apple frameworks. |
+| `ui/` | Swift | Windows, toolbar, tab picker, command palette, dialogs, design system. | Imports anything except the bridge and Apple frameworks. |
 
 `browser/` is only there because Chrome's extension points are C++ classes with
 virtual methods, and Swift can't subclass C++ classes. It translates between
@@ -219,11 +219,16 @@ controls float over it in Liquid Glass, mostly out of sight:
 - **Toolbar** (`ui/Toolbar.swift`), hidden until View > Show Toolbar
   (Command-S; Save Page As moves to Shift-Command-S). A row of capsules level
   with the traffic lights: the traffic lights' own, an address capsule
-  (back/forward, location field, reload), and a placeholder for menus and
-  extensions. Command-L with the toolbar hidden shows it just while the
-  location field has focus. The traffic lights otherwise stay hidden until the
-  pointer nears them. `browser/window/fiber_main_menu.mm` adds the menu item
+  (back/forward, the page's address, reload), and a placeholder for menus and
+  extensions. The traffic lights otherwise stay hidden until the pointer nears
+  them. `browser/window/fiber_main_menu.mm` adds the menu item
   to Chrome's main menu; the window handles `-toggleToolbarShown:`.
+- **Command palette** (`ui/CommandPalette.swift`): Command-L (Chrome's Focus
+  Location, so new tabs open it too) or clicking the toolbar's address opens a
+  glass panel over the dimmed page, with the page's full URL selected. Nothing
+  else edits the address. For now Return opens what was typed through
+  `navigateToInput:`; it's meant to grow into a Raycast-like home for Fiber's
+  commands.
 - **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): a
   half-capsule bump on the right edge, a third of the window tall. Hovering it
   morphs it into a panel listing the tabs, placed so the active tab is level

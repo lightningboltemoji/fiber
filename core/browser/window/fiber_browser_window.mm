@@ -373,7 +373,7 @@ ui::AcceleratorProvider* FiberBrowserWindow::GetAcceleratorProvider() {
 }
 
 void FiberBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
-  [ui_ focusLocationBar];
+  [ui_ showCommandPalette];
 }
 
 void FiberBrowserWindow::UpdateReloadStopState(bool is_loading, bool force) {

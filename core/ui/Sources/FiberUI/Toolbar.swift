@@ -2,8 +2,9 @@ import AppKit
 
 /// The window's toolbar, shown with Command-S: a row of glass capsules along
 /// the top of the page, level with the traffic lights' capsule. The address
-/// capsule holds the navigation buttons and the location field; the one at the
-/// end is a placeholder for menus and extensions.
+/// capsule holds the navigation buttons and the page's address, which opens
+/// the command palette when clicked; the capsule at the end is a placeholder
+/// for menus and extensions.
 ///
 /// The window controller wires up the controls, places the row, and shows and
 /// hides it.
@@ -21,7 +22,9 @@ final class Toolbar: NSView {
     symbol: "chevron.forward", label: "Forward")
   let reloadButton = Toolbar.makeButton(
     symbol: "arrow.clockwise", label: "Reload")
-  let locationField = LocationField()
+  /// Shows the page's address; the window controller opens the command
+  /// palette from it.
+  let addressButton = Toolbar.makeAddressButton()
 
   private let addressCapsule = RimmedGlassView(rimWidth: Toolbar.rimWidth)
   private let extensionsCapsule = RimmedGlassView(rimWidth: Toolbar.rimWidth)
@@ -56,6 +59,22 @@ final class Toolbar: NSView {
       height: Self.height)
   }
 
+  /// Shows the page's short address (usually just its host), or a prompt when
+  /// there's none, as on the New Tab page.
+  func setAddress(_ address: String) {
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    paragraph.lineBreakMode = .byTruncatingMiddle
+    addressButton.attributedTitle = NSAttributedString(
+      string: address.isEmpty ? "Search or enter address" : address,
+      attributes: [
+        .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+        .foregroundColor: address.isEmpty
+          ? NSColor.tertiaryLabelColor : NSColor.labelColor,
+        .paragraphStyle: paragraph,
+      ])
+  }
+
   /// Turns Reload into Stop while the page loads.
   func setLoading(_ loading: Bool) {
     let label = loading ? "Stop" : "Reload"
@@ -65,13 +84,15 @@ final class Toolbar: NSView {
     reloadButton.toolTip = label
   }
 
-  /// Back and Forward at the start, the location field in the middle, and
-  /// Reload at the end. Dragging the space between them moves the window.
+  /// Back and Forward at the start, the address in the middle, and Reload at
+  /// the end. Dragging the space between them moves the window.
   private func makeAddressContent() -> NSView {
     let content = WindowDragArea()
     let navigation = NSStackView(views: [backButton, forwardButton])
     navigation.spacing = 0
-    for view in [navigation, locationField, reloadButton] as [NSView] {
+    // The address takes the rest of the width.
+    navigation.setHuggingPriority(.required, for: .horizontal)
+    for view in [navigation, addressButton, reloadButton] as [NSView] {
       view.translatesAutoresizingMaskIntoConstraints = false
       content.addSubview(view)
     }
@@ -82,12 +103,12 @@ final class Toolbar: NSView {
       reloadButton.trailingAnchor.constraint(
         equalTo: content.trailingAnchor, constant: -2),
       reloadButton.centerYAnchor.constraint(equalTo: content.centerYAnchor),
-      locationField.leadingAnchor.constraint(
-        equalTo: navigation.trailingAnchor),
-      locationField.trailingAnchor.constraint(
-        equalTo: reloadButton.leadingAnchor),
-      locationField.topAnchor.constraint(equalTo: content.topAnchor),
-      locationField.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+      addressButton.leadingAnchor.constraint(
+        equalTo: navigation.trailingAnchor, constant: 2),
+      addressButton.trailingAnchor.constraint(
+        equalTo: reloadButton.leadingAnchor, constant: -2),
+      addressButton.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+      addressButton.heightAnchor.constraint(equalToConstant: Self.buttonSize),
     ])
     return content
   }
@@ -113,6 +134,16 @@ final class Toolbar: NSView {
       icons.centerYAnchor.constraint(equalTo: content.centerYAnchor),
     ])
     return content
+  }
+
+  private static func makeAddressButton() -> NSButton {
+    let button = NSButton(title: "", target: nil, action: nil)
+    button.bezelStyle = .accessoryBarAction
+    button.showsBorderOnlyWhileMouseInside = true
+    button.toolTip = "Search or enter address"
+    button.setContentCompressionResistancePriority(
+      .defaultLow, for: .horizontal)
+    return button
   }
 
   private static func makeButton(symbol: String, label: String) -> NSButton {

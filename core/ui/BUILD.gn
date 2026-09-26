@@ -7,9 +7,10 @@ fiber_swift_source_set("ui") {
   module_name = "FiberUI"
   sources = [
     "Sources/FiberUI/BrowserWindowController.swift",
+    "Sources/FiberUI/CommandPalette.swift",
     "Sources/FiberUI/JavaScriptDialog.swift",
     "Sources/FiberUI/LoadProgressBar.swift",
-    "Sources/FiberUI/LocationField.swift",
+    "Sources/FiberUI/OutsetShadowView.swift",
     "Sources/FiberUI/PageState.swift",
     "Sources/FiberUI/RimmedGlassView.swift",
     "Sources/FiberUI/StatusBubble.swift",

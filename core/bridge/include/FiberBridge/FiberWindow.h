@@ -64,8 +64,9 @@ NS_SWIFT_UI_ACTOR
 // The toolbar and tab picker are hidden while a page is fullscreen, for
 // example a video.
 - (void)setControlsVisible:(BOOL)visible;
-// Focuses the location field, showing the toolbar while it has focus.
-- (void)focusLocationBar;
+// Opens the command palette, where the user enters an address or search, with
+// the page's URL in it (Command-L, and new tabs).
+- (void)showCommandPalette;
 
 @end
 

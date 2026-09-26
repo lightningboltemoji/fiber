@@ -10,7 +10,8 @@ import FiberBridge
 }
 
 /// A browser window and its native chrome, all floating over the page: the
-/// toolbar (shown with Command-S), the tab picker on the right edge, the load
+/// toolbar (shown with Command-S), the tab picker on the right edge, the
+/// command palette (Command-L), the load
 /// progress bar, and the link status bubble. Reports what the user does to its
 /// actions.
 @MainActor
@@ -43,7 +44,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let actions: any FiberWindowActions
   private let toolbar = Toolbar()
   private let tabPicker = TabPicker()
-  private var locationField: LocationField { toolbar.locationField }
+  private let commandPalette = CommandPalette()
+  /// The page's full URL, which the command palette opens with.
+  private var pageURL = ""
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
   private let windowControlsRevealArea = HoverArea()
@@ -52,13 +55,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var isPointerNearWindowControls = false
   /// Shown with Command-S, until hidden with it again.
   private var isToolbarShown = false
-  /// Shown just while the location field has focus, for Command-L while the
-  /// toolbar is hidden.
-  private var isToolbarPeeking = false
   /// The toolbar and tab picker hide while a page is fullscreen.
   private var areControlsVisible = true
   fileprivate var isToolbarVisible: Bool {
-    (isToolbarShown || isToolbarPeeking) && areControlsVisible
+    isToolbarShown && areControlsVisible
   }
   private weak var contentsView: NSView?
   private var isLoading = false
@@ -130,6 +130,16 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     content.addSubview(tabPicker)
 
+    // Over everything.
+    commandPalette.frame = content.bounds
+    commandPalette.autoresizingMask = [.width, .height]
+    commandPalette.onSubmit = { [weak self] input, event in
+      self?.actions.navigate(toInput: input, event: event)
+      self?.closeCommandPalette()
+    }
+    commandPalette.onDismiss = { [weak self] in self?.closeCommandPalette() }
+    content.addSubview(commandPalette)
+
     if frame.isEmpty {
       window.center()
     } else {
@@ -142,22 +152,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
     configureButton(toolbar.forwardButton, action: #selector(goForward(_:)))
     configureButton(toolbar.reloadButton, action: #selector(reloadOrStop(_:)))
 
-    locationField.target = self
-    locationField.action = #selector(navigateToLocation(_:))
-    locationField.delegate = self
+    toolbar.addressButton.target = self
+    toolbar.addressButton.action = #selector(addressClicked(_:))
   }
 
   /// Shows or hides the toolbar (Command-S).
   fileprivate func toggleToolbar() {
-    if isToolbarVisible {
-      isToolbarShown = false
-      isToolbarPeeking = false
-      if locationField.isEditing {
-        actions.focusPage()
-      }
-    } else {
-      isToolbarShown = true
-    }
+    isToolbarShown = !isToolbarVisible
     updateToolbar(animated: true)
   }
 
@@ -269,7 +270,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
-    locationField.setURL(state.url, displayURL: state.displayURL)
+    pageURL = state.url
+    toolbar.setAddress(state.displayURL)
     toolbar.backButton.isEnabled = state.canGoBack
     toolbar.forwardButton.isEnabled = state.canGoForward
     toolbar.reloadButton.isEnabled = true
@@ -297,22 +299,24 @@ final class BrowserWindowController: NSObject, FiberWindow {
     areControlsVisible = visible
     if !visible {
       tabPicker.close()
+      closeCommandPalette()
     }
     tabPicker.isHidden = !visible
     updateToolbar(animated: false)
   }
 
-  func focusLocationBar() {
-    // The field has to be showing to take focus.
-    if !isToolbarVisible {
-      isToolbarPeeking = true
-      updateToolbar(animated: true)
+  func showCommandPalette() {
+    tabPicker.close()
+    commandPalette.open(text: pageURL)
+  }
+
+  /// Closes the command palette, returning focus to the page.
+  private func closeCommandPalette() {
+    guard commandPalette.isOpen else {
+      return
     }
-    if locationField.isEditing {
-      locationField.currentEditor()?.selectAll(nil)
-    } else {
-      window.makeFirstResponder(locationField)
-    }
+    commandPalette.close()
+    actions.focusPage()
   }
 
   // MARK: Toolbar actions
@@ -336,39 +340,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  @objc private func navigateToLocation(_ sender: Any?) {
-    actions.navigate(
-      toInput: locationField.stringValue, event: NSApp.currentEvent)
-  }
-}
-
-extension BrowserWindowController: NSTextFieldDelegate {
-  // A toolbar shown just for editing hides again when editing ends.
-  func controlTextDidEndEditing(_ notification: Notification) {
-    guard isToolbarPeeking else {
-      return
-    }
-    isToolbarPeeking = false
-    updateToolbar(animated: true)
-  }
-
-  // Escape reverts the location field's edits; a second Escape returns focus
-  // to the page.
-  func control(
-    _ control: NSControl, textView: NSTextView,
-    doCommandBy selector: Selector
-  ) -> Bool {
-    guard control === locationField,
-      selector == #selector(NSResponder.cancelOperation(_:))
-    else {
-      return false
-    }
-    if locationField.hasEdits {
-      locationField.revertEdits()
-    } else {
-      actions.focusPage()
-    }
-    return true
+  @objc private func addressClicked(_ sender: Any?) {
+    showCommandPalette()
   }
 }
 

@@ -118,7 +118,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   @objc func newTab(_ sender: Any?) {
     openTab(Self.homeURL, activate: true)
-    ui.focusLocationBar()
+    ui.showCommandPalette()
   }
 
   @objc func closeTab(_ sender: Any?) {
@@ -140,7 +140,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   @objc func openLocation(_ sender: Any?) {
-    ui.focusLocationBar()
+    ui.showCommandPalette()
   }
 
   // MARK: The page's requests
