@@ -23,7 +23,8 @@ final class CommandPalette: NSView {
     2 * rimWidth + fieldRowHeight + 1 + footerHeight
   }
 
-  /// Called with what the user entered, and the key event, on Return.
+  /// Called with what the user entered, and the key event, on Return (with
+  /// or without modifiers).
   var onSubmit: (String, NSEvent?) -> Void = { _, _ in }
   /// Called when the user dismisses the palette: Escape, or a click outside.
   var onDismiss: () -> Void = {}
@@ -183,10 +184,11 @@ final class CommandPalette: NSView {
     }
   }
 
-  /// "Open ↩  New Tab ⌘↩  Close esc", the keys fainter than their actions.
+  /// "Open ↩  New Tab ⌥↩  Close esc", the keys fainter than their actions.
+  /// (Command-Return opens a new tab in the background, as in Chrome.)
   private static var hints: NSAttributedString {
     let text = NSMutableAttributedString()
-    let hints = [("Open", "↩"), ("New Tab", "⌘↩"), ("Close", "esc")]
+    let hints = [("Open", "↩"), ("New Tab", "⌥↩"), ("Close", "esc")]
     for (index, (action, key)) in hints.enumerated() {
       if index > 0 {
         text.append(NSAttributedString(string: "     "))
@@ -215,10 +217,25 @@ extension CommandPalette: NSTextFieldDelegate {
     _ control: NSControl, textView: NSTextView,
     doCommandBy selector: Selector
   ) -> Bool {
-    guard selector == #selector(NSResponder.cancelOperation(_:)) else {
+    switch selector {
+    case #selector(NSResponder.cancelOperation(_:)):
+      onDismiss()
+      return true
+    // Return with modifiers, which the browser reads to decide where to open
+    // the page. The field would otherwise insert a line break (Option-Return)
+    // or beep (Command-Return, which has no binding: noop:).
+    case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)),
+      Selector(("noop:")):
+      // Return, or the keypad's Enter.
+      guard let event = NSApp.currentEvent, event.type == .keyDown,
+        ["\r", "\u{3}"].contains(event.charactersIgnoringModifiers)
+      else {
+        return false
+      }
+      submit(nil)
+      return true
+    default:
       return false
     }
-    onDismiss()
-    return true
   }
 }

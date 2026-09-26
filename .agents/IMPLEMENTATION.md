@@ -225,8 +225,9 @@ controls float over it in Liquid Glass, mostly out of sight:
   Location, so new tabs open it too) or clicking the toolbar's address opens a
   glass panel over the dimmed page, with the page's full URL selected. Nothing
   else edits the address. For now Return opens what was typed through
-  `navigateToInput:`; it's meant to grow into a Raycast-like home for Fiber's
-  commands.
+  `navigateToInput:`, with modifiers picking where as in Chrome's omnibox
+  (Option-Return for a new tab, Command-Return for one in the background);
+  it's meant to grow into a Raycast-like home for Fiber's commands.
 - **New Tab page** (`ui/NewTabView.swift`): a plain page with Fiber's mark
   (`ui/FiberMark.swift`, generated from the icon's geometry by `make icon`).
   `chrome://newtab` is Fiber's own WebUI (`browser/new_tab/`): Chrome no longer

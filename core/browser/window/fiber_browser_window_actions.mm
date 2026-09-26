@@ -3,6 +3,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "components/omnibox/browser/searchbox_utils.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 #import "ui/base/cocoa/cocoa_base_utils.h"
 #include "ui/base/window_open_disposition.h"
@@ -13,6 +14,19 @@ namespace {
 WindowOpenDisposition DispositionFromEvent(NSEvent* event) {
   return event ? ui::WindowOpenDispositionFromNSEvent(event)
                : WindowOpenDisposition::CURRENT_TAB;
+}
+
+// Where to open what was typed, from the modifier keys held with Return, as
+// Chrome's omnibox decides: Option for a new tab, Command for one in the
+// background, Shift for a new window.
+WindowOpenDisposition DispositionFromReturn(NSEvent* event) {
+  if (!event) {
+    return WindowOpenDisposition::CURRENT_TAB;
+  }
+  NSEventModifierFlags flags = event.modifierFlags;
+  return searchbox::ComputeOpenDispositionFromModifiersAndLogToUma(
+      flags & NSEventModifierFlagShift, flags & NSEventModifierFlagControl,
+      flags & NSEventModifierFlagOption, flags & NSEventModifierFlagCommand);
 }
 
 }  // namespace
@@ -60,7 +74,7 @@ WindowOpenDisposition DispositionFromEvent(NSEvent* event) {
 - (void)navigateToInput:(NSString*)input event:(NSEvent*)event {
   if (_owner) {
     _owner->NavigateToInput(base::SysNSStringToUTF16(input),
-                            DispositionFromEvent(event));
+                            DispositionFromReturn(event));
   }
 }
 
