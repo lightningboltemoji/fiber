@@ -29,7 +29,13 @@ config("swift") {
 # linked for macOS 26 too. This comes after Chromium's own
 # -mmacos-version-min, and the last one wins.
 config("swift_link") {
-  ldflags = [ "-mmacos-version-min=$mac_min_system_version" ]
+  ldflags = [
+    "-mmacos-version-min=$mac_min_system_version",
+
+    # SwiftUI's imports ask to link CoreAudioTypes, which is headers only, and
+    # Chromium's --strict-auto-link makes the missing binary an error.
+    "-Wl,--ignore-auto-link-option=CoreAudioTypes",
+  ]
 
   # The Swift runtime ships with macOS; the SDK has its link stubs.
   lib_dirs = [ "$sysroot/usr/lib/swift" ]

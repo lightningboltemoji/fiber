@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 
 @class FiberPageState;
+@class FiberTabState;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -24,6 +25,8 @@ NS_SWIFT_UI_ACTOR
 - (void)navigateToInput:(NSString*)input event:(nullable NSEvent*)event;
 // Moves keyboard focus to the page.
 - (void)focusPage;
+// Makes the tab with this ID the active one. Does nothing if it's gone.
+- (void)selectTabWithID:(NSInteger)tabID;
 
 // The user asked to close the window. The browser closes it when it's ready,
 // which may be never: a page's unload handler can keep it open.
@@ -36,6 +39,9 @@ NS_SWIFT_UI_ACTOR
 
 // A browser window. Its owner in //fiber/browser shows and positions
 // `window`, and tells it what to display.
+//
+// `window` handles -toggleToolbarShown: (Show Toolbar in the View menu), which
+// shows or hides its toolbar.
 NS_SWIFT_UI_ACTOR
 @protocol FiberWindow <NSObject>
 
@@ -45,14 +51,20 @@ NS_SWIFT_UI_ACTOR
 // previous one. Nil leaves the content area empty.
 - (void)setContentsView:(nullable NSView*)view;
 - (void)setPageState:(FiberPageState*)state;
+// Replaces the tab list with `tabs`, in order. `activeTabID` is the tab whose
+// page is in the content area.
+- (void)setTabs:(NSArray<FiberTabState*>*)tabs
+    activeTabID:(NSInteger)activeTabID;
 // Shows the page's load progress (0 to 1) while `loading`, and completes and
 // hides it once not.
 - (void)setLoading:(BOOL)loading progress:(double)progress;
 // Shows `text` (for example a hovered link's URL) in the window's bottom
 // corner. Empty hides it.
 - (void)setStatusText:(NSString*)text;
-// The toolbar is hidden while a page is fullscreen, for example a video.
-- (void)setToolbarVisible:(BOOL)visible;
+// The toolbar and tab picker are hidden while a page is fullscreen, for
+// example a video.
+- (void)setControlsVisible:(BOOL)visible;
+// Focuses the location field, showing the toolbar while it has focus.
 - (void)focusLocationBar;
 
 @end

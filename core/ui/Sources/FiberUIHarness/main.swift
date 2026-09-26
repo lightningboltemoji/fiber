@@ -1,5 +1,8 @@
 // Runs Fiber's UI against a mock browser (MockBrowser), without Chromium. The
 // mock uses the bridge exactly as //fiber/browser does.
+//
+// `--tabs N` opens the first window with N tabs of made-up sites, the last one
+// active.
 
 import AppKit
 
@@ -15,7 +18,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.mainMenu = makeMainMenu()
-    openWindow(url: MockBrowser.homeURL)
+    openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
     NSApp.activate()
   }
 
@@ -25,8 +28,18 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     true
   }
 
-  func openWindow(url: String) {
-    let browser = MockBrowser(url: url, app: self)
+  private var launchTabCount: Int {
+    let arguments = CommandLine.arguments
+    guard let flag = arguments.firstIndex(of: "--tabs"),
+      arguments.indices.contains(flag + 1), let count = Int(arguments[flag + 1])
+    else {
+      return 1
+    }
+    return max(count, 1)
+  }
+
+  func openWindow(urls: [String]) {
+    let browser = MockBrowser(urls: urls, app: self)
     browsers.append(browser)
     browser.show()
   }
@@ -36,7 +49,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   @objc private func newWindow(_ sender: Any?) {
-    openWindow(url: MockBrowser.homeURL)
+    openWindow(urls: [MockBrowser.homeURL])
   }
 
   private func makeMainMenu() -> NSMenu {
@@ -62,8 +75,11 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       "File",
       [
         newWindow,
+        item("New Tab", #selector(MockBrowser.newTab(_:)), "t"),
         item("Open Location…", #selector(MockBrowser.openLocation(_:)), "l"),
-        item("Close Window", #selector(NSWindow.performClose(_:)), "w"),
+        .separator(),
+        item("Close Window", #selector(NSWindow.performClose(_:)), "W"),
+        item("Close Tab", #selector(MockBrowser.closeTab(_:)), "w"),
       ])
     submenu(
       "Edit",
@@ -81,8 +97,11 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     submenu(
       "View",
       [
+        // Handled by the window itself, as in the real app.
+        item("Show Toolbar", #selector(NSWindow.toggleToolbarShown(_:)), "s"),
         item("Reload Page", #selector(MockBrowser.reloadPage(_:)), "r"),
-        item("Toggle Toolbar", #selector(MockBrowser.toggleToolbar(_:)), "t"),
+        // What a page going fullscreen does.
+        item("Toggle Controls", #selector(MockBrowser.toggleControls(_:))),
       ])
     return main
   }

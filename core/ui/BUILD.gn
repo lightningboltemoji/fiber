@@ -11,8 +11,18 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/LoadProgressBar.swift",
     "Sources/FiberUI/LocationField.swift",
     "Sources/FiberUI/PageState.swift",
+    "Sources/FiberUI/RimmedGlassView.swift",
     "Sources/FiberUI/StatusBubble.swift",
+    "Sources/FiberUI/TabPicker.swift",
+    "Sources/FiberUI/TabPickerView.swift",
+    "Sources/FiberUI/TabState.swift",
+    "Sources/FiberUI/Toolbar.swift",
+    "Sources/FiberUI/WindowDragArea.swift",
+    "Sources/FiberUI/WindowFrame.swift",
   ]
   deps = [ "//fiber/bridge" ]
-  frameworks = [ "AppKit.framework" ]
+  frameworks = [
+    "AppKit.framework",
+    "SwiftUI.framework",
+  ]
 }

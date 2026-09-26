@@ -23,6 +23,8 @@ source_set("browser") {
     "window/fiber_browser_window_actions.mm",
     "window/fiber_location_bar.h",
     "window/fiber_location_bar.mm",
+    "window/fiber_main_menu.h",
+    "window/fiber_main_menu.mm",
   ]
   deps = [
     "//base",
@@ -38,6 +40,7 @@ source_set("browser") {
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/location_bar",
     "//chrome/browser/ui/tabs:tabs_public",
+    "//components/favicon/content",
     "//components/input",
     "//components/javascript_dialogs",
     "//components/omnibox/browser",

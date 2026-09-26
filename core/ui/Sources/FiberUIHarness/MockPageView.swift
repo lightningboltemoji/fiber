@@ -66,11 +66,26 @@ final class MockPageView: NSView {
   }
 
   override var isFlipped: Bool { true }
+  // Like Fiber's patched web views: clicks under the title bar don't move the
+  // window.
+  override var mouseDownCanMoveWindow: Bool { false }
   override var acceptsFirstResponder: Bool { true }
 
+  // A wash of color picked from the host, so each site looks different and
+  // the glass over it has something to refract.
   override func draw(_ dirtyRect: NSRect) {
     NSColor.textBackgroundColor.setFill()
     dirtyRect.fill()
+    let host = URL(string: urlLabel.stringValue)?.host() ?? ""
+    let hue = CGFloat(host.unicodeScalars.reduce(7) { ($0 &* 31 &+ Int($1.value)) % 360 }) / 360
+    let isDark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    func color(_ hue: CGFloat) -> NSColor {
+      NSColor(
+        hue: hue.truncatingRemainder(dividingBy: 1), saturation: isDark ? 0.6 : 0.35,
+        brightness: isDark ? 0.35 : 1, alpha: 1)
+    }
+    NSGradient(starting: color(hue), ending: color(hue + 0.15))?
+      .draw(in: bounds, angle: 60)
   }
 
   func show(url: String, loaded: Bool) {
@@ -78,6 +93,7 @@ final class MockPageView: NSView {
     title = "\(URL(string: url)?.host() ?? url)\(path == "/" ? "" : path)"
     titleLabel.stringValue = loaded ? title : "Loading…"
     urlLabel.stringValue = url
+    needsDisplay = true
   }
 
   @objc private func alert(_ sender: Any?) {

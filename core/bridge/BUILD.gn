@@ -14,6 +14,7 @@ source_set("bridge") {
     "include/FiberBridge/FiberBridge.h",
     "include/FiberBridge/FiberJavaScriptDialog.h",
     "include/FiberBridge/FiberPageState.h",
+    "include/FiberBridge/FiberTabState.h",
     "include/FiberBridge/FiberWindow.h",
   ]
   public_configs = [ ":include_dir" ]

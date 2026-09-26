@@ -8,6 +8,7 @@
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/color/color_provider_source.h"
@@ -34,6 +35,7 @@ class FiberBrowserWindow : public BrowserWindow,
                            public ExclusiveAccessContext,
                            public ui::AcceleratorProvider,
                            public ui::ColorProviderSource,
+                           public TabStripModelObserver,
                            public content::WebContentsObserver {
  public:
   explicit FiberBrowserWindow(BrowserWindowInterface* browser);
@@ -52,6 +54,7 @@ class FiberBrowserWindow : public BrowserWindow,
   void NavigateToInput(const std::u16string& input,
                        WindowOpenDisposition disposition);
   void FocusWebContents();
+  void SelectTab(int32_t tab_id);
   void OnWindowCloseRequested();
   void OnWindowActivationChanged(bool active);
   void OnWindowFullscreenChanged();
@@ -210,6 +213,13 @@ class FiberBrowserWindow : public BrowserWindow,
       ui::ColorProviderKey::ColorMode color_mode,
       ui::ColorProviderKey::ForcedColors forced_colors) const override;
 
+  // TabStripModelObserver:
+  void OnTabStripModelChanged(TabStripModel* tab_strip_model,
+                              const TabStripModelChange& change,
+                              const TabStripSelectionChange& selection) override;
+  void OnTabChangedAt(tabs::TabInterface* tab,
+                      TabChangeType change_type) override;
+
   // content::WebContentsObserver (observes the active tab):
   void LoadProgressChanged(double progress) override;
   void DidStopLoading() override;
@@ -224,6 +234,8 @@ class FiberBrowserWindow : public BrowserWindow,
   NSWindow* GetNSWindow() const;
   content::WebContents* GetActiveWebContents() const;
   void UpdateLoadProgress();
+  // Sends the UI the tab list, in tab strip order.
+  void UpdateTabs();
 
   const raw_ptr<BrowserWindowInterface> browser_;
   FiberBrowserWindowActions* __strong actions_;

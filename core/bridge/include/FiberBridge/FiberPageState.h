@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// What a window shows of its active tab's page: the toolbar's contents and the
+// What a window shows of its active tab's page: the toolbar's controls and the
 // window title.
 NS_SWIFT_SENDABLE
 @interface FiberPageState : NSObject

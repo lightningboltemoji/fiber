@@ -24,7 +24,9 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/status_bubble.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/unload_controller.h"
+#include "components/favicon/content/content_favicon_driver.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
 #include "components/omnibox/browser/autocomplete_match.h"
@@ -38,10 +40,12 @@
 #include "content/public/browser/web_contents.h"
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
+#include "fiber/browser/window/fiber_main_menu.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/color/color_provider_utils.h"
+#include "ui/gfx/image/image.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 #include "ui/native_theme/native_theme.h"
 
@@ -130,6 +134,7 @@ FiberBrowserWindow* FiberBrowserWindow::FromWebContents(
 FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
     : browser_(browser) {
   AllWindows().push_back(this);
+  InstallMainMenuItems();
   // Chrome's window sizer: saved placement, cascading, or a popup's requested
   // bounds.
   gfx::Rect bounds;
@@ -142,6 +147,7 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
               actions:actions_];
   location_bar_ = std::make_unique<FiberLocationBar>(this);
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
+  browser_->GetTabStripModel()->AddObserver(this);
 }
 
 FiberBrowserWindow::~FiberBrowserWindow() {
@@ -198,6 +204,21 @@ void FiberBrowserWindow::FocusWebContents() {
   }
 }
 
+void FiberBrowserWindow::SelectTab(int32_t tab_id) {
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  if (!tab) {
+    return;
+  }
+  // The tab may have moved to another window since the UI last heard.
+  TabStripModel* model = browser_->GetTabStripModel();
+  int index = model->GetIndexOfTab(tab);
+  if (index != TabStripModel::kNoTab) {
+    model->ActivateTabAt(index,
+                         TabStripUserGestureDetails(
+                             TabStripUserGestureDetails::GestureType::kMouse));
+  }
+}
+
 void FiberBrowserWindow::OnWindowCloseRequested() {
   Close();
 }
@@ -217,7 +238,7 @@ void FiberBrowserWindow::OnWindowFullscreenChanged() {
   }
   FullscreenController* controller = manager->fullscreen_controller();
   // Page-requested fullscreen (e.g. video) shows only the page.
-  [ui_ setToolbarVisible:!(IsFullscreen() && controller->IsTabFullscreen())];
+  [ui_ setControlsVisible:!(IsFullscreen() && controller->IsTabFullscreen())];
   controller->WindowFullscreenStateChanged();
 }
 
@@ -233,6 +254,30 @@ void FiberBrowserWindow::UpdateLoadProgress() {
   content::WebContents* contents = GetActiveWebContents();
   [ui_ setLoading:contents && contents->ShouldShowLoadingUI()
          progress:contents ? contents->GetLoadProgress() : 1];
+}
+
+void FiberBrowserWindow::UpdateTabs() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  NSMutableArray<FiberTabState*>* tabs =
+      [NSMutableArray arrayWithCapacity:model->count()];
+  for (int i = 0; i < model->count(); ++i) {
+    tabs::TabInterface* tab = model->GetTabAtIndex(i);
+    content::WebContents* contents = tab->GetContents();
+    favicon::ContentFaviconDriver* favicon_driver =
+        favicon::ContentFaviconDriver::FromWebContents(contents);
+    NSImage* favicon = favicon_driver && favicon_driver->FaviconIsValid()
+                           ? favicon_driver->GetFavicon().AsNSImage()
+                           : nil;
+    [tabs addObject:[[FiberTabState alloc]
+                        initWithID:tab->GetHandle().raw_value()
+                             title:base::SysUTF16ToNSString(contents->GetTitle())
+                           favicon:favicon
+                           loading:contents->ShouldShowLoadingUI()]];
+  }
+  tabs::TabInterface* active = model->GetActiveTab();
+  [ui_ setTabs:tabs
+      activeTabID:active ? active->GetHandle().raw_value()
+                         : tabs::TabHandle::NullValue];
 }
 
 // BrowserWindow:
@@ -761,6 +806,20 @@ ui::RendererColorMap FiberBrowserWindow::GetRendererColorMap(
   key.forced_colors = forced_colors;
   return ui::CreateRendererColorMap(
       *ui::ColorProviderManager::Get().GetColorProviderFor(key));
+}
+
+// TabStripModelObserver:
+
+void FiberBrowserWindow::OnTabStripModelChanged(
+    TabStripModel* tab_strip_model,
+    const TabStripModelChange& change,
+    const TabStripSelectionChange& selection) {
+  UpdateTabs();
+}
+
+void FiberBrowserWindow::OnTabChangedAt(tabs::TabInterface* tab,
+                                        TabChangeType change_type) {
+  UpdateTabs();
 }
 
 // content::WebContentsObserver:

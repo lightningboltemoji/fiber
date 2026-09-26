@@ -9,20 +9,30 @@ import FiberBridge
   }
 }
 
-extension NSToolbarItem.Identifier {
-  fileprivate static let back = Self("fiber.back")
-  fileprivate static let forward = Self("fiber.forward")
-  fileprivate static let reload = Self("fiber.reload")
-  fileprivate static let location = Self("fiber.location")
-}
-
-/// A browser window and its native chrome: the toolbar, the load progress bar,
-/// and the link status bubble. Reports what the user does to its actions.
+/// A browser window and its native chrome, all floating over the page: the
+/// toolbar (shown with Command-S), the tab picker on the right edge, the load
+/// progress bar, and the link status bubble. Reports what the user does to its
+/// actions.
 @MainActor
 final class BrowserWindowController: NSObject, FiberWindow {
   private static let defaultWindowSize = NSSize(width: 1280, height: 820)
   private static let minWindowSize = NSSize(width: 480, height: 320)
-  private static let locationBarHeight: CGFloat = 36
+  /// How far the toolbar and the traffic lights' capsule float from the
+  /// window's edges.
+  fileprivate static let edgeInset: CGFloat = 16
+  /// The glass capsule behind the traffic lights extends this far past them,
+  /// rim included.
+  fileprivate static let windowControlsPadding = NSSize(width: 14, height: 13)
+  private static let windowControlsRimWidth: CGFloat = 5
+  /// The traffic lights are hidden until the pointer comes this close to
+  /// their capsule.
+  private static let windowControlsRevealDistance: CGFloat = 16
+  /// Where the traffic lights go: their capsule's top-left corner sits
+  /// `edgeInset` from the window's.
+  fileprivate static let windowControlsLayout = WindowFrame.Layout(
+    buttonsInset: edgeInset + windowControlsPadding.width,
+    // The traffic lights are 14pt, centered in the title bar.
+    titlebarHeight: 2 * (edgeInset + windowControlsPadding.height) + 14)
   private static let progressBarHeight: CGFloat = 3
   // Inset from the window's bottom-left corner, clear of its rounding.
   private static let statusBubbleInset: CGFloat = 10
@@ -31,13 +41,25 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   private let browserWindow: BrowserWindow
   private let actions: any FiberWindowActions
-  private let backItem = NSToolbarItem(itemIdentifier: .back)
-  private let forwardItem = NSToolbarItem(itemIdentifier: .forward)
-  private let reloadItem = NSToolbarItem(itemIdentifier: .reload)
-  private let locationItem = NSToolbarItem(itemIdentifier: .location)
-  private let locationField = LocationField()
+  private let toolbar = Toolbar()
+  private let tabPicker = TabPicker()
+  private var locationField: LocationField { toolbar.locationField }
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
+  private let windowControlsRevealArea = HoverArea()
+  private let windowControlsBackground = RimmedGlassView(
+    rimWidth: BrowserWindowController.windowControlsRimWidth)
+  private var isPointerNearWindowControls = false
+  /// Shown with Command-S, until hidden with it again.
+  private var isToolbarShown = false
+  /// Shown just while the location field has focus, for Command-L while the
+  /// toolbar is hidden.
+  private var isToolbarPeeking = false
+  /// The toolbar and tab picker hide while a page is fullscreen.
+  private var areControlsVisible = true
+  fileprivate var isToolbarVisible: Bool {
+    (isToolbarShown || isToolbarPeeking) && areControlsVisible
+  }
   private weak var contentsView: NSView?
   private var isLoading = false
 
@@ -45,7 +67,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     self.actions = actions
     browserWindow = BrowserWindow(
       contentRect: NSRect(origin: .zero, size: Self.defaultWindowSize),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      styleMask: [
+        .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView,
+      ],
       backing: .buffered,
       defer: false)
     super.init()
@@ -53,24 +77,23 @@ final class BrowserWindowController: NSObject, FiberWindow {
     let window = browserWindow
     window.isReleasedWhenClosed = false
     window.delegate = self
+    window.controller = self
     window.menuActionTarget = actions
     window.minSize = Self.minWindowSize
     window.title = "Fiber"
-    // The page title is kept for the Window menu and Mission Control, but the
-    // toolbar takes the title bar's place.
+    // The page fills the window, title bar area included, with the traffic
+    // lights over it. The page title is kept for the Window menu and Mission
+    // Control.
     window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    // BrowserWindow moves the traffic lights in from the corner (see
+    // windowControlsLayout). Pages under the title bar still get clicks
+    // there, and don't move the window
+    // (patches/chromium/content-app_shim_remote_cocoa-…); only the capsules
+    // do.
     window.collectionBehavior.insert(.fullScreenPrimary)
-    // Fiber will have its own tabs; keep AppKit from merging windows.
+    // Fiber has its own tabs; keep AppKit from merging windows.
     window.tabbingMode = .disallowed
-
-    configureToolbarItems()
-    let toolbar = NSToolbar(identifier: "FiberWindowToolbar")
-    toolbar.delegate = self
-    toolbar.displayMode = .iconOnly
-    toolbar.allowsUserCustomization = false
-    toolbar.centeredItemIdentifiers = [.location]
-    window.toolbar = toolbar
-    window.toolbarStyle = .unified
 
     let content = window.contentView!
     progressBar.frame = NSRect(
@@ -84,6 +107,29 @@ final class BrowserWindowController: NSObject, FiberWindow {
     statusBubble.autoresizingMask = [.maxXMargin, .maxYMargin]
     content.addSubview(statusBubble)
 
+    configureWindowControls()
+
+    // Level with the traffic lights' capsule, and past it.
+    configureToolbar()
+    let controls = windowControlsBackground.frame
+    let toolbarX = controls.maxX + Toolbar.spacing
+    toolbar.frame = NSRect(
+      x: toolbarX, y: content.bounds.height - Self.edgeInset - Toolbar.height,
+      width: content.bounds.width - toolbarX - Self.edgeInset,
+      height: Toolbar.height)
+    toolbar.autoresizingMask = [.width, .minYMargin]
+    content.addSubview(toolbar)
+    updateToolbar(animated: false)
+
+    tabPicker.frame = NSRect(
+      x: content.bounds.width - TabPicker.width, y: 0, width: TabPicker.width,
+      height: content.bounds.height)
+    tabPicker.autoresizingMask = [.height, .minXMargin]
+    tabPicker.onSelect = { [weak self] tabID in
+      self?.actions.selectTab(withID: tabID)
+    }
+    content.addSubview(tabPicker)
+
     if frame.isEmpty {
       window.center()
     } else {
@@ -91,57 +137,116 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  private func configureToolbarItems() {
-    configureButton(
-      backItem, symbol: "chevron.backward", label: "Back",
-      action: #selector(goBack(_:)))
-    configureButton(
-      forwardItem, symbol: "chevron.forward", label: "Forward",
-      action: #selector(goForward(_:)))
-    configureButton(
-      reloadItem, symbol: "arrow.clockwise", label: "Reload",
-      action: #selector(reloadOrStop(_:)))
+  private func configureToolbar() {
+    configureButton(toolbar.backButton, action: #selector(goBack(_:)))
+    configureButton(toolbar.forwardButton, action: #selector(goForward(_:)))
+    configureButton(toolbar.reloadButton, action: #selector(reloadOrStop(_:)))
 
     locationField.target = self
     locationField.action = #selector(navigateToLocation(_:))
     locationField.delegate = self
-
-    // Toolbar items with custom views get no background of their own, so
-    // match the Liquid Glass capsules of the standard items.
-    let locationBar = NSGlassEffectView()
-    locationBar.cornerRadius = Self.locationBarHeight / 2
-    locationBar.contentView = locationField
-    locationBar.heightAnchor.constraint(equalToConstant: Self.locationBarHeight)
-      .isActive = true
-    // Grow toward the max width, but let the toolbar squeeze it down to the
-    // min.
-    locationBar.widthAnchor.constraint(greaterThanOrEqualToConstant: 240)
-      .isActive = true
-    locationBar.widthAnchor.constraint(lessThanOrEqualToConstant: 800)
-      .isActive = true
-    let preferredWidth = locationBar.widthAnchor.constraint(
-      equalToConstant: 800)
-    preferredWidth.priority = .defaultLow
-    preferredWidth.isActive = true
-
-    locationItem.view = locationBar
-    locationItem.label = "Address"
-    locationItem.visibilityPriority = .high
   }
 
-  private func configureButton(
-    _ item: NSToolbarItem, symbol: String, label: String, action: Selector
-  ) {
-    item.image = NSImage(
-      systemSymbolName: symbol, accessibilityDescription: label)
-    item.label = label
-    item.toolTip = label
-    item.target = self
-    item.action = action
-    item.isBordered = true
-    item.isNavigational = true
-    // Enabled state is pushed by setPageState(_:), not polled.
-    item.autovalidates = false
+  /// Shows or hides the toolbar (Command-S).
+  fileprivate func toggleToolbar() {
+    if isToolbarVisible {
+      isToolbarShown = false
+      isToolbarPeeking = false
+      if locationField.isEditing {
+        actions.focusPage()
+      }
+    } else {
+      isToolbarShown = true
+    }
+    updateToolbar(animated: true)
+  }
+
+  /// Fades the toolbar in or out, with the traffic lights, which show with it.
+  private func updateToolbar(animated: Bool) {
+    let isVisible = isToolbarVisible
+    if isVisible {
+      toolbar.isHidden = false
+    }
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = animated ? (isVisible ? 0.18 : 0.25) : 0
+      toolbar.animator().alphaValue = isVisible ? 1 : 0
+    } completionHandler: { [weak self] in
+      MainActor.assumeIsolated {
+        // Hidden, so its controls don't take clicks or focus.
+        if let self, !self.isToolbarVisible {
+          self.toolbar.isHidden = true
+        }
+      }
+    }
+    updateWindowControls(animated: animated)
+  }
+
+  private var windowControlButtons: [NSButton] {
+    [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
+      .compactMap { window.standardWindowButton($0) }
+  }
+
+  /// Puts a glass capsule behind the traffic lights, which stay in the title
+  /// bar above it, and the area around it that reveals them. Dragging the
+  /// capsule moves the window.
+  private func configureWindowControls() {
+    guard let content = window.contentView else {
+      return
+    }
+    // Where AppKit put the traffic lights. The content view fills the window,
+    // so window coordinates are the content view's.
+    window.layoutIfNeeded()
+    let buttonsFrame = windowControlButtons.reduce(NSRect.null) {
+      $0.union($1.convert($1.bounds, to: nil))
+    }
+    guard !buttonsFrame.isNull else {
+      return
+    }
+    let frame = buttonsFrame.insetBy(
+      dx: -Self.windowControlsPadding.width,
+      dy: -Self.windowControlsPadding.height)
+    windowControlsBackground.frame = frame
+    windowControlsBackground.cornerRadius = frame.height / 2
+    windowControlsBackground.contentView = WindowDragArea()
+    windowControlsBackground.autoresizingMask = [.maxXMargin, .minYMargin]
+    content.addSubview(windowControlsBackground)
+
+    // From the window's corner to a little past the capsule.
+    let reveal = Self.windowControlsRevealDistance
+    windowControlsRevealArea.frame = NSRect(
+      x: 0, y: frame.minY - reveal, width: frame.maxX + reveal,
+      height: content.bounds.height - frame.minY + reveal)
+    windowControlsRevealArea.autoresizingMask = [.maxXMargin, .minYMargin]
+    windowControlsRevealArea.onHoverChange = { [weak self] isInside in
+      self?.isPointerNearWindowControls = isInside
+      self?.updateWindowControls(animated: true)
+    }
+    content.addSubview(windowControlsRevealArea)
+  }
+
+  /// Shows the traffic lights and their capsule with the toolbar or while the
+  /// pointer is near them, and fades them out otherwise so the page shows
+  /// through. While the window is fullscreen, AppKit shows the traffic lights
+  /// with the menu bar, without the capsule.
+  private func updateWindowControls(animated: Bool) {
+    let isFullScreen = window.styleMask.contains(.fullScreen)
+    let isRevealed = isPointerNearWindowControls || isToolbarVisible
+    let showsButtons = isRevealed || isFullScreen
+    let showsBackground = isRevealed && !isFullScreen
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = animated ? (showsButtons ? 0.15 : 0.3) : 0
+      for button in windowControlButtons {
+        button.animator().alphaValue = showsButtons ? 1 : 0
+      }
+      windowControlsBackground.animator().alphaValue = showsBackground ? 1 : 0
+    }
+  }
+
+  private func configureButton(_ button: NSButton, action: Selector) {
+    button.target = self
+    button.action = action
+    // Enabled state is pushed by setPageState(_:).
+    button.isEnabled = false
   }
 
   // MARK: FiberWindow
@@ -155,24 +260,25 @@ final class BrowserWindowController: NSObject, FiberWindow {
     guard let view, let content = window.contentView else {
       return
     }
+    // The page fills the window; the toolbar and tab picker float over it.
     view.frame = content.bounds
     view.autoresizingMask = [.width, .height]
-    // Below the progress bar and status bubble.
+    // Below everything else.
     content.addSubview(view, positioned: .below, relativeTo: nil)
   }
 
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     locationField.setURL(state.url, displayURL: state.displayURL)
-    backItem.isEnabled = state.canGoBack
-    forwardItem.isEnabled = state.canGoForward
+    toolbar.backButton.isEnabled = state.canGoBack
+    toolbar.forwardButton.isEnabled = state.canGoForward
+    toolbar.reloadButton.isEnabled = true
     isLoading = state.isLoading
-    let reloadLabel = isLoading ? "Stop" : "Reload"
-    reloadItem.image = NSImage(
-      systemSymbolName: isLoading ? "xmark" : "arrow.clockwise",
-      accessibilityDescription: reloadLabel)
-    reloadItem.label = reloadLabel
-    reloadItem.toolTip = reloadLabel
+    toolbar.setLoading(isLoading)
+  }
+
+  func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
+    tabPicker.setTabs(tabs, activeTabID: activeTabID)
   }
 
   func setLoading(_ loading: Bool, progress: Double) {
@@ -187,11 +293,21 @@ final class BrowserWindowController: NSObject, FiberWindow {
     statusBubble.setText(text)
   }
 
-  func setToolbarVisible(_ visible: Bool) {
-    window.toolbar?.isVisible = visible
+  func setControlsVisible(_ visible: Bool) {
+    areControlsVisible = visible
+    if !visible {
+      tabPicker.close()
+    }
+    tabPicker.isHidden = !visible
+    updateToolbar(animated: false)
   }
 
   func focusLocationBar() {
+    // The field has to be showing to take focus.
+    if !isToolbarVisible {
+      isToolbarPeeking = true
+      updateToolbar(animated: true)
+    }
     if locationField.isEditing {
       locationField.currentEditor()?.selectAll(nil)
     } else {
@@ -226,31 +342,16 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 }
 
-extension BrowserWindowController: NSToolbarDelegate {
-  func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar)
-    -> [NSToolbarItem.Identifier]
-  {
-    [.back, .forward, .reload, .location]
-  }
-
-  func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar)
-    -> [NSToolbarItem.Identifier]
-  {
-    toolbarDefaultItemIdentifiers(toolbar)
-  }
-
-  func toolbar(
-    _ toolbar: NSToolbar,
-    itemForItemIdentifier identifier: NSToolbarItem.Identifier,
-    willBeInsertedIntoToolbar flag: Bool
-  ) -> NSToolbarItem? {
-    [backItem, forwardItem, reloadItem, locationItem].first {
-      $0.itemIdentifier == identifier
-    }
-  }
-}
-
 extension BrowserWindowController: NSTextFieldDelegate {
+  // A toolbar shown just for editing hides again when editing ends.
+  func controlTextDidEndEditing(_ notification: Notification) {
+    guard isToolbarPeeking else {
+      return
+    }
+    isToolbarPeeking = false
+    updateToolbar(animated: true)
+  }
+
   // Escape reverts the location field's edits; a second Escape returns focus
   // to the page.
   func control(
@@ -287,20 +388,87 @@ extension BrowserWindowController: NSWindowDelegate {
     actions.windowDidResignMain()
   }
 
+  func windowWillEnterFullScreen(_ notification: Notification) {
+    updateWindowControls(animated: false)
+  }
+
   func windowDidEnterFullScreen(_ notification: Notification) {
     actions.windowDidChangeFullScreen()
   }
 
   func windowDidExitFullScreen(_ notification: Notification) {
+    updateWindowControls(animated: true)
     actions.windowDidChangeFullScreen()
+  }
+}
+
+/// Reports the pointer entering and leaving its bounds. Otherwise it isn't
+/// there: clicks go through to the views below.
+private final class HoverArea: NSView {
+  var onHoverChange: (Bool) -> Void = { _ in }
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    addTrackingArea(
+      NSTrackingArea(
+        rect: .zero,
+        options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+        owner: self))
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    onHoverChange(true)
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    onHoverChange(false)
   }
 }
 
 /// Sends menu actions that nothing in the responder chain handles to the
 /// window's actions, so the main menu acts on this window's browser while
-/// it's key.
+/// it's key. Show Toolbar (-toggleToolbarShown:) shows Fiber's toolbar.
 private final class BrowserWindow: NSWindow {
   weak var menuActionTarget: (any FiberWindowActions)?
+  weak var controller: BrowserWindowController?
+
+  override func toggleToolbarShown(_ sender: Any?) {
+    controller?.toggleToolbar()
+  }
+
+  override func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    guard item.action == #selector(toggleToolbarShown(_:)) else {
+      return super.validateMenuItem(item)
+    }
+    let isVisible = controller?.isToolbarVisible ?? false
+    item.title = isVisible ? "Hide Toolbar" : "Show Toolbar"
+    return controller != nil
+  }
+
+  // NSWindow's private factory for its frame view, which lays out the
+  // traffic lights (see WindowFrame).
+  @objc(frameViewClassForStyleMask:)
+  class func frameViewClass(forStyleMask styleMask: UInt) -> AnyClass {
+    let selector = #selector(frameViewClass(forStyleMask:))
+    typealias Factory = @convention(c) (AnyClass, Selector, UInt) -> AnyClass
+    guard let method = class_getClassMethod(NSWindow.self, selector) else {
+      return NSView.self
+    }
+    let base: AnyClass = unsafeBitCast(
+      method_getImplementation(method), to: Factory.self)(
+      self, selector, styleMask)
+    return WindowFrame.frameViewClass(
+      base: base, layout: BrowserWindowController.windowControlsLayout)
+  }
 
   override func supplementalTarget(forAction action: Selector, sender: Any?)
     -> Any?

@@ -1,0 +1,524 @@
+import AppKit
+import FiberBridge
+import SwiftUI
+
+/// The window's tabs, behind a glass bump on the page's right edge. Hovering
+/// the bump opens it into a panel listing the tabs, placed so the active tab
+/// is level with the pointer. Scrolling moves the panel under the pointer like
+/// a picker wheel, and lifting off selects the tab it settles on; clicking a
+/// tab selects it too.
+///
+/// This view takes the pointer and scroll events and keeps the model;
+/// TabPickerView draws it. It fills the window's height along its right
+/// edge, but only the bump (or the open panel) takes clicks.
+@MainActor
+final class TabPicker: NSView {
+  /// Room for the open panel and a little past it.
+  static let width = TabPickerModel.panelInset + TabPickerModel.panelWidth + 40
+
+  /// Called when the user picks a tab.
+  var onSelect: (Int) -> Void = { _ in }
+
+  private enum Metrics {
+    /// How far into the page the pointer opens the panel from.
+    static let hotZoneWidth: CGFloat = 14
+    /// How far the pointer can stray from the open panel before it closes.
+    static let panelSlop: CGFloat = 24
+    /// How long the pointer rests on the edge before the panel opens, so it
+    /// stays shut when the pointer crosses the edge to another window.
+    static let openDelay: TimeInterval = 0.07
+    /// How long the pointer can be away before the panel closes.
+    static let closeDelay: TimeInterval = 0.15
+    /// A scroll wheel (no trackpad phases) selects once it rests this long.
+    static let wheelSettleDelay: TimeInterval = 0.35
+    /// How far past lift-off a flick carries, in seconds of its velocity.
+    static let flickProjection: CGFloat = 0.12
+    /// Scrolling past the first or last tab stretches no further than this.
+    static let rubberBandLimit: CGFloat = 120
+  }
+
+  private let model = TabPickerModel()
+  private let hostingView: NSHostingView<TabPickerView>
+  private var openTimer: Timer?
+  private var closeTimer: Timer?
+  private var wheelSettleTimer: Timer?
+  /// The panel's unstretched top while the user scrolls.
+  private var scrollTop: CGFloat = 0
+  private var scrollSamples: [(time: TimeInterval, delta: CGFloat)] = []
+  /// From the first scroll event to settling. The panel can stretch out from
+  /// under the pointer meanwhile, and the rest of the gesture still comes here.
+  private var isScrolling = false
+  private var pressedTabID: Int?
+
+  override init(frame: NSRect) {
+    hostingView = NSHostingView(rootView: TabPickerView(model: model))
+    super.init(frame: frame)
+    hostingView.sizingOptions = []
+    // The model's coordinates are the view's, title bar included.
+    hostingView.safeAreaRegions = []
+    hostingView.frame = bounds
+    hostingView.autoresizingMask = [.width, .height]
+    addSubview(hostingView)
+    model.size = bounds.size
+    model.onToggle = { [weak self] in self?.toggle() }
+    model.onSelect = { [weak self] tabID in self?.pick(tabID) }
+    addTrackingArea(
+      NSTrackingArea(
+        rect: .zero,
+        options: [
+          .mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow,
+          .inVisibleRect,
+        ],
+        owner: self))
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
+    model.tabs = tabs
+    model.activeTabID = activeTabID
+    if tabs.isEmpty {
+      close()
+    }
+  }
+
+  /// Closes the panel, leaving the bump.
+  func close() {
+    openTimer?.invalidate()
+    closeTimer?.invalidate()
+    isScrolling = false
+    settleWheelNow()
+    guard model.isExpanded else {
+      return
+    }
+    withAnimation(.spring(duration: 0.3, bounce: 0)) {
+      model.isExpanded = false
+    }
+    model.highlightedTabID = nil
+  }
+
+  // MARK: Geometry (flipped: y grows down from the window's top)
+
+  override var isFlipped: Bool { true }
+
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+    model.size = newSize
+  }
+
+  private var hotZone: CGRect {
+    let bump = model.bumpRect
+    return CGRect(
+      x: bounds.width - Metrics.hotZoneWidth, y: bump.minY - 8,
+      width: Metrics.hotZoneWidth, height: bump.height + 16)
+  }
+
+  /// Where the pointer keeps the open panel open: around it, and between it
+  /// and the window's edge.
+  private var keepOpenZone: CGRect {
+    let panel = model.panelRect
+    let minX = panel.minX - Metrics.panelSlop
+    return CGRect(
+      x: minX, y: panel.minY - Metrics.panelSlop, width: bounds.width - minX,
+      height: panel.height + 2 * Metrics.panelSlop)
+  }
+
+  /// The range of panel tops that keeps a tab level with `y`.
+  private func panelTopRange(keepingRowAt y: CGFloat) -> ClosedRange<CGFloat> {
+    let last = max(model.tabs.count - 1, 0)
+    return (y - TabPickerLayout.rowCenter(last))...(y
+      - TabPickerLayout.rowCenter(0))
+  }
+
+  /// The row nearest `y` were the panel's top at `top`.
+  private func nearestRow(to y: CGFloat, panelTop top: CGFloat) -> Int {
+    let offset = (y - top - TabPickerLayout.rowCenter(0))
+    let row = Int((offset / TabPickerLayout.rowStep).rounded())
+    return min(max(row, 0), model.tabs.count - 1)
+  }
+
+  private func location(of event: NSEvent) -> CGPoint {
+    convert(event.locationInWindow, from: nil)
+  }
+
+  // MARK: Pointer
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    if isHidden {
+      return nil
+    }
+    let point = convert(point, from: superview)
+    let area =
+      isScrolling ? bounds : model.isExpanded ? panelHitRect : hotZone
+    return area.contains(point) ? self : nil
+  }
+
+  /// The open panel and the gutter between it and the window's edge, where
+  /// the pointer that opened it may still be.
+  private var panelHitRect: CGRect {
+    let panel = model.panelRect
+    return CGRect(
+      x: panel.minX, y: panel.minY, width: bounds.width - panel.minX,
+      height: panel.height)
+  }
+
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+    true
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    NotificationCenter.default.removeObserver(self)
+    guard let window else {
+      return
+    }
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(windowDidResignKey(_:)),
+      name: NSWindow.didResignKeyNotification, object: window)
+  }
+
+  @objc private func windowDidResignKey(_ notification: Notification) {
+    close()
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    pointerMoved(to: location(of: event))
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    pointerMoved(to: location(of: event))
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    openTimer?.invalidate()
+    if model.isExpanded {
+      scheduleClose()
+    }
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    let point = location(of: event)
+    guard model.isExpanded else {
+      open(anchoredAt: point.y)
+      return
+    }
+    pressedTabID = tab(at: point)?.tabID
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    defer { pressedTabID = nil }
+    guard model.isExpanded, let tabID = tab(at: location(of: event))?.tabID,
+      tabID == pressedTabID
+    else {
+      return
+    }
+    pick(tabID)
+  }
+
+  private func pointerMoved(to point: CGPoint) {
+    if model.isExpanded {
+      if keepOpenZone.contains(point) {
+        closeTimer?.invalidate()
+        highlightRow(at: point)
+      } else {
+        scheduleClose()
+      }
+    } else if hotZone.contains(point) {
+      scheduleOpen()
+    } else {
+      openTimer?.invalidate()
+    }
+  }
+
+  private func scheduleOpen() {
+    guard openTimer?.isValid != true else {
+      return
+    }
+    openTimer = Timer.scheduledTimer(
+      withTimeInterval: Metrics.openDelay, repeats: false
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self, let window = self.window else {
+          return
+        }
+        let point = self.convert(
+          window.mouseLocationOutsideOfEventStream, from: nil)
+        if self.hotZone.contains(point) {
+          self.open(anchoredAt: point.y)
+        }
+      }
+    }
+  }
+
+  private func scheduleClose() {
+    guard closeTimer?.isValid != true else {
+      return
+    }
+    closeTimer = Timer.scheduledTimer(
+      withTimeInterval: Metrics.closeDelay, repeats: false
+    ) { [weak self] _ in
+      MainActor.assumeIsolated { self?.close() }
+    }
+  }
+
+  /// Opens the panel with the active tab level with `y`.
+  private func open(anchoredAt y: CGFloat) {
+    openTimer?.invalidate()
+    guard !model.isExpanded, !model.tabs.isEmpty else {
+      return
+    }
+    let row =
+      model.tabs.firstIndex { $0.tabID == model.activeTabID } ?? 0
+    model.panelTop = y - TabPickerLayout.rowCenter(row)
+    model.highlightedTabID = model.tabs[row].tabID
+    withAnimation(.spring(duration: 0.42, bounce: 0.22)) {
+      model.isExpanded = true
+    }
+  }
+
+  /// For accessibility, which presses the bump rather than hovering it.
+  private func toggle() {
+    if model.isExpanded {
+      close()
+    } else {
+      open(anchoredAt: model.bumpRect.midY)
+    }
+  }
+
+  private func tab(at point: CGPoint) -> FiberTabState? {
+    let panel = model.panelRect
+    guard point.x >= panel.minX, point.x <= bounds.width else {
+      return nil
+    }
+    let offset = point.y - panel.minY - TabPickerLayout.contentInset
+    guard offset >= 0 else {
+      return nil
+    }
+    let row = Int(offset / TabPickerLayout.rowStep)
+    return model.tabs.indices.contains(row) ? model.tabs[row] : nil
+  }
+
+  /// Highlights the tab under `point`.
+  private func highlightRow(at point: CGPoint) {
+    let tabID = tab(at: point)?.tabID
+    guard tabID != model.highlightedTabID else {
+      return
+    }
+    model.highlightedTabID = tabID
+  }
+
+  private func pick(_ tabID: Int) {
+    if tabID != model.activeTabID {
+      onSelect(tabID)
+    }
+    close()
+  }
+
+  // MARK: Scrolling
+
+  override func scrollWheel(with event: NSEvent) {
+    guard model.isExpanded, !model.tabs.isEmpty else {
+      return
+    }
+    if event.hasPreciseScrollingDeltas {
+      trackpadScroll(event)
+    } else {
+      wheelScroll(event)
+    }
+  }
+
+  /// Moves the panel with the fingers, and on lift-off settles on the tab
+  /// nearest the pointer (carried a little further by a flick) and selects it.
+  private func trackpadScroll(_ event: NSEvent) {
+    // The panel settles at lift-off; it doesn't coast.
+    guard event.momentumPhase.isEmpty else {
+      return
+    }
+    let point = location(of: event)
+    switch event.phase {
+    case .mayBegin:
+      wheelSettleTimer?.invalidate()
+    case .began, .changed:
+      // A gesture that began over the page picks up from here.
+      if event.phase == .began || !isScrolling {
+        isScrolling = true
+        scrollTop = model.panelTop
+        scrollSamples = []
+      }
+      scrollBy(event, at: point)
+    case .ended, .cancelled:
+      if isScrolling {
+        settle(at: point)
+      }
+    case []:
+      // A precise device without phases: settle once it stops.
+      isScrolling = true
+      scrollTop = model.panelTop
+      scrollBy(event, at: point)
+      scheduleWheelSettle { [weak self] in self?.settle(at: point) }
+    default:
+      break
+    }
+  }
+
+  private func scrollBy(_ event: NSEvent, at point: CGPoint) {
+    scrollTop += event.scrollingDeltaY
+    scrollSamples.append((event.timestamp, event.scrollingDeltaY))
+    scrollSamples.removeAll { event.timestamp - $0.time > 0.1 }
+    model.panelTop = rubberBand(
+      scrollTop, in: panelTopRange(keepingRowAt: point.y))
+    // A tick on the trackpad as each tab comes under the pointer.
+    let previous = model.highlightedTabID
+    highlightRow(at: point)
+    if model.highlightedTabID != previous, model.highlightedTabID != nil {
+      NSHapticFeedbackManager.defaultPerformer.perform(
+        .alignment, performanceTime: .now)
+    }
+  }
+
+  private func settle(at point: CGPoint) {
+    var velocity: CGFloat = 0
+    if let first = scrollSamples.first, let last = scrollSamples.last {
+      let duration = max(last.time - first.time, 1.0 / 60)
+      velocity = scrollSamples.reduce(0) { $0 + $1.delta } / duration
+    }
+    isScrolling = false
+    scrollSamples = []
+    // Past either end, this springs back to the first or last tab.
+    let range = panelTopRange(keepingRowAt: point.y)
+    let projected = min(
+      max(model.panelTop + velocity * Metrics.flickProjection,
+        range.lowerBound), range.upperBound)
+    select(row: nearestRow(to: point.y, panelTop: projected), levelWith: point.y)
+  }
+
+  /// A notched wheel moves one tab per notch, and selects once it rests.
+  private func wheelScroll(_ event: NSEvent) {
+    guard event.scrollingDeltaY != 0 else {
+      return
+    }
+    let point = location(of: event)
+    let current =
+      model.tabs.firstIndex { $0.tabID == model.highlightedTabID }
+      ?? nearestRow(to: point.y, panelTop: model.panelTop)
+    let row = min(
+      max(current + (event.scrollingDeltaY > 0 ? -1 : 1), 0),
+      model.tabs.count - 1)
+    withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
+      model.panelTop = point.y - TabPickerLayout.rowCenter(row)
+    }
+    model.highlightedTabID = model.tabs[row].tabID
+    scheduleWheelSettle { [weak self] in
+      self?.select(row: row, levelWith: point.y)
+    }
+  }
+
+  private var wheelSettle: (() -> Void)?
+
+  private func scheduleWheelSettle(_ settle: @escaping () -> Void) {
+    wheelSettle = settle
+    wheelSettleTimer?.invalidate()
+    wheelSettleTimer = Timer.scheduledTimer(
+      withTimeInterval: Metrics.wheelSettleDelay, repeats: false
+    ) { [weak self] _ in
+      MainActor.assumeIsolated { self?.settleWheelNow() }
+    }
+  }
+
+  private func settleWheelNow() {
+    wheelSettleTimer?.invalidate()
+    let settle = wheelSettle
+    wheelSettle = nil
+    settle?()
+  }
+
+  /// Slides the panel so `row` is level with `y`, and selects its tab.
+  private func select(row: Int, levelWith y: CGFloat) {
+    guard model.tabs.indices.contains(row) else {
+      return
+    }
+    let tabID = model.tabs[row].tabID
+    withAnimation(.spring(duration: 0.35, bounce: 0.18)) {
+      model.panelTop = y - TabPickerLayout.rowCenter(row)
+    }
+    model.highlightedTabID = tabID
+    if tabID != model.activeTabID {
+      onSelect(tabID)
+    }
+  }
+
+  /// `value` clamped to `range`, except that it stretches a little past it
+  /// with growing resistance.
+  private func rubberBand(_ value: CGFloat, in range: ClosedRange<CGFloat>)
+    -> CGFloat
+  {
+    func stretch(_ distance: CGFloat) -> CGFloat {
+      let limit = Metrics.rubberBandLimit
+      return (1 - 1 / (distance * 0.55 / limit + 1)) * limit
+    }
+    if value < range.lowerBound {
+      return range.lowerBound - stretch(range.lowerBound - value)
+    }
+    if value > range.upperBound {
+      return range.upperBound + stretch(value - range.upperBound)
+    }
+    return value
+  }
+}
+
+/// The open panel's layout, shared by the picker's hit testing and drawing.
+enum TabPickerLayout {
+  static let rowHeight: CGFloat = 34
+  static let rowSpacing: CGFloat = 2
+  static var rowStep: CGFloat { rowHeight + rowSpacing }
+  /// From the panel's edge to its rows: the glass's rim and a little more.
+  static let contentInset: CGFloat = 10
+
+  /// The center of row `row`, from the panel's top.
+  static func rowCenter(_ row: Int) -> CGFloat {
+    contentInset + CGFloat(row) * rowStep + rowHeight / 2
+  }
+
+  static func panelHeight(rows: Int) -> CGFloat {
+    2 * contentInset + CGFloat(max(rows, 1)) * rowStep - rowSpacing
+  }
+}
+
+@MainActor
+@Observable
+final class TabPickerModel {
+  var tabs: [FiberTabState] = []
+  var activeTabID = 0
+  var isExpanded = false
+  /// The open panel's top, in the picker's (flipped) coordinates.
+  var panelTop: CGFloat = 0
+  /// The tab under the pointer, or where scrolling has brought the panel.
+  var highlightedTabID: Int?
+  /// The picker's size, which places the bump.
+  var size: CGSize = .zero
+  @ObservationIgnored var onToggle: () -> Void = {}
+  @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
+
+  /// The bump is a capsule this wide, centered on the window's edge.
+  static let bumpWidth: CGFloat = 16
+  static let panelInset: CGFloat = 10
+  static let panelWidth: CGFloat = 264
+
+  /// A capsule centered on the window's edge, a third of its height.
+  var bumpRect: CGRect {
+    let height = max(size.height / 3, 60)
+    return CGRect(
+      x: size.width - Self.bumpWidth / 2, y: ((size.height - height) / 2).rounded(),
+      width: Self.bumpWidth, height: height)
+  }
+
+  var panelRect: CGRect {
+    CGRect(
+      x: size.width - Self.panelInset - Self.panelWidth, y: panelTop,
+      width: Self.panelWidth,
+      height: TabPickerLayout.panelHeight(rows: tabs.count))
+  }
+}

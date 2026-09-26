@@ -70,6 +70,12 @@ WindowOpenDisposition DispositionFromEvent(NSEvent* event) {
   }
 }
 
+- (void)selectTabWithID:(NSInteger)tabID {
+  if (_owner) {
+    _owner->SelectTab(static_cast<int32_t>(tabID));
+  }
+}
+
 - (void)windowShouldClose {
   if (_owner) {
     _owner->OnWindowCloseRequested();

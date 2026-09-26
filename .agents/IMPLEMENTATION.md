@@ -46,7 +46,7 @@ chrome/ content/ components/
 |---|---|---|---|
 | `browser/` | C++ (`.mm` only where it calls the bridge) | Implements Chrome's interfaces (`BrowserWindow`, `LocationBar`, dialog views…), watches Chrome's models, and owns Fiber's own per-profile models. | Creates or lays out views. |
 | `bridge/` | Objective-C headers | Declares the protocols and immutable value types the other two layers talk through. | Mentions C++ or Chromium. |
-| `ui/` | Swift | Windows, toolbar, tabs, omnibox, dialogs, design system. | Imports anything except the bridge and Apple frameworks. |
+| `ui/` | Swift | Windows, toolbar, tab picker, omnibox, dialogs, design system. | Imports anything except the bridge and Apple frameworks. |
 
 `browser/` is only there because Chrome's extension points are C++ classes with
 virtual methods, and Swift can't subclass C++ classes. It translates between
@@ -166,7 +166,9 @@ of its build; Fiber already needs them for Swift.
   `@available`. The linker rejects objects built for a newer macOS than the image
   it's linking, so everything that links Swift (`libchrome_dll`, the app and its
   helpers) is linked for 26.0, through a config (`//fiber/build:swift_link`)
-  that Swift targets pass to their dependents.
+  that Swift targets pass to their dependents. The same config tells lld to
+  skip SwiftUI's auto-link of `CoreAudioTypes`, a headers-only framework that
+  Chromium's `--strict-auto-link` would otherwise fail on.
 - swiftc's module cache is kept between builds (`swift_keep_intermediate_files`).
   A one-line Swift change rebuilds and relinks in about 11 seconds.
 - `ui/Package.swift` compiles the same sources with SwiftPM so Xcode can open
@@ -208,14 +210,43 @@ dist/                make dist output, not tracked
 ## Status
 
 The layers, build, and layout above are in place. Swift builds in GN and links
-into the component build. The window (toolbar, location field, load progress,
-status bubble) and the JavaScript dialogs are Swift behind the bridge, with the
-same behavior as the Objective-C++ they replaced, and `FiberUIHarness` runs them
-against a mock browser. Two things aren't yet as described:
+into the component build, and `FiberUIHarness` runs the UI against a mock
+browser.
 
-- The window applies the snapshots it's pushed straight to its AppKit views;
-  `@Observable` models arrive with the first SwiftUI surface.
-- Only the active tab's state crosses the bridge (`FiberPageState`). Tabs, keyed
-  by stable IDs, come with the tab strip.
+The page fills the whole window, title bar included, and the browser's
+controls float over it in Liquid Glass, mostly out of sight:
+
+- **Toolbar** (`ui/Toolbar.swift`), hidden until View > Show Toolbar
+  (Command-S; Save Page As moves to Shift-Command-S). A row of capsules level
+  with the traffic lights: the traffic lights' own, an address capsule
+  (back/forward, location field, reload), and a placeholder for menus and
+  extensions. Command-L with the toolbar hidden shows it just while the
+  location field has focus. The traffic lights otherwise stay hidden until the
+  pointer nears them. `browser/window/fiber_main_menu.mm` adds the menu item
+  to Chrome's main menu; the window handles `-toggleToolbarShown:`.
+- **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): a
+  half-capsule bump on the right edge, a third of the window tall. Hovering it
+  morphs it into a panel listing the tabs, placed so the active tab is level
+  with the pointer. Scrolling moves the panel under the pointer like a picker
+  wheel, and lifting off selects the tab that settles there; clicking selects
+  too. AppKit takes all the input; SwiftUI draws, over an `@Observable` model.
+
+The page gets clicks under the title bar but never moves the window (a
+one-line patch to Chromium's web view, which otherwise asks to be draggable
+there); the capsules do. AppKit has no public API to move the traffic lights,
+so `ui/WindowFrame.swift` subclasses its private frame view the way Chrome's
+own windows do (`BrowserWindowFrame`); check it still works on each macOS
+release. Tabs cross the bridge as `FiberTabState` snapshots keyed by Chrome's
+tab handle; there's no close button, so Command-W (Chrome's Close Tab) closes
+them. The load progress bar, status bubble, and JavaScript dialogs are Swift
+behind the bridge too. `make harness` runs all of it against the mock browser;
+`swift run --package-path core/ui FiberUIHarness --tabs 20` starts with 20
+tabs.
+Not yet as described:
+
+- The rest of the window applies the snapshots it's pushed straight to its
+  AppKit views; only the tab picker has a model.
+- The tab picker shows `TabStripModel` directly; Fiber's own tab model comes with
+  spaces.
 
 Next: features.
