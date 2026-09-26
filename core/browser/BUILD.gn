@@ -1,29 +1,57 @@
 assert(is_mac)
 
-# Fiber's browser-process code. Linked into //chrome/browser:core (see
-# patches/chromium/chrome-browser-BUILD.gn.patch), so it must not depend on
-# //chrome/browser or :core itself.
+# Fiber's integration with Chrome: implementations of Chrome's UI interfaces
+# that drive Fiber's own UI (//fiber/ui) through //fiber/bridge. Like
+# //chrome/browser/ui/webui_browser:impl, it's linked from
+# //chrome/browser:browser (see patches/chromium/chrome-browser-BUILD.gn.patch)
+# and uses //chrome/browser headers through browser_public_dependencies.
+#
+#   hooks/    the functions Fiber's Chromium patches call
+#   window/   BrowserWindow and the stubs it needs
+#   dialogs/  dialogs Chrome shows for a tab
 source_set("browser") {
   sources = [
-    "fiber_browser_main_extra_parts.h",
-    "fiber_browser_main_extra_parts.mm",
-    "fiber_location_field.h",
-    "fiber_location_field.mm",
-    "fiber_window.h",
-    "fiber_window.mm",
-    "fiber_window_controller.h",
-    "fiber_window_controller.mm",
+    "dialogs/fiber_javascript_dialog_view.h",
+    "dialogs/fiber_javascript_dialog_view.mm",
+    "hooks/browser_window_factory.h",
+    "hooks/browser_window_factory.mm",
+    "hooks/javascript_dialog_factory.h",
+    "hooks/javascript_dialog_factory.mm",
+    "window/fiber_browser_window.h",
+    "window/fiber_browser_window.mm",
+    "window/fiber_browser_window_actions.h",
+    "window/fiber_browser_window_actions.mm",
+    "window/fiber_location_bar.h",
+    "window/fiber_location_bar.mm",
   ]
   deps = [
     "//base",
     "//chrome/app:command_ids",
-    "//chrome/browser:main_extra_parts",
+    "//chrome/browser:browser_public_dependencies",
+    "//chrome/browser:global_keyboard_shortcuts_mac",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/profiles/keep_alive",
+    "//chrome/browser/themes",
+    "//chrome/browser/ui:browser_window_state",
+    "//chrome/browser/ui/browser_active_state_manager",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/exclusive_access",
+    "//chrome/browser/ui/find_bar",
+    "//chrome/browser/ui/location_bar",
+    "//chrome/browser/ui/tabs:tabs_public",
     "//components/input",
+    "//components/javascript_dialogs",
+    "//components/omnibox/browser",
+    "//components/tabs:public",
     "//components/url_formatter",
     "//content/public/browser",
+    "//fiber/bridge",
+    "//fiber/ui",
+    "//third_party/metrics_proto",
     "//ui/base",
+    "//ui/color",
+    "//ui/gfx",
+    "//ui/native_theme",
+    "//ui/strings",
     "//url",
   ]
   frameworks = [ "AppKit.framework" ]

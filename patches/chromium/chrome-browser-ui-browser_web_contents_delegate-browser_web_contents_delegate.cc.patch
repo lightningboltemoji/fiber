@@ -1,0 +1,38 @@
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index d3fa7eea6d..a747bffe08 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -800,6 +800,14 @@ void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
+                                                  const GURL& url) {
+   std::vector<StatusBubble*> status_bubbles =
+       browser_ui_controller_->GetStatusBubbles();
++  // Fiber: only views windows have StatusBubbleViews, one per contents view.
++  // Other windows have a single bubble for the active tab.
++  if (!window_->AsBrowserView()) {
++    for (StatusBubble* status_bubble : status_bubbles) {
++      status_bubble->SetURL(url);
++    }
++    return;
++  }
+   for (StatusBubble* status_bubble : status_bubbles) {
+     StatusBubbleViews* status_bubble_views =
+         static_cast<StatusBubbleViews*>(status_bubble);
+@@ -827,6 +835,18 @@ void BrowserWebContentsDelegate::ContentsMouseEvent(
+   // Mouse motion events update the status bubble, if it exists.
+   std::vector<StatusBubble*> status_bubbles =
+       browser_ui_controller_->GetStatusBubbles();
++  // Fiber: see UpdateTargetURL().
++  if (!window_->AsBrowserView()) {
++    for (StatusBubble* status_bubble : status_bubbles) {
++      if (type == ui::EventType::kMouseMoved || exited) {
++        status_bubble->MouseMoved(exited);
++      }
++      if (exited) {
++        status_bubble->SetURL(GURL());
++      }
++    }
++    return;
++  }
+   for (StatusBubble* status_bubble : status_bubbles) {
+     StatusBubbleViews* status_bubble_views =
+         static_cast<StatusBubbleViews*>(status_bubble);

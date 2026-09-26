@@ -1,0 +1,24 @@
+diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
+index 8a60d7061b..11bbac4bf1 100644
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -661,14 +661,17 @@ if (is_win) {
+     }
+   }
+ 
++  # Fiber: Fiber's icon, compiled by //fiber/branding:app_icon.
+   bundle_data("chrome_app_icon") {
+-    sources = [ "app/theme/$branding_path_component/mac/app.icns" ]
++    sources = [ "$root_gen_dir/fiber/branding/app.icns" ]
+     outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
++    public_deps = [ "//fiber/branding:app_icon" ]
+   }
+ 
+   bundle_data("chrome_asset_catalog") {
+-    sources = [ "app/theme/$branding_path_component/mac/Assets.car" ]
++    sources = [ "$root_gen_dir/fiber/branding/Assets.car" ]
+     outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
++    public_deps = [ "//fiber/branding:app_icon" ]
+   }
+ 
+   bundle_data("chrome_resources") {

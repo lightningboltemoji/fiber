@@ -1,24 +1,17 @@
 # Fiber
 
-A Chromium-based browser for macOS with its own native UI.
-
-## Layout
-
-| Path | What |
-|---|---|
-| `CHROMIUM_VERSION` | Chromium release tag we build against (a stable release). |
-| `core/` | Fiber's own browser code. Linked into the Chromium tree as `//fiber`. |
-| `patches/chromium/` | Our edits to Chromium files, one patch per file. |
-| `scripts/` | Sync, patch, build, and run helpers. |
-| `chromium/` | gclient checkout (`chromium/src`), not tracked. |
-| `depot_tools/` | Chromium's tooling, not tracked. |
-
-## Workflow
+## Development
 
 ```sh
-scripts/sync_chromium.sh    # fetch Chromium at CHROMIUM_VERSION (~31GB), apply patches
-scripts/build_chromium.sh   # configure out/Default and build (first build: hours)
-scripts/run.sh [url]        # launch with a dev profile in chromium/dev-profile
+make sync       # fetch Chromium at CHROMIUM_VERSION (~31GB), apply patches
+make build      # configure out/Default and build (first build: hours)
+make run        # launch with a dev profile in chromium/dev-profile (URL=… to open a page)
+make harness    # just the UI, against a mock browser, without Chromium
+make patches    # regenerate patches/chromium/ from edits in chromium/src
+make icon       # regenerate the app icon (core/branding/icon)
+
+make dist       # self-contained dist/Fiber.app from out/Release, plus a zip
+make install    # the same app, into /Applications
 ```
 
 After editing a file under `chromium/src`, run `scripts/update_patches.sh` to regenerate `patches/chromium/`. Put new code in `core/` rather than adding files to the Chromium tree.

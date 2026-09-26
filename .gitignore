@@ -2,4 +2,11 @@
 /chromium/
 /depot_tools/
 
+# make app / make dist output
+/dist/
+
 .DS_Store
+
+# SwiftPM build products for core/ui (see core/ui/Package.swift)
+/core/ui/.build/
+/core/ui/.swiftpm/

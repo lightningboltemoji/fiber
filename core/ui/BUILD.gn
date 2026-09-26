@@ -1,0 +1,18 @@
+import("//fiber/build/swift.gni")
+
+# Everything the user sees, in Swift. It talks to //fiber/browser only through
+# //fiber/bridge. Package.swift builds the same sources with SwiftPM, along
+# with the FiberUIHarness app.
+fiber_swift_source_set("ui") {
+  module_name = "FiberUI"
+  sources = [
+    "Sources/FiberUI/BrowserWindowController.swift",
+    "Sources/FiberUI/JavaScriptDialog.swift",
+    "Sources/FiberUI/LoadProgressBar.swift",
+    "Sources/FiberUI/LocationField.swift",
+    "Sources/FiberUI/PageState.swift",
+    "Sources/FiberUI/StatusBubble.swift",
+  ]
+  deps = [ "//fiber/bridge" ]
+  frameworks = [ "AppKit.framework" ]
+}

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Configure (first run only) and build Fiber into chromium/src/out/<dir>.
 # Usage: [JOBS=n] scripts/build_chromium.sh [out_dir_name] [target]
+#   out/Release is the self-contained build `make app` packages; any other out
+#   dir gets the dev config.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,19 +24,29 @@ fi
 
 cd "$ROOT/chromium/src"
 
-# Fiber's own args (core/build/args.gni), then a fast-iteration dev config:
-# release codegen (DCHECKs stay on by default in non-official builds), many
-# small dylibs for quick incremental links, and no debug symbols. Edit
-# $OUT/args.gn afterwards and re-run to change the local part.
+# Fiber's own args (core/build/args.gni), then the local config. Both use
+# release codegen and no debug symbols. The dev config is a component build:
+# many small dylibs for quick incremental links, and DCHECKs on (the default in
+# non-official builds). out/Release puts everything in the one framework, so
+# the app runs outside the out dir, and turns DCHECKs off, since a failed one
+# crashes the browser. Edit $OUT/args.gn afterwards and re-run to change the
+# local part.
 if [[ ! -f "$OUT/args.gn" ]]; then
-  gn gen "$OUT" --args='
-    import("//fiber/build/args.gni")
-    is_debug = false
-    is_component_build = true
+  if [[ "$OUT" == out/Release ]]; then
+    config='
+    is_component_build = false
+    dcheck_always_on = false'
+  else
+    config='
+    is_component_build = true'
+  fi
+  gn gen "$OUT" --args="
+    import(\"//fiber/build/args.gni\")
+    is_debug = false$config
     symbol_level = 0
     blink_symbol_level = 0
     v8_symbol_level = 0
-  '
+  "
 fi
 
 # Each Blink generate_bindings action spawns a cpu_count() multiprocessing pool
@@ -43,3 +55,11 @@ fi
 autoninja -C "$OUT" -j 2 third_party/blink/renderer/bindings:generate_bindings_all
 
 autoninja -C "$OUT" -j "$JOBS" "$TARGET"
+
+# Bump the bundle's mtime, as Xcode does after every build. Ninja only rewrites
+# files inside Fiber.app, so the bundle keeps the mtime of its first build, and
+# LaunchServices and the Dock treat that as the key for their cached app icon:
+# without this, a changed icon never reaches the Dock.
+if [[ -d "$OUT/Fiber.app" ]]; then
+  touch "$OUT/Fiber.app"
+fi

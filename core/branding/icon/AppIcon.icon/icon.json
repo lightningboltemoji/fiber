@@ -1,0 +1,122 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "srgb:1.00000,1.00000,1.00000,1.00000",
+          "srgb:0.88627,0.90588,0.93725,1.00000"
+        ]
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": "system-dark"
+    }
+  ],
+  "groups": [
+    {
+      "blend-mode": "normal",
+      "blur-material": null,
+      "hidden": false,
+      "layers": [
+        {
+          "blend-mode": "normal",
+          "glass": true,
+          "hidden": false,
+          "image-name": "dragline.svg",
+          "name": "dragline",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "opacity": 1.0
+        }
+      ],
+      "lighting": "individual",
+      "opacity": 1.0,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.55
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.1
+      }
+    },
+    {
+      "blend-mode": "normal",
+      "blur-material": null,
+      "hidden": false,
+      "layers": [
+        {
+          "blend-mode": "normal",
+          "glass": true,
+          "hidden": false,
+          "image-name": "fibrils.svg",
+          "name": "fibrils",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "opacity": 0.96
+        }
+      ],
+      "lighting": "individual",
+      "opacity": 1.0,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.4
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.15
+      }
+    },
+    {
+      "blend-mode": "normal",
+      "blur-material": null,
+      "hidden": false,
+      "layers": [
+        {
+          "blend-mode": "normal",
+          "glass": true,
+          "hidden": false,
+          "image-name": "web.svg",
+          "name": "web",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          },
+          "opacity": 0.9
+        }
+      ],
+      "lighting": "individual",
+      "opacity": 1.0,
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.25
+      },
+      "specular": true,
+      "translucency": {
+        "enabled": true,
+        "value": 0.45
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

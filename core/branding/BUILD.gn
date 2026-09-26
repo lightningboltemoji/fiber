@@ -1,0 +1,32 @@
+import("//build/config/mac/mac_sdk.gni")
+
+assert(is_mac)
+
+# Fiber's app icon, compiled from icon/AppIcon.icon (and the document badge in
+# icon/Assets.xcassets) into the Assets.car and app.icns that the app and its
+# alert helpers bundle in place of Chromium's (see
+# patches/chromium/chrome-BUILD.gn.patch). icon/build.py generates both.
+action("app_icon") {
+  script = "compile_icon.py"
+  inputs = [
+    "icon/AppIcon.icon/icon.json",
+    "icon/Assets.xcassets/Contents.json",
+  ]
+  outputs = [
+    "$target_gen_dir/Assets.car",
+    "$target_gen_dir/app.icns",
+  ]
+
+  # Lists every file in the two packages, which icon/build.py may rename.
+  depfile = "$target_gen_dir/app_icon.d"
+  args = [
+    "--output-dir",
+    rebase_path(target_gen_dir, root_build_dir),
+    "--minimum-deployment-target",
+    mac_min_system_version,
+    "--depfile",
+    rebase_path(depfile, root_build_dir),
+    rebase_path("icon/AppIcon.icon", root_build_dir),
+    rebase_path("icon/Assets.xcassets", root_build_dir),
+  ]
+}

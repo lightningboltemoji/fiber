@@ -1,0 +1,21 @@
+assert(is_mac)
+
+config("include_dir") {
+  # For #import "FiberBridge/…" from //fiber/browser, and so swiftc finds
+  # include/module.modulemap for `import FiberBridge` in //fiber/ui.
+  include_dirs = [ "include" ]
+}
+
+# The contract between //fiber/browser and //fiber/ui (see
+# include/FiberBridge/FiberBridge.h). Headers only; //fiber/ui implements the
+# classes declared here.
+source_set("bridge") {
+  public = [
+    "include/FiberBridge/FiberBridge.h",
+    "include/FiberBridge/FiberJavaScriptDialog.h",
+    "include/FiberBridge/FiberPageState.h",
+    "include/FiberBridge/FiberWindow.h",
+  ]
+  public_configs = [ ":include_dir" ]
+  frameworks = [ "AppKit.framework" ]
+}

@@ -1,0 +1,18 @@
+diff --git a/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc b/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
+index 6ed2b6e24b..10e3cf2e3f 100644
+--- a/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
++++ b/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
+@@ -264,11 +264,8 @@ void ReadAnythingSidePanelController::TabWillDetach(
+   // changes.
+   if (!side_panel_ui) {
+     // TODO(webium): create a SidePanelCoordinator for WebUIBrowser.
+-    // This is a temporary solution to avoid a crash.
+-    if (!webui_browser::IsWebUIBrowserEnabled()) {
+-      CHECK_IS_TEST();
+-    }
+-    return;  // IN-TEST
++    // Fiber: Fiber windows don't have a side panel either.
++    return;
+   }
+ 
+   SidePanelEntry::Key read_anything_key(SidePanelEntry::Id::kReadAnything);

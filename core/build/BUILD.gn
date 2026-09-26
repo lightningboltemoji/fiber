@@ -1,0 +1,36 @@
+import("//build/config/sysroot.gni")
+
+assert(is_mac)
+
+# Flags for Fiber's Swift modules (see swift.gni): macOS 26, Swift 6 language
+# mode, and the SDK the rest of the build uses. Chromium's toolchain runs
+# Xcode's swiftc.
+config("swift") {
+  if (current_cpu == "arm64") {
+    _arch = "arm64"
+  } else {
+    _arch = "x86_64"
+  }
+  swiftflags = [
+    "-target",
+    "$_arch-apple-macos$mac_min_system_version",
+    "-sdk",
+    rebase_path(sysroot, root_build_dir),
+    "-swift-version",
+    "6",
+  ]
+  if (!is_debug) {
+    swiftflags += [ "-O" ]
+  }
+}
+
+# Applies to everything that links Swift code. The linker rejects objects
+# built for a newer macOS than the image it's linking, so those images are
+# linked for macOS 26 too. This comes after Chromium's own
+# -mmacos-version-min, and the last one wins.
+config("swift_link") {
+  ldflags = [ "-mmacos-version-min=$mac_min_system_version" ]
+
+  # The Swift runtime ships with macOS; the SDK has its link stubs.
+  lib_dirs = [ "$sysroot/usr/lib/swift" ]
+}

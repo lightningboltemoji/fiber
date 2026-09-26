@@ -1,0 +1,26 @@
+diff --git a/build/toolchain/apple/toolchain.gni b/build/toolchain/apple/toolchain.gni
+index a1d061b810..0deab74947 100644
+--- a/build/toolchain/apple/toolchain.gni
++++ b/build/toolchain/apple/toolchain.gni
+@@ -766,7 +766,9 @@ template("single_apple_toolchain") {
+     # Swift is only used on iOS, not macOS. We want to minimize the number
+     # of Xcode-based tools used by the macOS toolchain, so we intentionally
+     # disallow future uses of Swift on macOS. https://crbug.com/965663.
+-    if (toolchain_args.current_os == "ios") {
++    # Fiber: except for Fiber's UI (//fiber/ui).
++    if (toolchain_args.current_os == "ios" ||
++        toolchain_args.current_os == "mac") {
+       tool("swift") {
+         _tool = rebase_path("//build/toolchain/apple/swiftc.py", root_build_dir)
+ 
+@@ -850,7 +852,9 @@ template("single_apple_toolchain") {
+           _env_vars += " XCODE_VERSION=${toolchain_args.xcode_build}"
+         }
+ 
+-        if (invoker.sdk_developer_dir != "") {
++        # Fiber: only iOS toolchains set sdk_developer_dir.
++        if (defined(invoker.sdk_developer_dir) &&
++            invoker.sdk_developer_dir != "") {
+           _env_vars += " DEVELOPER_DIR=${toolchain_args.sdk_developer_dir}"
+         }
+ 

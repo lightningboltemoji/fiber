@@ -1,0 +1,15 @@
+diff --git a/chrome/browser/ui/toasts/toast_controller.cc b/chrome/browser/ui/toasts/toast_controller.cc
+index fe034ae01f..76e8418857 100644
+--- a/chrome/browser/ui/toasts/toast_controller.cc
++++ b/chrome/browser/ui/toasts/toast_controller.cc
+@@ -321,9 +321,7 @@ void ToastController::CreateToast(ToastParams params,
+   if (!anchor_view) {
+     // Don't actually create the toast in unit tests
+     // TODO(webium): show toast in webui browser.
+-    if (!webui_browser::IsWebUIBrowserEnabled()) {
+-      CHECK_IS_TEST();
+-    }
++    // Fiber: or in Fiber windows, which have no views to anchor it to.
+     return;
+   }
+ 

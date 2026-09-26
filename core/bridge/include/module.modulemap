@@ -1,0 +1,4 @@
+module FiberBridge {
+  umbrella header "FiberBridge/FiberBridge.h"
+  export *
+}

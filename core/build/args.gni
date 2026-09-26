@@ -4,3 +4,13 @@
 # Product name, bundle ID, and company. The app bundle, helpers, and framework
 # are named after PRODUCT_FULLNAME.
 branding_file_path = "//fiber/branding/BRANDING"
+
+# Fiber runs on macOS 26 and later. This is the app's LSMinimumSystemVersion
+# and the target of Fiber's Swift code (see //fiber/build:swift). Chromium's
+# C++ still compiles against its own mac_deployment_target, since raising that
+# would turn up deprecations all over Chromium.
+mac_min_system_version = "26.0"
+
+# Keep swiftc's module cache between builds, so an incremental build of
+# //fiber/ui doesn't rebuild the SDK's modules (AppKit, SwiftUI…) every time.
+swift_keep_intermediate_files = true

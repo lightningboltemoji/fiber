@@ -1,0 +1,28 @@
+diff --git a/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc b/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc
+index c20742813e..dbe62ac7bc 100644
+--- a/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc
++++ b/chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.cc
+@@ -906,7 +906,10 @@ void NewTabPageHandler::UpdateFooterVisibility() {
+ 
+   auto* footer_controller =
+       new_tab_footer::NewTabFooterController::From(browser);
+-  CHECK(footer_controller);
++  // Fiber: the footer is views UI, so Fiber windows don't have one.
++  if (!footer_controller) {
++    return;
++  }
+   OnFooterVisibilityUpdated(footer_controller->GetFooterVisible(web_contents_));
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ }
+@@ -1236,7 +1239,10 @@ void NewTabPageHandler::OnBrowserWindowInterfaceChanged() {
+ 
+   auto* footer_controller =
+       new_tab_footer::NewTabFooterController::From(browser);
+-  CHECK(footer_controller);
++  // Fiber: the footer is views UI, so Fiber windows don't have one.
++  if (!footer_controller) {
++    return;
++  }
+   footer_controller_observation_.Observe(footer_controller);
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ }
