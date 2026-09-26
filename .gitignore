@@ -1,0 +1,5 @@
+# Chromium checkout (gclient root) and depot_tools are fetched, not tracked
+/chromium/
+/depot_tools/
+
+.DS_Store

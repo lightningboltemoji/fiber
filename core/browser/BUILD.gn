@@ -1,0 +1,26 @@
+assert(is_mac)
+
+# Fiber's browser-process code. Linked into //chrome/browser:core (see
+# patches/chromium/chrome-browser-BUILD.gn.patch), so it must not depend on
+# //chrome/browser or :core itself.
+source_set("browser") {
+  sources = [
+    "fiber_browser_main_extra_parts.h",
+    "fiber_browser_main_extra_parts.mm",
+    "fiber_window.h",
+    "fiber_window.mm",
+  ]
+  deps = [
+    "//base",
+    "//chrome/app:command_ids",
+    "//chrome/browser:main_extra_parts",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/profiles/keep_alive",
+    "//components/input",
+    "//components/url_formatter",
+    "//content/public/browser",
+    "//ui/base",
+    "//url",
+  ]
+  frameworks = [ "AppKit.framework" ]
+}
