@@ -1,0 +1,6 @@
+# GN args every Fiber build needs. Each out dir's args.gn imports this before
+# its own local settings (see scripts/build_chromium.sh).
+
+# Product name, bundle ID, and company. The app bundle, helpers, and framework
+# are named after PRODUCT_FULLNAME.
+branding_file_path = "//fiber/branding/BRANDING"

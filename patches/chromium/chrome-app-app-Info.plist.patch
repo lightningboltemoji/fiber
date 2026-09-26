@@ -1,0 +1,13 @@
+diff --git a/chrome/app/app-Info.plist b/chrome/app/app-Info.plist
+index 6fada0a2b1..b3d3084e6a 100644
+--- a/chrome/app/app-Info.plist
++++ b/chrome/app/app-Info.plist
+@@ -157,6 +157,8 @@
+ 	<string>6.0</string>
+ 	<key>CFBundleName</key>
+ 	<string>${CHROMIUM_SHORT_NAME}</string>
++	<key>CrProductDirName</key>
++	<string>${CHROMIUM_SHORT_NAME}</string>
+ 	<key>CFBundlePackageType</key>
+ 	<string>APPL</string>
+ 	<key>CFBundleSignature</key>

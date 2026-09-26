@@ -8,6 +8,7 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "content/public/browser/web_contents_delegate.h"
+#include "content/public/browser/web_contents_observer.h"
 
 @class FiberWindowController;
 class GURL;
@@ -16,8 +17,10 @@ class Profile;
 namespace fiber {
 
 // A top-level Fiber browser window: native AppKit chrome around a single
-// WebContents. Owns itself and is deleted after its NSWindow closes.
-class FiberWindow : public content::WebContentsDelegate {
+// WebContents. Owns itself and is deleted after its NSWindow closes. The
+// WebContents is available through WebContentsObserver::web_contents().
+class FiberWindow : public content::WebContentsDelegate,
+                    public content::WebContentsObserver {
  public:
   // Opens a window with a new WebContents, navigated to `url` if valid.
   static FiberWindow* Create(Profile* profile, const GURL& url);
@@ -32,13 +35,12 @@ class FiberWindow : public content::WebContentsDelegate {
   FiberWindow(const FiberWindow&) = delete;
   FiberWindow& operator=(const FiberWindow&) = delete;
 
-  content::WebContents* web_contents() const { return web_contents_.get(); }
-
   // Toolbar and menu actions, called by FiberWindowController.
   void NavigateToInput(const std::string& input);
   void GoBack();
   void GoForward();
   void ReloadOrStop();
+  void FocusWebContents();
   void NewWindow();
   void Close();
 
@@ -66,6 +68,10 @@ class FiberWindow : public content::WebContentsDelegate {
   void CloseContents(content::WebContents* source) override;
   bool HandleKeyboardEvent(content::WebContents* source,
                            const input::NativeWebKeyboardEvent& event) override;
+  void UpdateTargetURL(content::WebContents* source, const GURL& url) override;
+
+  // content::WebContentsObserver:
+  void LoadProgressChanged(double progress) override;
 
  private:
   FiberWindow(Profile* profile,
@@ -74,6 +80,7 @@ class FiberWindow : public content::WebContentsDelegate {
 
   void LoadURL(const GURL& url);
   void UpdateToolbar();
+  void UpdateLoadProgress();
   void Destroy();
 
   raw_ptr<Profile> profile_;

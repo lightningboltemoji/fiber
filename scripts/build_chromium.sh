@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Configure (first run only) and build stock Chromium into chromium/src/out/<dir>.
+# Configure (first run only) and build Fiber into chromium/src/out/<dir>.
 # Usage: [JOBS=n] scripts/build_chromium.sh [out_dir_name] [target]
 set -euo pipefail
 
@@ -22,11 +22,13 @@ fi
 
 cd "$ROOT/chromium/src"
 
-# Fast-iteration dev config: release codegen (DCHECKs stay on by default in
-# non-official builds), many small dylibs for quick incremental links, and no
-# debug symbols. Edit $OUT/args.gn afterwards and re-run to change it.
+# Fiber's own args (core/build/args.gni), then a fast-iteration dev config:
+# release codegen (DCHECKs stay on by default in non-official builds), many
+# small dylibs for quick incremental links, and no debug symbols. Edit
+# $OUT/args.gn afterwards and re-run to change the local part.
 if [[ ! -f "$OUT/args.gn" ]]; then
   gn gen "$OUT" --args='
+    import("//fiber/build/args.gni")
     is_debug = false
     is_component_build = true
     symbol_level = 0

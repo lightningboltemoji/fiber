@@ -7,8 +7,12 @@ source_set("browser") {
   sources = [
     "fiber_browser_main_extra_parts.h",
     "fiber_browser_main_extra_parts.mm",
+    "fiber_location_field.h",
+    "fiber_location_field.mm",
     "fiber_window.h",
     "fiber_window.mm",
+    "fiber_window_controller.h",
+    "fiber_window_controller.mm",
   ]
   deps = [
     "//base",

@@ -11,24 +11,24 @@
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
-#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/input/native_web_keyboard_event.h"
+#include "components/url_formatter/elide_url.h"
 #include "components/url_formatter/url_fixer.h"
+#include "components/url_formatter/url_formatter.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
+#import "fiber/browser/fiber_window_controller.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
 namespace {
 
-constexpr CGFloat kToolbarHeight = 38;
-constexpr NSSize kDefaultWindowSize = {1280, 820};
 constexpr char kSearchURLPrefix[] = "https://www.google.com/search?q=";
 
 std::vector<fiber::FiberWindow*>& AllWindows() {
@@ -59,245 +59,6 @@ GURL URLFromInput(std::string_view raw_input) {
 }
 
 }  // namespace
-
-// Owns the NSWindow and its toolbar, and forwards UI events to FiberWindow.
-@interface FiberWindowController
-    : NSObject <NSWindowDelegate, NSUserInterfaceValidations>
-@property(readonly, nonatomic) NSWindow* window;
-- (instancetype)initWithOwner:(fiber::FiberWindow*)owner;
-- (void)setWebContentsView:(NSView*)view;
-- (void)updateWithURL:(NSString*)url
-                title:(NSString*)title
-            canGoBack:(BOOL)canGoBack
-         canGoForward:(BOOL)canGoForward
-            isLoading:(BOOL)isLoading;
-- (void)focusLocationBar;
-// Called by the owner when it is being destroyed.
-- (void)detachOwner;
-@end
-
-@implementation FiberWindowController {
-  raw_ptr<fiber::FiberWindow> _owner;
-  NSWindow* __strong _window;
-  NSButton* __strong _backButton;
-  NSButton* __strong _forwardButton;
-  NSButton* __strong _reloadButton;
-  NSTextField* __strong _locationField;
-  NSView* __strong _contentArea;
-}
-
-@synthesize window = _window;
-
-- (instancetype)initWithOwner:(fiber::FiberWindow*)owner {
-  if ((self = [super init])) {
-    _owner = owner;
-
-    _window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, kDefaultWindowSize.width,
-                                       kDefaultWindowSize.height)
-                  styleMask:NSWindowStyleMaskTitled |
-                            NSWindowStyleMaskClosable |
-                            NSWindowStyleMaskMiniaturizable |
-                            NSWindowStyleMaskResizable
-                    backing:NSBackingStoreBuffered
-                      defer:NO];
-    _window.releasedWhenClosed = NO;
-    _window.delegate = self;
-    _window.minSize = NSMakeSize(480, 320);
-    _window.title = @"Fiber";
-
-    NSView* content = _window.contentView;
-    const NSRect bounds = content.bounds;
-
-    _backButton = [self toolbarButtonWithSymbol:@"chevron.backward"
-                                          label:@"Back"
-                                         action:@selector(goBack:)];
-    _forwardButton = [self toolbarButtonWithSymbol:@"chevron.forward"
-                                             label:@"Forward"
-                                            action:@selector(goForward:)];
-    _reloadButton = [self toolbarButtonWithSymbol:@"arrow.clockwise"
-                                            label:@"Reload"
-                                           action:@selector(reloadOrStop:)];
-
-    _locationField = [NSTextField textFieldWithString:@""];
-    _locationField.placeholderString = @"Search or enter address";
-    _locationField.bezelStyle = NSTextFieldRoundedBezel;
-    _locationField.target = self;
-    _locationField.action = @selector(navigateToLocation:);
-    _locationField.cell.sendsActionOnEndEditing = NO;
-    _locationField.cell.scrollable = YES;
-    [_locationField
-        setContentHuggingPriority:NSLayoutPriorityDefaultLow
-                   forOrientation:NSLayoutConstraintOrientationHorizontal];
-
-    NSStackView* toolbar = [NSStackView stackViewWithViews:@[
-      _backButton, _forwardButton, _reloadButton, _locationField
-    ]];
-    toolbar.orientation = NSUserInterfaceLayoutOrientationHorizontal;
-    toolbar.alignment = NSLayoutAttributeCenterY;
-    toolbar.spacing = 4;
-    toolbar.edgeInsets = NSEdgeInsetsMake(0, 8, 0, 10);
-    toolbar.frame = NSMakeRect(0, NSHeight(bounds) - kToolbarHeight,
-                               NSWidth(bounds), kToolbarHeight);
-    toolbar.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
-    [content addSubview:toolbar];
-
-    NSBox* separator = [[NSBox alloc]
-        initWithFrame:NSMakeRect(0, NSHeight(bounds) - kToolbarHeight - 1,
-                                 NSWidth(bounds), 1)];
-    separator.boxType = NSBoxSeparator;
-    separator.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
-    [content addSubview:separator];
-
-    _contentArea = [[NSView alloc]
-        initWithFrame:NSMakeRect(0, 0, NSWidth(bounds),
-                                 NSHeight(bounds) - kToolbarHeight - 1)];
-    _contentArea.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    [content addSubview:_contentArea];
-
-    [_window center];
-  }
-  return self;
-}
-
-- (NSButton*)toolbarButtonWithSymbol:(NSString*)symbol
-                               label:(NSString*)label
-                              action:(SEL)action {
-  NSButton* button = [NSButton
-      buttonWithImage:[NSImage imageWithSystemSymbolName:symbol
-                                accessibilityDescription:label]
-               target:self
-               action:action];
-  button.bordered = NO;
-  button.toolTip = label;
-  [button.widthAnchor constraintEqualToConstant:28].active = YES;
-  return button;
-}
-
-- (void)setWebContentsView:(NSView*)view {
-  view.frame = _contentArea.bounds;
-  view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-  [_contentArea addSubview:view];
-}
-
-- (void)updateWithURL:(NSString*)url
-                title:(NSString*)title
-            canGoBack:(BOOL)canGoBack
-         canGoForward:(BOOL)canGoForward
-            isLoading:(BOOL)isLoading {
-  _window.title = title.length ? title : @"Fiber";
-  // Don't clobber what the user is typing.
-  if (!_locationField.currentEditor) {
-    _locationField.stringValue = url;
-  }
-  _backButton.enabled = canGoBack;
-  _forwardButton.enabled = canGoForward;
-  NSString* reloadLabel = isLoading ? @"Stop" : @"Reload";
-  _reloadButton.image = [NSImage
-      imageWithSystemSymbolName:isLoading ? @"xmark" : @"arrow.clockwise"
-       accessibilityDescription:reloadLabel];
-  _reloadButton.toolTip = reloadLabel;
-}
-
-- (void)focusLocationBar {
-  [_window makeFirstResponder:_locationField];
-}
-
-- (void)detachOwner {
-  _owner = nullptr;
-}
-
-// Toolbar actions.
-
-- (void)goBack:(id)sender {
-  if (_owner) {
-    _owner->GoBack();
-  }
-}
-
-- (void)goForward:(id)sender {
-  if (_owner) {
-    _owner->GoForward();
-  }
-}
-
-- (void)reloadOrStop:(id)sender {
-  if (_owner) {
-    _owner->ReloadOrStop();
-  }
-}
-
-- (void)navigateToLocation:(id)sender {
-  if (_owner) {
-    _owner->NavigateToInput(base::SysNSStringToUTF8(_locationField.stringValue));
-  }
-}
-
-// Chrome's main menu sends -commandDispatch: with the command ID as the tag.
-// As the window delegate we're in the responder chain ahead of Chrome's
-// AppController, so menu items act on this window while it's key.
-
-- (void)commandDispatch:(id)sender {
-  if (!_owner) {
-    return;
-  }
-  switch ([sender tag]) {
-    case IDC_BACK:
-      _owner->GoBack();
-      break;
-    case IDC_FORWARD:
-      _owner->GoForward();
-      break;
-    case IDC_RELOAD:
-    case IDC_STOP:
-      _owner->ReloadOrStop();
-      break;
-    case IDC_FOCUS_LOCATION:
-      [self focusLocationBar];
-      break;
-    case IDC_NEW_TAB:
-    case IDC_NEW_WINDOW:
-      _owner->NewWindow();
-      break;
-    case IDC_CLOSE_TAB:
-    case IDC_CLOSE_WINDOW:
-      _owner->Close();
-      break;
-  }
-}
-
-- (BOOL)validateUserInterfaceItem:(id<NSValidatedUserInterfaceItem>)item {
-  if (item.action != @selector(commandDispatch:)) {
-    return YES;
-  }
-  switch (item.tag) {
-    case IDC_BACK:
-      return _backButton.enabled;
-    case IDC_FORWARD:
-      return _forwardButton.enabled;
-    case IDC_RELOAD:
-    case IDC_STOP:
-    case IDC_FOCUS_LOCATION:
-    case IDC_NEW_TAB:
-    case IDC_NEW_WINDOW:
-    case IDC_CLOSE_TAB:
-    case IDC_CLOSE_WINDOW:
-      return YES;
-    default:
-      // Everything else in Chrome's menus assumes a Chrome Browser window.
-      return NO;
-  }
-}
-
-// NSWindowDelegate:
-
-- (void)windowWillClose:(NSNotification*)notification {
-  if (_owner) {
-    _owner->OnNativeWindowClosing();
-  }
-}
-
-@end
 
 namespace fiber {
 
@@ -339,6 +100,7 @@ FiberWindow::FiberWindow(Profile* profile,
       controller_([[FiberWindowController alloc] initWithOwner:this]) {
   AllWindows().push_back(this);
   web_contents_->SetDelegate(this);
+  Observe(web_contents_.get());
   [controller_
       setWebContentsView:web_contents_->GetNativeView().GetNativeNSView()];
   UpdateToolbar();
@@ -348,6 +110,7 @@ FiberWindow::FiberWindow(Profile* profile,
 FiberWindow::~FiberWindow() {
   std::erase(AllWindows(), this);
   [controller_ detachOwner];
+  Observe(nullptr);
   web_contents_->SetDelegate(nullptr);
   web_contents_.reset();
   // No-op if the user already closed it.
@@ -382,6 +145,10 @@ void FiberWindow::ReloadOrStop() {
     web_contents_->GetController().Reload(content::ReloadType::NORMAL,
                                           /*check_for_repost=*/true);
   }
+}
+
+void FiberWindow::FocusWebContents() {
+  web_contents_->Focus();
 }
 
 void FiberWindow::NewWindow() {
@@ -450,6 +217,7 @@ void FiberWindow::NavigationStateChanged(
 void FiberWindow::LoadingStateChanged(content::WebContents* source,
                                       bool should_show_loading_ui) {
   UpdateToolbar();
+  UpdateLoadProgress();
 }
 
 void FiberWindow::CloseContents(content::WebContents* source) {
@@ -469,6 +237,17 @@ bool FiberWindow::HandleKeyboardEvent(
          [NSApp.mainMenu performKeyEquivalent:ns_event];
 }
 
+void FiberWindow::UpdateTargetURL(content::WebContents* source,
+                                  const GURL& url) {
+  [controller_ setStatusText:url.is_empty() ? @""
+                                            : base::SysUTF16ToNSString(
+                                                  url_formatter::FormatUrl(url))];
+}
+
+void FiberWindow::LoadProgressChanged(double progress) {
+  UpdateLoadProgress();
+}
+
 void FiberWindow::LoadURL(const GURL& url) {
   content::NavigationController::LoadURLParams params(url);
   params.transition_type = ui::PageTransitionFromInt(
@@ -479,12 +258,25 @@ void FiberWindow::LoadURL(const GURL& url) {
 void FiberWindow::UpdateToolbar() {
   content::NavigationController& controller = web_contents_->GetController();
   const GURL& url = web_contents_->GetVisibleURL();
-  [controller_
-      updateWithURL:url.is_empty() ? @"" : base::SysUTF8ToNSString(url.spec())
-              title:base::SysUTF16ToNSString(web_contents_->GetTitle())
-          canGoBack:controller.CanGoBack()
-       canGoForward:controller.CanGoForward()
-          isLoading:web_contents_->IsLoading()];
+  NSString* spec = @"";
+  NSString* display = @"";
+  if (!url.is_empty()) {
+    spec = base::SysUTF8ToNSString(url.spec());
+    display = base::SysUTF16ToNSString(
+        url_formatter::FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
+            url));
+  }
+  [controller_ updateWithURL:spec
+               displayString:display
+                       title:base::SysUTF16ToNSString(web_contents_->GetTitle())
+                   canGoBack:controller.CanGoBack()
+                canGoForward:controller.CanGoForward()
+                   isLoading:web_contents_->IsLoading()];
+}
+
+void FiberWindow::UpdateLoadProgress() {
+  [controller_ setLoading:web_contents_->ShouldShowLoadingUI()
+                 progress:web_contents_->GetLoadProgress()];
 }
 
 void FiberWindow::Destroy() {
