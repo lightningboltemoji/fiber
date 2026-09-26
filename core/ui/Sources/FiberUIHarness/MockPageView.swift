@@ -89,8 +89,11 @@ final class MockPageView: NSView {
   }
 
   func show(url: String, loaded: Bool) {
+    let host = URL(string: url)?.host() ?? url
     let path = URL(string: url)?.path() ?? ""
-    title = "\(URL(string: url)?.host() ?? url)\(path == "/" ? "" : path)"
+    title =
+      url == MockBrowser.newTabURL
+      ? "New Tab" : "\(host)\(path == "/" ? "" : path)"
     titleLabel.stringValue = loaded ? title : "Loading…"
     urlLabel.stringValue = url
     needsDisplay = true

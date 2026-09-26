@@ -45,6 +45,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let toolbar = Toolbar()
   private let tabPicker = TabPicker()
   private let commandPalette = CommandPalette()
+  private let newTabView = NewTabView()
+  /// Whether the active tab is Chrome's New Tab page, which `newTabView`
+  /// stands in for.
+  private var isNewTabPage = false
   /// The page's full URL, which the command palette opens with.
   private var pageURL = ""
   private let progressBar = LoadProgressBar()
@@ -96,6 +100,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.tabbingMode = .disallowed
 
     let content = window.contentView!
+    // Just above the page (see setContentsView(_:)).
+    newTabView.frame = content.bounds
+    newTabView.autoresizingMask = [.width, .height]
+    newTabView.isHidden = true
+    newTabView.onClick = { [weak self] in self?.showCommandPalette() }
+    content.addSubview(newTabView)
+
     progressBar.frame = NSRect(
       x: 0, y: content.bounds.height - Self.progressBarHeight,
       width: content.bounds.width, height: Self.progressBarHeight)
@@ -256,6 +267,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
     if view === contentsView {
       return
     }
+    // It was for the tab being switched away from. (The browser opens it
+    // again on a New Tab page.)
+    commandPalette.close()
+    // Shown again for when it comes back; setPageState(_:) hides the New Tab
+    // page's.
+    contentsView?.isHidden = false
     contentsView?.removeFromSuperview()
     contentsView = view
     guard let view, let content = window.contentView else {
@@ -271,6 +288,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     pageURL = state.url
+    isNewTabPage = state.isNewTabPage
+    newTabView.isHidden = !isNewTabPage
+    // Hidden rather than just covered, so it doesn't take focus or clicks.
+    contentsView?.isHidden = isNewTabPage
     toolbar.setAddress(state.displayURL)
     toolbar.backButton.isEnabled = state.canGoBack
     toolbar.forwardButton.isEnabled = state.canGoForward

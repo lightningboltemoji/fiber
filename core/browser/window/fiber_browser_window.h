@@ -236,6 +236,8 @@ class FiberBrowserWindow : public BrowserWindow,
   void UpdateLoadProgress();
   // Sends the UI the tab list, in tab strip order.
   void UpdateTabs();
+  // Focuses the active tab as Chrome would on switching to it.
+  void RestoreFocus();
 
   const raw_ptr<BrowserWindowInterface> browser_;
   FiberBrowserWindowActions* __strong actions_;

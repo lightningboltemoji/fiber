@@ -7,6 +7,7 @@ import FiberBridge
 @MainActor
 final class MockBrowser: NSObject, FiberWindowActions {
   static let homeURL = "https://fiber.example/"
+  static let newTabURL = "chrome://newtab/"
   private static let sampleSites = [
     "news.example/front", "mail.example/inbox", "docs.example/spec/tab-picker",
     "video.example/watch?v=glass", "maps.example/@37.77,-122.41",
@@ -117,7 +118,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   // MARK: Menu actions (forwarded by the window)
 
   @objc func newTab(_ sender: Any?) {
-    openTab(Self.homeURL, activate: true)
+    openTab(Self.newTabURL, activate: true)
     ui.showCommandPalette()
   }
 
@@ -303,13 +304,16 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   private func pushPageState() {
     let tab = activeTab!
+    // Like Chrome, the New Tab page doesn't show its URL.
+    let isNewTabPage = tab.url == Self.newTabURL
     let host = URL(string: tab.url)?.host() ?? tab.url
     ui.setPageState(
       FiberPageState(
-        url: tab.url, displayURL: host, title: tab.page.title,
+        url: isNewTabPage ? "" : tab.url,
+        displayURL: isNewTabPage ? "" : host, title: tab.page.title,
         canGoBack: tab.index > 0,
         canGoForward: tab.index < tab.history.count - 1,
-        loading: tab.isLoading))
+        loading: tab.isLoading, newTabPage: isNewTabPage))
   }
 
   private func pushTabs() {

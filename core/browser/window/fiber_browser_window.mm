@@ -11,6 +11,7 @@
 #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/search/search.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -26,6 +27,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/unload_controller.h"
+#include "chrome/common/webui_url_constants.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
@@ -76,6 +78,12 @@ bool IsCommandSupported(int command) {
     default:
       return true;
   }
+}
+
+// Chrome's New Tab page: chrome://newtab, as it's shown, or the page it loads.
+bool IsNewTabPage(content::WebContents* contents) {
+  return contents->GetVisibleURL() == GURL(chrome::kChromeUINewTabURL) ||
+         search::IsNTPURL(contents->GetLastCommittedURL());
 }
 
 }  // namespace
@@ -340,6 +348,19 @@ void FiberBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
   Observe(new_contents);
   UpdateToolbar(new_contents);
   UpdateLoadProgress();
+  // Like BrowserView, and only once the window is showing (see Show()).
+  if (GetNSWindow().visible) {
+    RestoreFocus();
+  }
+}
+
+void FiberBrowserWindow::RestoreFocus() {
+  // With no focus stored for it (Chrome stores it in views), the tab focuses
+  // its page, or, on the New Tab page, the location bar: Fiber's command
+  // palette.
+  if (content::WebContents* contents = GetActiveWebContents()) {
+    contents->RestoreFocus();
+  }
 }
 
 void FiberBrowserWindow::OnTabDetached(content::WebContents* contents,
@@ -403,7 +424,8 @@ void FiberBrowserWindow::UpdateToolbar(content::WebContents* contents) {
                               title:base::SysUTF16ToNSString(active->GetTitle())
                           canGoBack:navigation.CanGoBack()
                        canGoForward:navigation.CanGoForward()
-                            loading:active->IsLoading()]];
+                            loading:active->IsLoading()
+                         newTabPage:IsNewTabPage(active)]];
 }
 
 bool FiberBrowserWindow::UpdateToolbarSecurityState() {
@@ -621,6 +643,7 @@ void FiberBrowserWindow::Show() {
   // as soon as this returns, before AppKit reports the window becoming main.
   BrowserActiveStateManager::From(browser_)->DidBecomeActive();
   [GetNSWindow() makeKeyAndOrderFront:nil];
+  RestoreFocus();
 }
 
 void FiberBrowserWindow::ShowInactive() {

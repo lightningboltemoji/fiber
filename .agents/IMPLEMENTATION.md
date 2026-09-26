@@ -229,6 +229,11 @@ controls float over it in Liquid Glass, mostly out of sight:
   else edits the address. For now Return opens what was typed through
   `navigateToInput:`; it's meant to grow into a Raycast-like home for Fiber's
   commands.
+- **New Tab page** (`ui/NewTabView.swift`): Chrome's New Tab page still loads,
+  but the window hides it behind its own, a plain page with Fiber's mark
+  (`ui/FiberMark.swift`, generated from the icon's geometry by `make icon`).
+  Switching to a tab restores its focus as Chrome's views window does, which
+  on the New Tab page means the command palette.
 - **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): a
   half-capsule bump on the right edge, a third of the window tall. Hovering it
   morphs it into a panel listing the tabs, placed so the active tab is level

@@ -79,6 +79,33 @@ def web(corners):
     return Polygon(ring).buffer(0).buffer(-14).buffer(14)
 
 
+def mark():
+    """The icon's glyph on its own, for Fiber's UI to draw in one color: the fan
+    at full strength, the webbing fainter, and the dragline fading in along its
+    heading."""
+    fibrils, corners = fan()
+    membrane = web(corners)
+    # The dragline, as far out as it shows, fading from its end to near the hub.
+    reach = 480
+    line = dragline().intersection(Point(HUB).buffer(reach))
+    tail = HUB - unit(HEADING) * reach
+    fade = HUB - unit(HEADING) * 160
+    margin = 8
+    x0, y0, x1, y1 = unary_union([fibrils, membrane, line]).bounds
+    view = f"{x0 - margin:.1f} {y0 - margin:.1f} {x1 - x0 + 2 * margin:.1f} {y1 - y0 + 2 * margin:.1f}"
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view}">\n'
+        f'  <defs><linearGradient id="fade" gradientUnits="userSpaceOnUse" '
+        f'x1="{tail[0]:.1f}" y1="{tail[1]:.1f}" x2="{fade[0]:.1f}" y2="{fade[1]:.1f}">'
+        f'<stop offset="0" stop-opacity="0"/><stop offset="1" stop-opacity="1"/>'
+        f"</linearGradient></defs>\n"
+        f'  <path d="{geom_to_d(membrane)}" fill="#000" opacity="0.35"/>\n'
+        f'  <path d="{geom_to_d(fibrils)}" fill="#000"/>\n'
+        f'  <path d="{geom_to_d(line)}" fill="url(#fade)"/>\n'
+        "</svg>\n"
+    )
+
+
 def build(path):
     fibrils, corners = fan()
     assets = {
