@@ -25,9 +25,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// rim included.
   fileprivate static let windowControlsPadding = NSSize(width: 14, height: 13)
   private static let windowControlsRimWidth: CGFloat = 5
-  /// The traffic lights are hidden until the pointer comes this close to
-  /// their capsule.
-  private static let windowControlsRevealDistance: CGFloat = 16
   /// Where the traffic lights go: their capsule's top-left corner sits
   /// `edgeInset` from the window's.
   fileprivate static let windowControlsLayout = WindowFrame.Layout(
@@ -53,10 +50,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var pageURL = ""
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
-  private let windowControlsRevealArea = HoverArea()
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
-  private var isPointerNearWindowControls = false
   /// Shown with Command-S, until hidden with it again.
   private var isToolbarShown = false
   /// The toolbar and tab picker hide while a page is fullscreen.
@@ -199,8 +194,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   /// Puts a glass capsule behind the traffic lights, which stay in the title
-  /// bar above it, and the area around it that reveals them. Dragging the
-  /// capsule moves the window.
+  /// bar above it. Dragging the capsule moves the window.
   private func configureWindowControls() {
     guard let content = window.contentView else {
       return
@@ -222,35 +216,34 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowControlsBackground.contentView = WindowDragArea()
     windowControlsBackground.autoresizingMask = [.maxXMargin, .minYMargin]
     content.addSubview(windowControlsBackground)
-
-    // From the window's corner to a little past the capsule.
-    let reveal = Self.windowControlsRevealDistance
-    windowControlsRevealArea.frame = NSRect(
-      x: 0, y: frame.minY - reveal, width: frame.maxX + reveal,
-      height: content.bounds.height - frame.minY + reveal)
-    windowControlsRevealArea.autoresizingMask = [.maxXMargin, .minYMargin]
-    windowControlsRevealArea.onHoverChange = { [weak self] isInside in
-      self?.isPointerNearWindowControls = isInside
-      self?.updateWindowControls(animated: true)
-    }
-    content.addSubview(windowControlsRevealArea)
   }
 
-  /// Shows the traffic lights and their capsule with the toolbar or while the
-  /// pointer is near them, and fades them out otherwise so the page shows
-  /// through. While the window is fullscreen, AppKit shows the traffic lights
-  /// with the menu bar, without the capsule.
+  /// Shows the traffic lights and their capsule with the toolbar, and fades
+  /// them out otherwise so the page shows through. While the window is
+  /// fullscreen, AppKit shows the traffic lights with the menu bar, without
+  /// the capsule.
   private func updateWindowControls(animated: Bool) {
     let isFullScreen = window.styleMask.contains(.fullScreen)
-    let isRevealed = isPointerNearWindowControls || isToolbarVisible
-    let showsButtons = isRevealed || isFullScreen
-    let showsBackground = isRevealed && !isFullScreen
+    let showsButtons = isToolbarVisible || isFullScreen
+    let showsBackground = isToolbarVisible && !isFullScreen
+    // Faded out, they'd still take clicks meant for the page; they're hidden
+    // once the fade ends.
+    let views = windowControlButtons + [windowControlsBackground]
+    for view in views where view.alphaValue == 0 {
+      view.isHidden = false
+    }
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animated ? (showsButtons ? 0.15 : 0.3) : 0
       for button in windowControlButtons {
         button.animator().alphaValue = showsButtons ? 1 : 0
       }
       windowControlsBackground.animator().alphaValue = showsBackground ? 1 : 0
+    } completionHandler: {
+      MainActor.assumeIsolated {
+        for view in views {
+          view.isHidden = view.alphaValue == 0
+        }
+      }
     }
   }
 
@@ -393,38 +386,6 @@ extension BrowserWindowController: NSWindowDelegate {
   func windowDidExitFullScreen(_ notification: Notification) {
     updateWindowControls(animated: true)
     actions.windowDidChangeFullScreen()
-  }
-}
-
-/// Reports the pointer entering and leaving its bounds. Otherwise it isn't
-/// there: clicks go through to the views below.
-private final class HoverArea: NSView {
-  var onHoverChange: (Bool) -> Void = { _ in }
-
-  override init(frame: NSRect) {
-    super.init(frame: frame)
-    addTrackingArea(
-      NSTrackingArea(
-        rect: .zero,
-        options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-        owner: self))
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) is not supported")
-  }
-
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    nil
-  }
-
-  override func mouseEntered(with event: NSEvent) {
-    onHoverChange(true)
-  }
-
-  override func mouseExited(with event: NSEvent) {
-    onHoverChange(false)
   }
 }
 

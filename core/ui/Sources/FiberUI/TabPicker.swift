@@ -29,10 +29,18 @@ final class TabPicker: NSView {
     static let openDelay: TimeInterval = 0.07
     /// How long the pointer can be away before the panel closes.
     static let closeDelay: TimeInterval = 0.15
+    /// How long the panel stays open after the pointer overshoots the bump
+    /// off the window's edge, for it to come back.
+    static let overshootDelay: TimeInterval = 1.5
+    /// How far above or below the bump the pointer can leave and still count
+    /// as overshooting it.
+    static let overshootSlop: CGFloat = 24
     /// A scroll wheel (no trackpad phases) selects once it rests this long.
     static let wheelSettleDelay: TimeInterval = 0.35
     /// How far past lift-off a flick carries, in seconds of its velocity.
     static let flickProjection: CGFloat = 0.12
+    /// A flick's velocity is its scrolling over this long before lift-off.
+    static let flickWindow: TimeInterval = 0.1
     /// Scrolling past the first or last tab stretches no further than this.
     static let rubberBandLimit: CGFloat = 120
   }
@@ -194,9 +202,26 @@ final class TabPicker: NSView {
 
   override func mouseExited(with event: NSEvent) {
     openTimer?.invalidate()
-    if model.isExpanded {
+    let point = location(of: event)
+    if overshot(to: point) {
+      // The bump is thin, so the pointer aiming for it can shoot off the
+      // window. Open the panel (or keep it open) for a moment so it can come
+      // back to the panel instead.
+      open(anchoredAt: min(max(point.y, 0), bounds.height))
+      closeTimer?.invalidate()
+      scheduleClose(after: Metrics.overshootDelay)
+    } else if model.isExpanded {
       scheduleClose()
     }
+  }
+
+  /// Whether the pointer left the window through its right edge beside the
+  /// bump or the open panel.
+  private func overshot(to point: CGPoint) -> Bool {
+    let zone =
+      model.isExpanded
+      ? keepOpenZone : hotZone.insetBy(dx: 0, dy: -Metrics.overshootSlop)
+    return point.x >= bounds.width - 1 && (zone.minY...zone.maxY).contains(point.y)
   }
 
   override func mouseDown(with event: NSEvent) {
@@ -253,12 +278,12 @@ final class TabPicker: NSView {
     }
   }
 
-  private func scheduleClose() {
+  private func scheduleClose(after delay: TimeInterval = Metrics.closeDelay) {
     guard closeTimer?.isValid != true else {
       return
     }
     closeTimer = Timer.scheduledTimer(
-      withTimeInterval: Metrics.closeDelay, repeats: false
+      withTimeInterval: delay, repeats: false
     ) { [weak self] _ in
       MainActor.assumeIsolated { self?.close() }
     }
@@ -367,7 +392,9 @@ final class TabPicker: NSView {
   private func scrollBy(_ event: NSEvent, at point: CGPoint) {
     scrollTop += event.scrollingDeltaY
     scrollSamples.append((event.timestamp, event.scrollingDeltaY))
-    scrollSamples.removeAll { event.timestamp - $0.time > 0.1 }
+    scrollSamples.removeAll {
+      event.timestamp - $0.time > Metrics.flickWindow
+    }
     model.panelTop = rubberBand(
       scrollTop, in: panelTopRange(keepingRowAt: point.y))
     // A tick on the trackpad as each tab comes under the pointer.
@@ -380,11 +407,13 @@ final class TabPicker: NSView {
   }
 
   private func settle(at point: CGPoint) {
-    var velocity: CGFloat = 0
-    if let first = scrollSamples.first, let last = scrollSamples.last {
-      let duration = max(last.time - first.time, 1.0 / 60)
-      velocity = scrollSamples.reduce(0) { $0 + $1.delta } / duration
-    }
+    // Over the window up to now, not up to the last sample: fingers resting
+    // before lift-off send no events, and shouldn't flick.
+    let now = ProcessInfo.processInfo.systemUptime
+    let velocity =
+      scrollSamples
+      .filter { now - $0.time <= Metrics.flickWindow }
+      .reduce(0) { $0 + $1.delta } / Metrics.flickWindow
     isScrolling = false
     scrollSamples = []
     // Past either end, this springs back to the first or last tab.
