@@ -1,4 +1,10 @@
+<p align="center">
+<img width="190" height="190" alt="App icon" src="https://github.com/user-attachments/assets/1d479a69-8c0d-4123-881a-16edaa53835b" />
+</p>
+
 # Fiber
+
+a Chromium-based browser for macOS
 
 ## Development
 
@@ -15,5 +21,3 @@ make install    # the same app, into /Applications
 ```
 
 After editing a file under `chromium/src`, run `scripts/update_patches.sh` to regenerate `patches/chromium/`. Put new code in `core/` rather than adding files to the Chromium tree.
-
-Requirements: Xcode with the Metal toolchain (`xcodebuild -downloadComponent MetalToolchain`), ~100GB free disk. Exclude `chromium/` from Spotlight (System Settings → Spotlight → Search Privacy).
