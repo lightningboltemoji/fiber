@@ -1,0 +1,18 @@
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 19045777b3..f878794c54 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -5050,11 +5050,9 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
+   // Handler to rewrite chrome://newtab on Android.
+   handler->AddHandlerPair(&chrome::android::HandleAndroidNativePageURL,
+                           BrowserURLHandler::null_handler());
+-#else   // BUILDFLAG(IS_ANDROID)
+-  // Handler to rewrite chrome://newtab for InstantExtended.
+-  handler->AddHandlerPair(&search::HandleNewTabURLRewrite,
+-                          &search::HandleNewTabURLReverseRewrite);
+ #endif  // BUILDFLAG(IS_ANDROID)
++  // Fiber: chrome://newtab is Fiber's own New Tab page, so it isn't rewritten
++  // to Chrome's.
+ 
+   // chrome: & friends.
+   handler->AddHandlerPair(&ChromeContentBrowserClient::HandleWebUI,

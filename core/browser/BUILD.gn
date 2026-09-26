@@ -9,6 +9,7 @@ assert(is_mac)
 #   hooks/    the functions Fiber's Chromium patches call
 #   window/   BrowserWindow and the stubs it needs
 #   dialogs/  dialogs Chrome shows for a tab
+#   new_tab/  chrome://newtab, Fiber's New Tab page
 source_set("browser") {
   sources = [
     "dialogs/fiber_javascript_dialog_view.h",
@@ -17,6 +18,10 @@ source_set("browser") {
     "hooks/browser_window_factory.mm",
     "hooks/javascript_dialog_factory.h",
     "hooks/javascript_dialog_factory.mm",
+    "hooks/web_ui_configs.cc",
+    "hooks/web_ui_configs.h",
+    "new_tab/new_tab_page_ui.cc",
+    "new_tab/new_tab_page_ui.h",
     "window/fiber_browser_window.h",
     "window/fiber_browser_window.mm",
     "window/fiber_browser_window_actions.h",
@@ -32,7 +37,6 @@ source_set("browser") {
     "//chrome/browser:browser_public_dependencies",
     "//chrome/browser:global_keyboard_shortcuts_mac",
     "//chrome/browser/profiles:profile",
-    "//chrome/browser/search",
     "//chrome/browser/themes",
     "//chrome/browser/ui:browser_window_state",
     "//chrome/browser/ui/browser_active_state_manager",
@@ -45,6 +49,7 @@ source_set("browser") {
     "//components/input",
     "//components/javascript_dialogs",
     "//components/omnibox/browser",
+    "//components/strings",
     "//components/tabs:public",
     "//components/url_formatter",
     "//content/public/browser",

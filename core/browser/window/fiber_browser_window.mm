@@ -11,7 +11,6 @@
 #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/search/search.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -39,7 +38,9 @@
 #include "content/public/browser/eye_dropper.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/url_constants.h"
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
@@ -80,10 +81,17 @@ bool IsCommandSupported(int command) {
   }
 }
 
-// Chrome's New Tab page: chrome://newtab, as it's shown, or the page it loads.
+// Fiber's New Tab page (chrome://newtab): the page the tab shows, or before
+// that, the one it's loading. The URL is the one loaded, so an extension's
+// New Tab page, which only shows as chrome://newtab, doesn't count.
 bool IsNewTabPage(content::WebContents* contents) {
-  return contents->GetVisibleURL() == GURL(chrome::kChromeUINewTabURL) ||
-         search::IsNTPURL(contents->GetLastCommittedURL());
+  content::NavigationController& navigation = contents->GetController();
+  content::NavigationEntry* entry = navigation.GetLastCommittedEntry();
+  if (!entry || entry->IsInitialEntry()) {
+    entry = navigation.GetVisibleEntry();
+  }
+  return entry && entry->GetURL().SchemeIs(content::kChromeUIScheme) &&
+         entry->GetURL().host() == chrome::kChromeUINewTabHost;
 }
 
 }  // namespace

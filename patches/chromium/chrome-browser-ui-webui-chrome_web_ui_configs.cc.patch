@@ -1,0 +1,38 @@
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index 62b07dca08..2eb6e4d3fe 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -66,6 +66,7 @@
+ #include "components/webui/user_actions/user_actions_ui.h"
+ #include "content/public/browser/webui_config_map.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "fiber/browser/hooks/web_ui_configs.h"
+ #include "printing/buildflags/buildflags.h"
+ #include "ui/webui/buildflags.h"
+ 
+@@ -329,9 +330,6 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
+-#if BUILDFLAG(ENABLE_WEBUI_NTP)
+-  map.AddWebUIConfig(std::make_unique<NewTabPageUIConfig>());
+-#endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
+ 
+ #if BUILDFLAG(ENABLE_WEBUI_CERTIFICATE_VIEWER)
+   map.AddWebUIConfig(std::make_unique<CertificateViewerUIConfig>());
+@@ -382,11 +380,10 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(
+       std::make_unique<
+           multistep_filter_internals::MultistepFilterInternalsUIConfig>());
+-#if BUILDFLAG(ENABLE_WEBUI_NTP)
+-  map.AddWebUIConfig(std::make_unique<NewTabFooterUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<NewTabPageThirdPartyUIConfig>());
+-#endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
+-  map.AddWebUIConfig(std::make_unique<NewTabUIConfig>());
++  // Fiber: Fiber's WebUIs, including its New Tab page in place of Chrome's
++  // (chrome://newtab, chrome://new-tab-page and its footer, and
++  // chrome://new-tab-page-third-party).
++  fiber::AddWebUIConfigs(map);
+   map.AddWebUIConfig(std::make_unique<OmniboxEverywhereUIConfig>());
+   map.AddWebUIConfig(std::make_unique<OmniboxPopupUIConfig>());
+   map.AddWebUIConfig(std::make_unique<OrganizerPanelUIConfig>());

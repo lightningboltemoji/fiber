@@ -1,0 +1,21 @@
+diff --git a/chrome/chrome_paks.gni b/chrome/chrome_paks.gni
+index bf4f4183dc..bc36ff1318 100644
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -154,13 +154,9 @@ template("chrome_extra_paks") {
+     ]
+ 
+     if (enable_webui_ntp) {
+-      sources += [
+-        "$root_gen_dir/chrome/new_tab_page_instant_resources.pak",
+-        "$root_gen_dir/chrome/new_tab_page_resources.pak",
+-        "$root_gen_dir/chrome/new_tab_page_third_party_resources.pak",
+-        "$root_gen_dir/chrome/new_tab_page_untrusted_resources.pak",
+-        "$root_gen_dir/chrome/new_tab_shared_resources.pak",
+-      ]
++      # Fiber: not the resources of Chrome's New Tab page, which Fiber
++      # replaces.
++      sources += [ "$root_gen_dir/chrome/new_tab_page_instant_resources.pak" ]
+     }
+ 
+     deps = [

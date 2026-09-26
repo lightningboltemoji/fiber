@@ -13,20 +13,9 @@ Chrome-style windows, which show Chrome's own UI).
 
 ## Principles
 
-- **Chrome is the engine and the model.** Every Fiber window is a Chrome
-  `Browser`, so anything in Chrome that opens or manages windows and tabs (menus,
-  links from other apps, session restore, extensions) lands in Fiber's UI.
-- **You should never see Chromium's UI.** We replace Chrome's views UI; we don't
-  restyle it. A Chrome surface without a native replacement yet fails safe
-  (cancels or denies, never grants) instead of falling back to views. The
-  exception is Chrome's in-tab pages (`chrome://settings`, history, downloads,
-  extensions), which stay.
-- **All visible UI is Swift.** AppKit for the window shell and anything that
-  needs precise control, SwiftUI for the rest.
-- **Keep the Chromium diff small.** Patches are hooks; the logic lives in
-  `//fiber`. We rebase onto each Chromium stable release (see
-  `CHROMIUM_VERSION`).
-- **macOS 26 and later only.**
+See [PRINCIPLES.md](PRINCIPLES.md). In short: Chrome is the engine and the
+model, Fiber replaces its UI (for real, not by covering it) in Swift, and the
+Chromium diff stays small.
 
 ## Layers
 
@@ -83,9 +72,17 @@ parts: a C++ adapter, bridge types, and Swift UI.
   or points the build at Fiber's pieces (the Swift tool, the app icon). Each
   change is marked `// Fiber:` (`# Fiber:` in GN) and contains no logic of its
   own.
-- The usual pattern: find the factory where Chrome creates a views UI and have it
+- The usual pattern: find where Chrome decides what exists (the factory for a
+  views UI, the URL rewrite or WebUI registration for a page) and have it
   return Fiber's implementation instead. `BrowserWindow::CreateBrowserWindow()`
-  and the JavaScript dialog factory already work this way.
+  and the JavaScript dialog factory work this way, but still fall through to
+  Chrome's views; the New Tab page (`fiber::AddWebUIConfigs()`) replaces
+  Chrome's outright.
+- Cut what Fiber replaces, so the linker drops it: take out its registration
+  (or the fall-through branch), and its resources from `chrome/chrome_paks.gni`.
+  `make size` (`scripts/size.py`) relinks the //chrome library with a linker
+  map and reports its size by source directory, what dead-stripping removed,
+  and what moved since the last run.
 - Reference for non-views UI: upstream's experimental `WebUIBrowserWindow`
   (`chrome/browser/ui/webui_browser/`). Its `IsWebUIBrowserEnabled()` checks
   mark code in Chrome that assumes views.
@@ -186,7 +183,7 @@ of its build; Fiber already needs them for Swift.
 CHROMIUM_VERSION     Chromium stable release we build against
 Makefile             entry points: build, run, harness, icon, dist, install
 patches/chromium/    our edits to Chromium, one patch per file
-scripts/             sync, patch, build, run
+scripts/             sync, patch, build, run, size
 core/                → //fiber
   build/             GN args (args.gni), Swift template (swift.gni) and flags
   branding/          product name, bundle ID; BUILD.gn compiles the app icon
@@ -195,6 +192,7 @@ core/                → //fiber
     hooks/           the functions patches call
     window/          BrowserWindow implementation and its stubs
     dialogs/         dialogs Chrome shows for a tab (JavaScript dialogs)
+    new_tab/         chrome://newtab, Fiber's New Tab page
     …                one directory per feature (tabs, omnibox, downloads, extensions…)
   bridge/            include/FiberBridge/*.h + include/module.modulemap
   ui/
@@ -229,9 +227,13 @@ controls float over it in Liquid Glass, mostly out of sight:
   else edits the address. For now Return opens what was typed through
   `navigateToInput:`; it's meant to grow into a Raycast-like home for Fiber's
   commands.
-- **New Tab page** (`ui/NewTabView.swift`): Chrome's New Tab page still loads,
-  but the window hides it behind its own, a plain page with Fiber's mark
+- **New Tab page** (`ui/NewTabView.swift`): a plain page with Fiber's mark
   (`ui/FiberMark.swift`, generated from the icon's geometry by `make icon`).
+  `chrome://newtab` is Fiber's own WebUI (`browser/new_tab/`): Chrome no longer
+  rewrites it to its New Tab page, whose WebUIs and resources are cut. The page
+  is empty and in the window's background color, and the window draws the rest
+  over it, so the frame Chrome holds while navigating away looks the same.
+  An extension's New Tab page still replaces it.
   Switching to a tab restores its focus as Chrome's views window does, which
   on the New Tab page means the command palette.
 - **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): a
@@ -248,8 +250,8 @@ so `ui/WindowFrame.swift` subclasses its private frame view the way Chrome's
 own windows do (`BrowserWindowFrame`); check it still works on each macOS
 release. Tabs cross the bridge as `FiberTabState` snapshots keyed by Chrome's
 tab handle; there's no close button, so Command-W (Chrome's Close Tab) closes
-them. The load progress bar, status bubble, and JavaScript dialogs are Swift
-behind the bridge too. `make harness` runs all of it against the mock browser;
+them. The load progress bar (shown only once a load has taken half a second),
+status bubble, and JavaScript dialogs are Swift behind the bridge too. `make harness` runs all of it against the mock browser;
 `swift run --package-path core/ui FiberUIHarness --tabs 20` starts with 20
 tabs.
 Not yet as described:

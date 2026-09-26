@@ -43,8 +43,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let tabPicker = TabPicker()
   private let commandPalette = CommandPalette()
   private let newTabView = NewTabView()
-  /// Whether the active tab is Chrome's New Tab page, which `newTabView`
-  /// stands in for.
+  /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
+  /// draws over the (empty) page.
   private var isNewTabPage = false
   /// The page's full URL, which the command palette opens with.
   private var pageURL = ""
@@ -263,9 +263,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // It was for the tab being switched away from. (The browser opens it
     // again on a New Tab page.)
     commandPalette.close()
-    // Shown again for when it comes back; setPageState(_:) hides the New Tab
-    // page's.
-    contentsView?.isHidden = false
     contentsView?.removeFromSuperview()
     contentsView = view
     guard let view, let content = window.contentView else {
@@ -283,8 +280,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     pageURL = state.url
     isNewTabPage = state.isNewTabPage
     newTabView.isHidden = !isNewTabPage
-    // Hidden rather than just covered, so it doesn't take focus or clicks.
-    contentsView?.isHidden = isNewTabPage
     toolbar.setAddress(state.displayURL)
     toolbar.backButton.isEnabled = state.canGoBack
     toolbar.forwardButton.isEnabled = state.canGoForward

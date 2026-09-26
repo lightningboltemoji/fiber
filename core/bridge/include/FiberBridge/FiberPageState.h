@@ -25,7 +25,7 @@ NS_SWIFT_SENDABLE
 @property(readonly) BOOL canGoBack;
 @property(readonly) BOOL canGoForward;
 @property(readonly) BOOL isLoading;
-// Chrome's New Tab page, which the window covers with its own.
+// Fiber's New Tab page (chrome://newtab), which the window draws.
 @property(readonly) BOOL isNewTabPage;
 
 @end

@@ -1,11 +1,22 @@
 import AppKit
 
 /// A thin accent-colored bar along the top of the page that tracks load
-/// progress, then fills and fades out when loading finishes.
+/// progress, then fills and fades out when loading finishes. Only for slow
+/// loads: it shows once a load has taken `revealDelay`, so quick ones (the New
+/// Tab page, most pages) never show it.
 final class LoadProgressBar: NSView {
+  private static let revealDelay: Duration = .milliseconds(500)
+
+  private enum State {
+    case idle
+    /// Loading, but not yet for `revealDelay`.
+    case pending(reveal: Task<Void, Never>)
+    case shown
+  }
+
   private let fill = NSBox()
   private var progress = 0.0
-  private var isActive = false
+  private var state = State.idle
 
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -31,34 +42,42 @@ final class LoadProgressBar: NSView {
   }
 
   func setProgress(_ progress: Double) {
-    if !isActive {
-      // Start empty rather than shrinking from the last load's full bar.
-      isActive = true
-      fill.frame = fillFrame(for: 0)
-      NSAnimationContext.runAnimationGroup { context in
-        context.duration = 0
-        animator().alphaValue = 1
-      }
-    }
     self.progress = progress
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = 0.2
-      fill.animator().frame = fillFrame(for: progress)
+    switch state {
+    case .idle:
+      let reveal = Task { [weak self] in
+        try? await Task.sleep(for: Self.revealDelay)
+        if !Task.isCancelled {
+          self?.reveal()
+        }
+      }
+      state = .pending(reveal: reveal)
+    case .pending:
+      break
+    case .shown:
+      animateFill()
     }
   }
 
   func finish() {
-    if !isActive {
+    switch state {
+    case .idle:
       return
+    case .pending(let reveal):
+      reveal.cancel()
+      state = .idle
+      return
+    case .shown:
+      break
     }
-    isActive = false
+    state = .idle
     progress = 1
     NSAnimationContext.runAnimationGroup { context in
       context.duration = 0.15
       fill.animator().frame = fillFrame(for: 1)
     } completionHandler: {
       MainActor.assumeIsolated {
-        if self.isActive {
+        guard case .idle = self.state else {
           return  // Another load started meanwhile.
         }
         NSAnimationContext.runAnimationGroup { context in
@@ -66,6 +85,24 @@ final class LoadProgressBar: NSView {
           self.animator().alphaValue = 0
         }
       }
+    }
+  }
+
+  private func reveal() {
+    state = .shown
+    // Start empty rather than shrinking from the last load's full bar.
+    fill.frame = fillFrame(for: 0)
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0
+      animator().alphaValue = 1
+    }
+    animateFill()
+  }
+
+  private func animateFill() {
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.2
+      fill.animator().frame = fillFrame(for: progress)
     }
   }
 

@@ -12,6 +12,7 @@ a Chromium-based browser for macOS
 make sync       # fetch Chromium at CHROMIUM_VERSION (~31GB), apply patches
 make build      # configure out/Default and build (first build: hours)
 make run        # launch with a dev profile in chromium/dev-profile (URL=… to open a page)
+make size       # what Chrome's code costs by directory, what the linker strips, what moved
 make harness    # just the UI, against a mock browser, without Chromium
 make patches    # regenerate patches/chromium/ from edits in chromium/src
 make icon       # regenerate the app icon (core/branding/icon)

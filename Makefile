@@ -5,7 +5,7 @@ APP_NAME := $(shell sed -n 's/^PRODUCT_FULLNAME=//p' core/branding/BRANDING)
 OUT      ?= Default
 SRC      := chromium/src
 
-.PHONY: sync patches build run ui harness icon app zip dist install uninstall clean print-version
+.PHONY: sync patches build run size ui harness icon app zip dist install uninstall clean print-version
 
 # --- Chromium and the dev build ------------------------------------------------------------------
 # `build` is the component build in out/$(OUT): hundreds of small dylibs, so an incremental build
@@ -23,6 +23,11 @@ build:
 # Against the dev profile in chromium/dev-profile. `make run URL=…` opens a page.
 run:
 	OUT=$(OUT) scripts/run.sh $(URL)
+
+# What Chrome's layer costs, by source directory, and how much the linker strips (scripts/size.py).
+# Run it before and after a change and it reports what moved. `make size PATHS=…` adds directories.
+size:
+	scripts/size.py --out $(OUT) $(PATHS)
 
 # --- The UI on its own ---------------------------------------------------------------------------
 # SwiftPM builds core/ui without Chromium; if it builds here, FiberUI doesn't depend on Chromium.
