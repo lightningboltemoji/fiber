@@ -1,0 +1,36 @@
+diff --git a/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc b/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc
+index 587159342d..bd2b4aa4a1 100644
+--- a/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc
++++ b/third_party/blink/renderer/core/paint/paint_layer_scrollable_area.cc
+@@ -56,6 +56,7 @@
+ #include "cc/input/scroll_utils.h"
+ #include "cc/input/snap_selection_strategy.h"
+ #include "cc/layers/picture_layer.h"
++#include "fiber/renderer/hooks/page_scrollbar.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "third_party/blink/public/mojom/scroll/scroll_into_view_params.mojom-blink.h"
+ #include "third_party/blink/public/mojom/scroll/scrollbar_mode.mojom-blink.h"
+@@ -1528,10 +1529,19 @@ gfx::Rect PaintLayerScrollableArea::RectForVerticalScrollbar() const {
+           : (border_box_size.width() - border.right.ToInt() -
+              VerticalScrollbar()->ScrollbarThickness());
+ 
+-  return gfx::Rect(left, border.top.ToInt(),
+-                   VerticalScrollbar()->ScrollbarThickness(),
+-                   border_box_size.height() - border.VerticalSum().ToInt() -
+-                       scroll_corner.height());
++  const gfx::Rect rect(left, border.top.ToInt(),
++                       VerticalScrollbar()->ScrollbarThickness(),
++                       border_box_size.height() - border.VerticalSum().ToInt() -
++                           scroll_corner.height());
++  // Fiber: the page's own scrollbar, against the window's right edge, keeps
++  // clear of Fiber's tab picker there.
++  if (layer_->IsRootLayer() &&
++      GetLayoutBox()->GetFrame()->IsOutermostMainFrame() &&
++      VerticalScrollbar()->IsOverlayScrollbar() &&
++      !GetLayoutBox()->ShouldPlaceBlockDirectionScrollbarOnLogicalLeft()) {
++    return fiber::PageScrollbarRect(rect, VerticalScrollbar()->ScaleFromDIP());
++  }
++  return rect;
+ }
+ 
+ gfx::Vector2d PaintLayerScrollableArea::ScrollbarOffset(

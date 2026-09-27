@@ -1,0 +1,14 @@
+diff --git a/third_party/blink/renderer/core/BUILD.gn b/third_party/blink/renderer/core/BUILD.gn
+index 383115087f..f4d56bb1ba 100644
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -448,6 +448,9 @@ component("core") {
+ 
+   if (is_mac) {
+     deps += [ "//ui/base/mojom" ]
++
++    # Fiber: Fiber's hooks in Blink (see paint_layer_scrollable_area.cc).
++    deps += [ "//fiber/renderer" ]
+   }
+ 
+   if (is_win) {

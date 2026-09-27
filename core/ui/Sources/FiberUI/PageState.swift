@@ -1,5 +1,5 @@
-import AppKit
 import FiberBridge
+import Foundation
 
 @objc @implementation extension FiberPageState {
   let displayURL: String
@@ -8,12 +8,11 @@ import FiberBridge
   let canGoForward: Bool
   let isLoading: Bool
   let isNewTabPage: Bool
-  let backgroundColor: NSColor?
 
-  @objc(initWithDisplayURL:title:canGoBack:canGoForward:loading:newTabPage:backgroundColor:)
+  @objc(initWithDisplayURL:title:canGoBack:canGoForward:loading:newTabPage:)
   init(
     displayURL: String, title: String, canGoBack: Bool, canGoForward: Bool,
-    loading: Bool, newTabPage: Bool, backgroundColor: NSColor?
+    loading: Bool, newTabPage: Bool
   ) {
     self.displayURL = displayURL
     self.title = title
@@ -21,7 +20,6 @@ import FiberBridge
     self.canGoForward = canGoForward
     self.isLoading = loading
     self.isNewTabPage = newTabPage
-    self.backgroundColor = backgroundColor
     super.init()
   }
 }

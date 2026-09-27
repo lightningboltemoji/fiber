@@ -37,6 +37,12 @@ chrome/ content/ components/
 | `bridge/` | Objective-C headers | Declares the protocols and immutable value types the other two layers talk through. | Mentions C++ or Chromium. |
 | `ui/` | Swift | Windows, toolbar, tab picker, command palette, dialogs, design system. | Imports anything except the bridge and Apple frameworks. |
 
+`renderer/` is the exception to the three layers: the few hooks Fiber puts in
+Blink, which runs in the renderer, away from the rest. It's linked into Blink's
+core, so it depends on nothing Blink couldn't (`//ui/gfx`), and it can't talk
+to the UI; what it shares with the UI is a constant or two, each noting where
+the other side is.
+
 `browser/` is only there because Chrome's extension points are C++ classes with
 virtual methods, and Swift can't subclass C++ classes. It translates between
 Chrome and the bridge and nothing else. Expect every feature to need three
@@ -199,6 +205,7 @@ core/                → //fiber
   branding/          product name, bundle ID; BUILD.gn compiles the app icon
     icon/            the icon's generator, AppIcon.icon, Assets.xcassets, renders
   browser/           C++ Chrome integration
+  renderer/          hooks in Blink (hooks/)
     hooks/           the functions patches call
     window/          BrowserWindow implementation and its stubs
     context_menu/    pages' context menus
@@ -262,9 +269,15 @@ controls float over it in Liquid Glass, mostly out of sight:
   Switching to a tab restores its focus as Chrome's views window does, which
   on the New Tab page means the command palette.
 - **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): a
-  half-capsule bump on the right edge, a third of the window tall. Hovering it
-  morphs it into a panel listing the tabs, placed so the active tab is level
-  with the pointer. Scrolling moves the panel under the pointer like a picker
+  half-capsule bump on the right edge, a third of the window tall, over the
+  page. The page's own scrollbar (its main frame's, when overlay scrollbars
+  are on) sits in from the window's edge and short of its corners, clear of
+  the bump (`renderer/hooks/page_scrollbar.cc`, from Blink's
+  `PaintLayerScrollableArea::RectForVerticalScrollbar()`, so it paints,
+  hit-tests and composites there). Other scrollers against the edge, pages'
+  own styled scrollbars and legacy (always shown) scrollbars still run under
+  it. Hovering it morphs it into a panel listing the tabs, placed so the
+  active tab is level with the pointer. Scrolling moves the panel under the pointer like a picker
   wheel, and lifting off selects the tab that settles there; clicking selects
   too. AppKit takes all the input; SwiftUI draws, over an `@Observable` model.
 - **The veil** (`ui/Veil.swift`): when a window waits on the user, its page

@@ -21,8 +21,9 @@ final class TabPicker: NSView {
 
   private enum Metrics {
     /// How far in from the window's edge the pointer opens the panel from:
-    /// the gutter the page stops short of, so the page keeps all of itself.
-    static let hotZoneWidth = PageGutter.width
+    /// the bump's visible half, which the page's scrollbar keeps clear of
+    /// (fiber/renderer/hooks/page_scrollbar.cc).
+    static let hotZoneWidth = TabPickerModel.bumpWidth / 2
     /// How far the pointer can stray from the open panel before it closes.
     static let panelSlop: CGFloat = 24
     /// How long the pointer rests on the edge before the panel opens, so it
@@ -159,8 +160,8 @@ final class TabPicker: NSView {
     if isHidden {
       return nil
     }
-    // While the panel is closed, scrolling over the bump is for the page (the
-    // gutter under it passes it on).
+    // While the panel is closed, scrolling over the bump is for the page
+    // under it.
     if !model.isExpanded, NSApp.currentEvent?.type == .scrollWheel {
       return nil
     }
@@ -170,7 +171,7 @@ final class TabPicker: NSView {
     return area.contains(point) ? self : nil
   }
 
-  /// The open panel and the gutter between it and the window's edge, where
+  /// The open panel and the space between it and the window's edge, where
   /// the pointer that opened it may still be.
   private var panelHitRect: CGRect {
     let panel = model.panelRect
@@ -538,7 +539,7 @@ final class TabPickerModel {
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
 
   /// The bump is a capsule this wide, centered on the window's edge.
-  static let bumpWidth: CGFloat = 16
+  nonisolated static let bumpWidth: CGFloat = 16
   static let panelInset: CGFloat = 10
   static let panelWidth: CGFloat = 264
 

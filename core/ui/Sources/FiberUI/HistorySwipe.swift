@@ -37,7 +37,7 @@ final class HistorySwipe {
   /// Set once the swipe has landed, while the snapshot covers the page.
   private var isCovering = false
 
-  /// Moves `pageArea` (the page and the gutter continuing it).
+  /// Moves `pageArea` (the page and the New Tab page over it).
   init(pageArea: NSView) {
     self.pageArea = pageArea
     view.isHidden = true
