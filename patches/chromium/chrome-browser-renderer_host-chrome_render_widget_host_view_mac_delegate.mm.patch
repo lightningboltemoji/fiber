@@ -1,0 +1,31 @@
+diff --git a/chrome/browser/renderer_host/chrome_render_widget_host_view_mac_delegate.mm b/chrome/browser/renderer_host/chrome_render_widget_host_view_mac_delegate.mm
+index 2b0dc32e7f..621d5117c2 100644
+--- a/chrome/browser/renderer_host/chrome_render_widget_host_view_mac_delegate.mm
++++ b/chrome/browser/renderer_host/chrome_render_widget_host_view_mac_delegate.mm
+@@ -33,6 +33,7 @@
+ #include "content/public/browser/render_widget_host.h"
+ #include "content/public/browser/render_widget_host_view.h"
+ #include "content/public/browser/web_contents.h"
++#import "fiber/browser/swipe/fiber_history_swiper.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "services/service_manager/public/cpp/interface_provider.h"
+ #include "ui/base/window_open_disposition.h"
+@@ -51,7 +52,8 @@
+   int32_t _widgetRoutingId;
+ 
+   // Responsible for 2-finger swipes history navigation.
+-  HistorySwiper* __strong _historySwiper;
++  // Fiber: Fiber's, which moves the page, in place of Chrome's arrows.
++  FiberHistorySwiper* __strong _historySwiper;
+ 
+   // A boolean set to true while resigning first responder status, to avoid
+   // infinite recursion in the case of reentrance.
+@@ -64,7 +66,7 @@
+   if (self) {
+     _widgetProcessId = renderWidgetHost->GetProcess()->GetDeprecatedID();
+     _widgetRoutingId = renderWidgetHost->GetRoutingID();
+-    _historySwiper = [[HistorySwiper alloc] initWithDelegate:self];
++    _historySwiper = [[FiberHistorySwiper alloc] initWithDelegate:self];
+     // Clip bounds so history swiper navigation layer doesn't overflow the
+     // bounds when in Split View or with a Side Panel open.
+     [self viewThatWantsHistoryOverlay].clipsToBounds = YES;

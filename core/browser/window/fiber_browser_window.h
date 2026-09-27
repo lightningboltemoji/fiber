@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -20,6 +21,8 @@
 
 namespace fiber {
 
+class DownloadsWait;
+class HistorySwipeNavigation;
 class FiberLocationBar;
 class FiberStatusBubble;
 
@@ -45,6 +48,8 @@ class FiberBrowserWindow : public BrowserWindow,
   // Returns the Fiber window showing the tab `web_contents`, if any.
   static FiberBrowserWindow* FromWebContents(
       content::WebContents* web_contents);
+  // Returns the Fiber window that is `window`, if any.
+  static FiberBrowserWindow* FromNativeWindow(gfx::NativeWindow window);
 
   BrowserWindowInterface* browser() const { return browser_; }
 
@@ -60,6 +65,14 @@ class FiberBrowserWindow : public BrowserWindow,
   // Sends the UI what it shows of the active tab's page (the toolbar, the
   // window title).
   void UpdatePageState();
+
+  // Swiping between the active tab's pages, for FiberHistorySwiper: see
+  // FiberWindow's -beginHistorySwipeInDirection:snapshot:. `navigating`: the
+  // swipe landed, and the page is about to go back or forward; the UI covers
+  // it until the page it's going to shows.
+  void BeginHistorySwipe(bool back);
+  void UpdateHistorySwipe(double progress);
+  void EndHistorySwipe(bool navigating);
 
   // BrowserWindow:
   gfx::NativeWindow GetNativeWindow() const override;
@@ -225,6 +238,8 @@ class FiberBrowserWindow : public BrowserWindow,
   // content::WebContentsObserver (observes the active tab):
   void LoadProgressChanged(double progress) override;
   void DidStopLoading() override;
+  void DidStartNavigation(
+      content::NavigationHandle* navigation_handle) override;
 
  protected:
   // BrowserWindow:
@@ -246,6 +261,10 @@ class FiberBrowserWindow : public BrowserWindow,
   id<FiberWindow> __strong ui_;
   std::unique_ptr<FiberLocationBar> location_bar_;
   std::unique_ptr<FiberStatusBubble> status_bubble_;
+  // Closing waiting for the window's downloads, if it is.
+  base::WeakPtr<DownloadsWait> downloads_wait_;
+  // After a history swipe lands, until the page it went to shows.
+  std::unique_ptr<HistorySwipeNavigation> history_swipe_navigation_;
 };
 
 }  // namespace fiber

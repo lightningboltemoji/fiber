@@ -32,6 +32,72 @@ import FiberBridge
   ) -> any FiberJavaScriptDialog {
     JavaScriptDialog(content: content, window: window, actions: actions)
   }
+
+  @objc(leavePromptWithContent:site:window:actions:)
+  class func leavePrompt(
+    with content: FiberJavaScriptDialogContent, site: String, window: NSWindow,
+    actions: any FiberJavaScriptDialogActions
+  ) -> any FiberJavaScriptDialog {
+    LeavePrompt(content: content, site: site, window: window, actions: actions)
+  }
+}
+
+/// A page asking before it's left or reloaded (its beforeunload handler), asked
+/// over the veiled page: "Leave site?", which site, and Leave (Return) or
+/// Cancel (Escape). Chrome's text; pages can't give their own.
+@MainActor
+final class LeavePrompt: NSObject, FiberJavaScriptDialog {
+  private let actions: any FiberJavaScriptDialogActions
+  private weak var controller: BrowserWindowController?
+  private var prompt: VeilPrompt?
+  private var isDone = false
+
+  init(
+    content: FiberJavaScriptDialogContent, site: String, window: NSWindow,
+    actions: any FiberJavaScriptDialogActions
+  ) {
+    self.actions = actions
+    controller = BrowserWindowController.controller(for: window)
+    super.init()
+    let prompt = VeilPrompt(
+      eyebrow: site, title: content.title, message: content.message,
+      buttons: [
+        .init(title: content.cancelButtonTitle, role: .cancel) {
+          [weak self] in self?.finish { $0.dialogDidCancel() }
+        },
+        .init(title: content.acceptButtonTitle, role: .default) {
+          [weak self] in self?.finish { $0.dialogDidAccept(withInput: "") }
+        },
+      ])
+    self.prompt = prompt
+    guard let controller else {
+      // Nowhere to ask, so the answer is no; after returning, since the
+      // answer can end the dialog's owner.
+      DispatchQueue.main.async {
+        self.finish { $0.dialogDidCancel() }
+      }
+      return
+    }
+    controller.present(prompt)
+  }
+
+  var userInput: String { "" }
+
+  func close() {
+    finish { $0.dialogDidDismiss() }
+  }
+
+  /// Takes the prompt down and reports how it ended, once.
+  private func finish(_ report: (any FiberJavaScriptDialogActions) -> Void) {
+    guard !isDone else {
+      return
+    }
+    isDone = true
+    if let prompt {
+      controller?.dismiss(prompt)
+    }
+    report(actions)
+  }
 }
 
 /// A JavaScript dialog, shown as an alert sheet on the page's window.

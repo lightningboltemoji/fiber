@@ -3,8 +3,14 @@
 //
 // `--tabs N` opens the first window with N tabs of made-up sites, the last one
 // active.
+//
+// `--ask-before-leaving` starts every page asking before it's left, as if it
+// had a beforeunload handler.
+//
+// `--downloads N` starts N made-up downloads, which quitting waits for.
 
 import AppKit
+import FiberBridge
 
 let app = NSApplication.shared
 let delegate = HarnessAppDelegate()
@@ -15,6 +21,9 @@ app.run()
 @MainActor
 final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   private var browsers: [MockBrowser] = []
+  private lazy var downloads = MockDownloads(count: launchDownloadCount)
+  /// Set once the downloads are done, so the quit they held up goes ahead.
+  private var isDoneWaiting = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.mainMenu = makeMainMenu()
@@ -22,10 +31,51 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     NSApp.activate()
   }
 
+  // Like Chrome with Warn Before Quitting on: Command-Q quits only when held.
+  func applicationShouldTerminate(_ sender: NSApplication)
+    -> NSApplication.TerminateReply
+  {
+    if isDoneWaiting {
+      return .terminateNow
+    }
+    if let event = NSApp.currentEvent, event.type == .keyDown,
+      event.charactersIgnoringModifiers == "q",
+      !FiberQuitConfirmation.run(with: event, announcement: "Hold ⌘Q to Quit")
+    {
+      return .terminateCancel
+    }
+    // Like Chrome, it waits for downloads, in the window last used.
+    guard !downloads.isEmpty,
+      let window = NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible)
+    else {
+      return .terminateNow
+    }
+    downloads.wait(in: window) { [weak self] proceed in
+      if proceed {
+        self?.isDoneWaiting = true
+        NSApp.terminate(nil)
+      } else {
+        FiberQuitConfirmation.restoreWindows()
+      }
+    }
+    return .terminateCancel
+  }
+
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication)
     -> Bool
   {
     true
+  }
+
+  private var launchDownloadCount: Int {
+    let arguments = CommandLine.arguments
+    guard let flag = arguments.firstIndex(of: "--downloads"),
+      arguments.indices.contains(flag + 1),
+      let count = Int(arguments[flag + 1])
+    else {
+      return 0
+    }
+    return max(count, 0)
   }
 
   private var launchTabCount: Int {
@@ -100,6 +150,10 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         // Handled by the window itself, as in the real app.
         item("Show Toolbar", #selector(NSWindow.toggleToolbarShown(_:)), "s"),
         item("Reload Page", #selector(MockBrowser.reloadPage(_:)), "r"),
+        item("Simulate Swipe Back", #selector(MockBrowser.simulateSwipeBack(_:)), "["),
+        item(
+          "Simulate Swipe Forward", #selector(MockBrowser.simulateSwipeForward(_:)),
+          "]"),
         // What a page going fullscreen does.
         item("Toggle Controls", #selector(MockBrowser.toggleControls(_:))),
       ])

@@ -3,7 +3,10 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "components/javascript_dialogs/app_modal_dialog_manager.h"
+#include "fiber/browser/dialogs/fiber_app_modal_dialog_view.h"
 #include "fiber/browser/dialogs/fiber_javascript_dialog_view.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 
@@ -28,6 +31,12 @@ base::WeakPtr<javascript_dialogs::TabModalDialogView> ShowJavaScriptDialog(
       window->GetNativeWindow(), title, dialog_type, message_text,
       default_prompt_text, std::move(dialog_callback),
       std::move(dialog_force_closed_callback));
+}
+
+void InstallAppModalDialogFactory() {
+  javascript_dialogs::AppModalDialogManager::GetInstance()
+      ->SetNativeDialogFactory(
+          base::BindRepeating(&FiberAppModalDialogView::Create));
 }
 
 }  // namespace fiber

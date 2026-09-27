@@ -37,6 +37,16 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private static let statusBubbleInset: CGFloat = 10
 
   var window: NSWindow { browserWindow }
+
+  /// The controller of `window`, if it's a browser window.
+  static func controller(for window: NSWindow) -> BrowserWindowController? {
+    (window as? BrowserWindow)?.controller
+  }
+
+  /// Every browser window's controller.
+  static var all: [BrowserWindowController] {
+    NSApp.windows.compactMap { ($0 as? BrowserWindow)?.controller }
+  }
   var omnibox: any FiberOmnibox { commandPalette }
 
   private let browserWindow: BrowserWindow
@@ -45,6 +55,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let tabPicker = TabPicker()
   private let commandPalette = CommandPalette()
   private let newTabView = NewTabView()
+  /// The page and the gutter continuing it, which the veil blurs as one.
+  private let pageArea = NSView()
   /// The page and the New Tab page over it. It stops short of the window's
   /// right edge, where the gutter continues it.
   private let pageView = NSView()
@@ -54,6 +66,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var isNewTabPage = false
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
+  /// Blurs the page and darkens the window while it waits on the user.
+  private lazy var veil = Veil(blurring: pageArea)
+  /// Swiping between pages moves the page area.
+  private lazy var historySwipe = HistorySwipe(pageArea: pageArea)
+  /// What the window is waiting on the user for, over the veil.
+  private var prompt: VeilPrompt?
+  /// Where keyboard focus was before the prompt took it.
+  private weak var responderBeforePrompt: NSResponder?
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
   /// Shown with Command-S, until hidden with it again.
@@ -99,18 +119,30 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.tabbingMode = .disallowed
 
     let content = window.contentView!
+    pageArea.frame = content.bounds
+    pageArea.autoresizingMask = [.width, .height]
+    pageArea.wantsLayer = true
+    content.addSubview(pageArea)
+    historySwipe.place = { [weak self] view, above in
+      guard let self else {
+        return
+      }
+      self.window.contentView?.addSubview(
+        view, positioned: above ? .above : .below, relativeTo: self.pageArea)
+    }
+
     pageView.frame = NSRect(
       x: 0, y: 0, width: content.bounds.width - PageGutter.width,
       height: content.bounds.height)
     pageView.autoresizingMask = [.width, .height]
     pageView.wantsLayer = true
-    content.addSubview(pageView)
+    pageArea.addSubview(pageView)
 
     gutter.frame = NSRect(
       x: content.bounds.width - PageGutter.width, y: 0,
       width: PageGutter.width, height: content.bounds.height)
     gutter.autoresizingMask = [.height, .minXMargin]
-    content.addSubview(gutter)
+    pageArea.addSubview(gutter)
 
     // Over the page (see setContentsView(_:)).
     newTabView.frame = pageView.bounds
@@ -159,6 +191,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
     commandPalette.onOpen = { [weak self] in self?.tabPicker.close() }
     commandPalette.onDismiss = { [weak self] in self?.closeCommandPalette() }
     content.addSubview(commandPalette)
+
+    // Over everything; what the window waits on goes over it.
+    veil.dimView.frame = content.bounds
+    veil.dimView.autoresizingMask = [.width, .height]
+    content.addSubview(veil.dimView)
 
     if frame.isEmpty {
       window.center()
@@ -277,6 +314,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // It was for the tab being switched away from. (The browser opens it
     // again on a New Tab page.)
     commandPalette.close()
+    historySwipe.reset()
     contentsView?.removeFromSuperview()
     contentsView = view
     guard let view else {
@@ -330,10 +368,101 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabPicker.isHidden = !visible
     // A fullscreen page gets the whole window.
     gutter.isHidden = !visible
-    pageView.frame = window.contentView!.bounds.divided(
+    pageView.frame = pageArea.bounds.divided(
       atDistance: visible ? PageGutter.width : 0, from: .maxXEdge
     ).remainder
     updateToolbar(animated: false)
+  }
+
+  // MARK: Veil
+
+  private static let promptFadeDuration: TimeInterval = 0.2
+  /// How long the veil stays after a prompt goes, for the next one: quitting
+  /// asks each page in turn.
+  private static let veilLingerDuration: TimeInterval = 0.15
+
+  /// Draws the veil to `amount` (see Veil); it stays fully drawn while a
+  /// prompt is up.
+  func setVeil(
+    _ amount: CGFloat, duration: TimeInterval,
+    timing: CAMediaTimingFunctionName = .easeInEaseOut
+  ) {
+    veil.setAmount(
+      prompt == nil ? amount : 1, duration: duration, timing: timing)
+  }
+
+  /// Shows `prompt` over the veil, in place of any other, and brings the
+  /// window forward: it may have faded out as the user quit.
+  func present(_ prompt: VeilPrompt) {
+    self.prompt?.removeFromSuperview()
+    if self.prompt == nil {
+      responderBeforePrompt = window.firstResponder
+    }
+    self.prompt = prompt
+    tabPicker.close()
+    closeCommandPalette()
+
+    let content = window.contentView!
+    prompt.frame = content.bounds
+    prompt.autoresizingMask = [.width, .height]
+    prompt.alphaValue = 0
+    content.addSubview(prompt)
+    veil.setAmount(1, duration: 0.25, timing: .easeOut)
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = Self.promptFadeDuration
+      prompt.animator().alphaValue = 1
+      if window.alphaValue < 1 {
+        window.animator().alphaValue = 1
+      }
+    }
+    window.makeKeyAndOrderFront(nil)
+    window.makeFirstResponder(prompt)
+  }
+
+  /// Takes `prompt` down, if it's still up, returning focus to where it was.
+  /// The veil lifts unless another prompt follows.
+  func dismiss(_ prompt: VeilPrompt) {
+    guard prompt === self.prompt else {
+      return
+    }
+    self.prompt = nil
+    if window.firstResponder === prompt {
+      window.makeFirstResponder(responderBeforePrompt)
+    }
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = Self.promptFadeDuration
+      prompt.animator().alphaValue = 0
+    } completionHandler: {
+      MainActor.assumeIsolated { prompt.removeFromSuperview() }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.veilLingerDuration) {
+      [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, self.prompt == nil else {
+          return
+        }
+        self.veil.setAmount(0, duration: 0.25, timing: .easeOut)
+      }
+    }
+  }
+
+  func beginHistorySwipe(
+    in direction: FiberHistorySwipeDirection, snapshot: NSImage?
+  ) {
+    tabPicker.close()
+    historySwipe.begin(direction: direction, snapshot: snapshot)
+  }
+
+  func updateHistorySwipe(_ progress: Double) {
+    historySwipe.update(progress: progress)
+  }
+
+  func endHistorySwipeNavigating(_ navigating: Bool) {
+    historySwipe.end(navigating: navigating)
+  }
+
+  func finishHistorySwipeNavigation() {
+    historySwipe.finish()
   }
 
   /// Opens the command palette, where the browser puts the page's URL.
@@ -380,7 +509,10 @@ extension BrowserWindowController: NSWindowDelegate {
   // Closing goes through the browser, which runs unload handlers and closes
   // the tabs first; the window really closes when its owner is done with it.
   func windowShouldClose(_ sender: NSWindow) -> Bool {
-    actions.windowShouldClose()
+    // A prompt is waiting on the user first.
+    if prompt == nil {
+      actions.windowShouldClose()
+    }
     return false
   }
 

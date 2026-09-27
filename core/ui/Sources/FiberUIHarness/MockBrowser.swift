@@ -178,6 +178,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   func showDialog(
     _ kind: FiberJavaScriptDialogKind, title: String, message: String,
     accept: String = "OK", defaultPromptText: String = "",
+    leavePromptSite: String? = nil,
     completion: @escaping (MockDialogResult) -> Void
   ) {
     let content = FiberJavaScriptDialogContent(
@@ -188,8 +189,14 @@ final class MockBrowser: NSObject, FiberWindowActions {
       self?.dialog = nil
       completion(result)
     }
-    dialog = FiberJavaScriptDialogFactory.dialog(
-      with: content, window: ui.window, actions: actions)
+    if let leavePromptSite {
+      dialog = FiberJavaScriptDialogFactory.leavePrompt(
+        with: content, site: leavePromptSite, window: ui.window,
+        actions: actions)
+    } else {
+      dialog = FiberJavaScriptDialogFactory.dialog(
+        with: content, window: ui.window, actions: actions)
+    }
   }
 
   // MARK: Private
@@ -201,7 +208,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private func confirmLeaving(then leave: @escaping () -> Void) {
     showDialog(
       .confirm, title: "Leave site?",
-      message: "Changes you made may not be saved.", accept: "Leave"
+      message: "Changes you made may not be saved.", accept: "Leave",
+      leavePromptSite: activeTab.map { URL(string: $0.url)?.host() ?? "" }
     ) { result in
       if case .accepted = result {
         leave()
@@ -254,6 +262,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   private func open(_ url: String, in tab: MockTab) {
+    tab.snapshots[tab.index] = tab.page.snapshot()
     tab.history.removeSubrange((tab.index + 1)...)
     tab.history.append(url)
     tab.index += 1
@@ -268,8 +277,120 @@ final class MockBrowser: NSObject, FiberWindowActions {
       openTab(activeTab.history[newIndex], activate: false)
       return
     }
+    activeTab.snapshots[activeTab.index] = activeTab.page.snapshot()
     activeTab.index = newIndex
     startLoading(activeTab)
+  }
+
+  // MARK: History swipes
+
+  private var swipeScroll = NSSize.zero
+  private var isSwiping = false
+  private var swipeTimer: Timer?
+
+  /// Swipes between pages as Fiber's FiberHistorySwiper does: once a trackpad
+  /// scroll turns out horizontal, AppKit tracks it and the page follows. (The
+  /// mock page doesn't scroll, so there's no renderer to ask first.) Returns
+  /// whether the swipe has the event.
+  func swipe(with event: NSEvent) -> Bool {
+    if event.phase == .began {
+      swipeScroll = .zero
+    }
+    guard event.phase == .changed, !isSwiping,
+      NSEvent.isSwipeTrackingFromScrollEventsEnabled
+    else {
+      return isSwiping
+    }
+    swipeScroll.width += event.scrollingDeltaX
+    swipeScroll.height += event.scrollingDeltaY
+    guard abs(swipeScroll.width) > abs(swipeScroll.height) else {
+      return false
+    }
+    let back = swipeScroll.width > 0
+    let tab = activeTab!
+    let target = tab.index + (back ? -1 : 1)
+    guard tab.history.indices.contains(target) else {
+      return false
+    }
+    isSwiping = true
+    var committed = false
+    event.trackSwipeEvent(
+      options: .lockDirection, dampenAmountThresholdMin: -1, max: 1
+    ) { [weak self] amount, phase, isComplete, _ in
+      MainActor.assumeIsolated {
+        guard let self else {
+          return
+        }
+        switch phase {
+        case .began:
+          self.ui.beginHistorySwipe(
+            in: back ? .back : .forward, snapshot: tab.snapshots[target])
+        case .ended:
+          committed = true
+        case .cancelled:
+          committed = false
+        default:
+          break
+        }
+        self.ui.updateHistorySwipe(abs(amount))
+        if isComplete {
+          self.isSwiping = false
+          self.finishSwipe(to: target, committed: committed)
+        }
+      }
+    }
+    return true
+  }
+
+  @objc func simulateSwipeBack(_ sender: Any?) {
+    simulateSwipe(back: true)
+  }
+
+  @objc func simulateSwipeForward(_ sender: Any?) {
+    simulateSwipe(back: false)
+  }
+
+  /// A swipe the way AppKit drives one, without a trackpad: dragged halfway
+  /// over a second, then let go.
+  private func simulateSwipe(back: Bool) {
+    let tab = activeTab!
+    let target = tab.index + (back ? -1 : 1)
+    guard tab.history.indices.contains(target), !isSwiping else {
+      return
+    }
+    isSwiping = true
+    ui.beginHistorySwipe(
+      in: back ? .back : .forward, snapshot: tab.snapshots[target])
+    let start = Date()
+    swipeTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) {
+      [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self else {
+          return
+        }
+        let t = Date().timeIntervalSince(start)
+        let progress = t < 1.2 ? 0.5 * t / 1.2 : min(0.5 + (t - 1.2) / 0.6, 1)
+        self.ui.updateHistorySwipe(progress)
+        if progress >= 1 {
+          self.swipeTimer?.invalidate()
+          self.swipeTimer = nil
+          self.isSwiping = false
+          self.finishSwipe(to: target, committed: true)
+        }
+      }
+    }
+  }
+
+  private func finishSwipe(to index: Int, committed: Bool) {
+    ui.endHistorySwipeNavigating(committed)
+    guard committed else {
+      return
+    }
+    go(to: index, event: nil)
+    // The mock page shows its new URL at once; a real one takes a moment.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+      MainActor.assumeIsolated { self?.ui.finishHistorySwipeNavigation() }
+    }
   }
 
   private func startLoading(_ tab: MockTab) {
@@ -358,6 +479,8 @@ private final class MockTab: Equatable {
   let page = MockPageView()
   var history: [String] = []
   var index = -1
+  /// What each page in `history` looked like when it was left.
+  var snapshots: [Int: NSImage] = [:]
   var loadStart: Date?
   var loadTimer: Timer?
 

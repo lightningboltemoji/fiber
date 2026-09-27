@@ -6,6 +6,14 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+// Which way a history swipe goes.
+typedef NS_ENUM(NSInteger, FiberHistorySwipeDirection) {
+  // To the previous page: the page moves right, uncovering it.
+  FiberHistorySwipeDirectionBack,
+  // To the next page, which slides in from the right over this one.
+  FiberHistorySwipeDirectionForward,
+};
+
 // What happens in a browser window that the browser acts on.
 //
 // Calls that open a page take the event that triggered them, if any. Its
@@ -65,6 +73,21 @@ NS_SWIFT_UI_ACTOR
 // The toolbar and tab picker are hidden while a page is fullscreen, for
 // example a video.
 - (void)setControlsVisible:(BOOL)visible;
+
+// Swiping between pages (two fingers on a trackpad, one on a mouse): the page
+// follows the user's fingers, with `snapshot`, what the page it's going to
+// last looked like, beside it; nil shows the window's background instead.
+- (void)beginHistorySwipeInDirection:(FiberHistorySwipeDirection)direction
+                            snapshot:(nullable NSImage*)snapshot;
+// How far the swipe has gone, from 0 to 1 (the page it's going to showing
+// whole). After the user lets go, it's animated on to 0 or 1.
+- (void)updateHistorySwipe:(double)progress;
+// The swipe is over. If `navigating`, the page is going back or forward, and
+// the snapshot covers it until -finishHistorySwipeNavigation; otherwise it's
+// back as it was.
+- (void)endHistorySwipeNavigating:(BOOL)navigating;
+// The page swiped to is showing (or isn't coming): the snapshot goes.
+- (void)finishHistorySwipeNavigation;
 @end
 
 NS_SWIFT_UI_ACTOR

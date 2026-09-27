@@ -1,0 +1,182 @@
+diff --git a/chrome/browser/app_controller_mac.mm b/chrome/browser/app_controller_mac.mm
+index cb1b5aa8be..efb49e9d16 100644
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -88,7 +88,6 @@
+ #include "chrome/browser/ui/cocoa/apps/quit_with_apps_controller_mac.h"
+ #import "chrome/browser/ui/cocoa/bookmarks/bookmark_menu_bridge.h"
+ #import "chrome/browser/ui/cocoa/confirm_quit.h"
+-#import "chrome/browser/ui/cocoa/confirm_quit_panel_controller.h"
+ #include "chrome/browser/ui/cocoa/handoff_observer.h"
+ #import "chrome/browser/ui/cocoa/history_menu_bridge.h"
+ #import "chrome/browser/ui/cocoa/profiles/profile_menu_controller.h"
+@@ -137,6 +136,7 @@
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/browser/extension_system.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "fiber/browser/hooks/confirm_quit.h"
+ #include "net/base/apple/url_conversions.h"
+ #include "net/base/filename_util.h"
+ #include "ui/base/base_window.h"
+@@ -544,7 +544,6 @@ Profile* GetLastProfileMac() {
+ - (void)cancelConfirmQuitPanel;
+ - (void)registerServicesMenuTypesTo:(NSApplication*)app;
+ - (void)checkForAnyKeyWindows;
+-- (BOOL)userWillWaitForInProgressDownloads:(int)downloadCount;
+ - (BOOL)shouldQuitWithInProgressDownloads;
+ - (void)profileWasRemoved:(const base::FilePath&)profilePath
+              forIncognito:(bool)isIncognito;
+@@ -784,10 +783,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+   // WeakPtr self-nulls on browser destruction.
+   base::WeakPtr<BrowserWindowInterface> _lastActiveBrowser;
+ 
+-  // The controller that manages the "Confirm Quit" HUD. This is lazily
+-  // initialized on the first keyboard-initiated quit attempt and cleared when
+-  // the panel is dismissed or the quit is canceled.
+-  ConfirmQuitPanelController* __strong _confirmQuitPanelController;
+ }
+ 
+ @synthesize startupComplete = _startupComplete;
+@@ -987,8 +982,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+ }
+ 
+ - (void)cancelConfirmQuitPanel {
+-  [_confirmQuitPanelController cancel];
+-  _confirmQuitPanelController = nil;
++  // Fiber: Fiber's UI, in place of Chrome's panel.
++  fiber::CancelConfirmQuit();
+ }
+ 
+ - (void)stopTryingToTerminateApplication {
+@@ -1026,24 +1021,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+     return ConfirmQuitResultNotPrompted;
+   }
+ 
+-  // In the event of a double-quit attempt (holding command and pressing 'Q'
+-  // twice), we will already have a ConfirmQuitPanelController, so only create a
+-  // new one if needed.
+-  if (!_confirmQuitPanelController) {
+-    _confirmQuitPanelController = [[ConfirmQuitPanelController alloc] init];
+-  }
+-
+-  __weak AppController* weakSelf = self;
+-  BOOL quitConfirmed = [_confirmQuitPanelController
+-      runConfirmQuitLoopWithEvent:event
+-                dismissedCallback:^{
+-                  AppController* strongSelf = weakSelf;
+-                  if (strongSelf && !browser_shutdown::IsTryingToQuit()) {
+-                    strongSelf->_confirmQuitPanelController = nil;
+-                  }
+-                }];
+-
+-  return quitConfirmed ? ConfirmQuitResultConfirmed : ConfirmQuitResultAborted;
++  // Fiber: Fiber's UI, in place of Chrome's panel.
++  return fiber::ConfirmQuit(event) ? ConfirmQuitResultConfirmed
++                                   : ConfirmQuitResultAborted;
+ }
+ 
+ // Handles the NSApplicationWillTerminateNotification notification. (Note to
+@@ -1386,35 +1366,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+   }
+ }
+ 
+-// Helper function for populating and displaying the in progress downloads at
+-// exit alert panel.
+-- (BOOL)userWillWaitForInProgressDownloads:(int)downloadCount {
+-  // Set the dialog text based on whether or not there are multiple downloads.
+-  // Dialog text: warning and explanation.
+-  NSString* titleText = l10n_util::GetPluralNSStringF(
+-      IDS_ABANDON_DOWNLOAD_DIALOG_TITLE, downloadCount);
+-  NSString* explanationText =
+-      l10n_util::GetNSString(IDS_ABANDON_DOWNLOAD_DIALOG_BROWSER_MESSAGE);
+-
+-  // "Cancel download and exit" button text.
+-  NSString* exitTitle =
+-      l10n_util::GetNSString(IDS_ABANDON_DOWNLOAD_DIALOG_EXIT_BUTTON);
+-
+-  // "Wait for download" button text.
+-  NSString* waitTitle =
+-      l10n_util::GetNSString(IDS_ABANDON_DOWNLOAD_DIALOG_CONTINUE_BUTTON);
+-
+-  NSAlert* alert = [[NSAlert alloc] init];
+-  alert.messageText = titleText;
+-  alert.informativeText = explanationText;
+-  [alert addButtonWithTitle:waitTitle];
+-  [alert addButtonWithTitle:exitTitle];
+-
+-  // 'waitButton' is the default choice.
+-  int choice = [alert runModal];
+-  return choice == NSAlertFirstButtonReturn ? YES : NO;
+-}
+-
+ // Check all profiles for in progress downloads, and if we find any, prompt the
+ // user to see if we should continue to exit (and thus cancel the downloads), or
+ // if we should wait.
+@@ -1470,40 +1421,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+     return YES;
+   }
+ 
+-  // A dialog is about to be shown to the user, and that involves running a
+-  // nested run loop, during which it is possible that Profiles may disappear.
+-  // Therefore, from this point forward, be sure to refer to Profile objects via
+-  // weak pointers. See https://crbug.com/507386203.
+-  std::vector<base::WeakPtr<Profile>> weakProfiles;
+-  weakProfiles.reserve(profiles.size());
+-  std::ranges::transform(
+-      profiles, std::back_inserter(weakProfiles),
+-      [](Profile* profile) { return profile->GetWeakPtr(); });
+-
+-  // Pop the question, and return if the user chooses to quit.
+-  if (![self userWillWaitForInProgressDownloads:totalBlockingDownloadCount]) {
+-    return YES;
+-  }
+-
+-  // Display the active downloads, creating new browser windows if necessary.
+-  for (auto& profile : weakProfiles) {
+-    if (!profile.get()) {
+-      continue;
+-    }
+-
+-    BrowserWindowInterface* browser =
+-        ProfileBrowserCollection::GetForProfile(profile.get())
+-            ->GetLastActiveBrowser();
+-    if (!browser) {
+-      browser = CreateBrowserWindow(
+-          BrowserWindowCreateParams(profile.get(), /*user_gesture=*/true));
+-      browser->GetWindow()->Show();
+-    }
+-
+-    chrome::ShowDownloads(browser);
+-  }
+-
+-  [self cancelConfirmQuitPanel];
++  // Fiber: Fiber shows the downloads over the page, and quits once they're
++  // done, in place of Chrome's alert.
++  fiber::WaitForDownloadsBeforeQuitting(profiles);
+   return NO;
+ }
+ 
+@@ -1986,7 +1906,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+ // display of that item depending on the preference state.
+ - (void)updateConfirmToQuitPrefMenuItem:(NSMenuItem*)item {
+   // Format the string so that the correct key equivalent is displayed.
+-  NSString* acceleratorString = [ConfirmQuitPanelController keyCommandString];
++  // Fiber: Chrome's panel is cut.
++  NSString* acceleratorString = fiber::QuitKeyCommandString();
+   NSString* title = l10n_util::GetNSStringF(IDS_CONFIRM_TO_QUIT_OPTION,
+       base::SysNSStringToUTF16(acceleratorString));
+   [item setTitle:title];
+@@ -2593,13 +2514,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+   });
+ }
+ 
+-- (ConfirmQuitPanelController*)confirmQuitPanelControllerForTesting {
+-  if (!_confirmQuitPanelController) {
+-    _confirmQuitPanelController = [[ConfirmQuitPanelController alloc] init];
+-  }
+-  return _confirmQuitPanelController;
+-}
+-
+ - (void)setCmdWMenuItemForTesting:(NSMenuItem*)menuItem {
+   _cmdWMenuItemForTesting = menuItem;
+ }

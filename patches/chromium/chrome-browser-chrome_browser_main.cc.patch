@@ -1,0 +1,27 @@
+diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
+index cbf3b6c563..ce30acc64c 100644
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -230,6 +230,7 @@
+ #include "chrome/browser/ui/cocoa/keystone_infobar_delegate.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "fiber/browser/hooks/javascript_dialog_factory.h"
+ 
+ #if defined(ARCH_CPU_X86_64)
+ #include "base/mac/mac_util.h"
+@@ -1568,12 +1569,8 @@ void ChromeBrowserMainParts::PreProfileInit() {
+ #endif
+ 
+ #if BUILDFLAG(IS_MAC)
+-  if (base::FeatureList::IsEnabled(features::kViewsJSAppModalDialog) ||
+-      headless::IsHeadlessMode()) {
+-    InstallChromeJavaScriptAppModalDialogViewFactory();
+-  } else {
+-    InstallChromeJavaScriptAppModalDialogViewCocoaFactory();
+-  }
++  // Fiber: Fiber's app-modal JavaScript dialogs, in place of Chrome's.
++  fiber::InstallAppModalDialogFactory();
+ #else
+   InstallChromeJavaScriptAppModalDialogViewFactory();
+ #endif

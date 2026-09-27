@@ -200,7 +200,9 @@ core/                → //fiber
   browser/           C++ Chrome integration
     hooks/           the functions patches call
     window/          BrowserWindow implementation and its stubs
-    dialogs/         dialogs Chrome shows for a tab (JavaScript dialogs)
+    dialogs/         JavaScript dialogs, tab-modal and app-modal (beforeunload)
+    downloads/       waiting for downloads before quitting or closing
+    swipe/           swiping between pages, and the snapshots it shows
     new_tab/         chrome://newtab, Fiber's New Tab page
     …                one directory per feature (tabs, omnibox, downloads, extensions…)
   bridge/            include/FiberBridge/*.h + include/module.modulemap
@@ -263,6 +265,37 @@ controls float over it in Liquid Glass, mostly out of sight:
   with the pointer. Scrolling moves the panel under the pointer like a picker
   wheel, and lifting off selects the tab that settles there; clicking selects
   too. AppKit takes all the input; SwiftUI draws, over an `@Observable` model.
+- **The veil** (`ui/Veil.swift`): when a window waits on the user, its page
+  blurs and the window darkens, and what it's waiting for shows over it
+  (`ui/VeilPrompt.swift`: a title, a message, glass buttons; Return and
+  Escape press the default and cancel buttons, and the window's clicks,
+  keys and menu shortcuts go nowhere else). The blur is a filter on the page
+  area, not a backdrop, which would darken toward the window's edges.
+  - *Holding Command-Q to quit* (Warn Before Quitting, `ui/QuitConfirmation.swift`,
+    `hooks/confirm_quit.mm`): the veil falls over every window while the key
+    is held, then the windows fade out. Chrome's `ConfirmQuitPanelController`
+    is cut.
+  - *Leave site?*: every page's beforeunload prompt (closing a tab or window,
+    navigating, reloading, quitting), with the site's name. Chrome shows these
+    through its app-modal dialog factory, which Fiber replaces
+    (`dialogs/fiber_app_modal_dialog_view.mm`); a quit brings each asking
+    window back in turn. Chrome's Cocoa app-modal dialog is cut.
+  - *Quitting when downloads finish* (`downloads/downloads_wait.mm`): quitting
+    with downloads in progress lists them with their progress, to cancel or
+    resume each; the quit goes ahead once they're done, or at once with Quit
+    Now, and Continue Browsing (Escape) calls it off. Chrome's alert is cut.
+    Closing the last Incognito window with downloads waits the same way.
+- **Swiping between pages** (`swipe/fiber_history_swiper.mm`,
+  `ui/HistorySwipe.swift`): as in Safari, the page follows the fingers like a
+  sheet of paper, over (going back) or under (forward) the page it's going to,
+  and lands or springs back with AppKit's swipe physics
+  (`-[NSEvent trackSwipeEventWithOptions:…]`, for trackpads as well as the
+  Magic Mouse). A scroll only becomes a swipe once the page passes it up, as in
+  Chrome. The page it's going to shows as it last looked
+  (`swipe/page_snapshots.mm`: each page is captured as it's left, within a
+  memory budget) until it draws. Chrome's arrows (`HistoryOverlayController`)
+  stay in the binary only for installed web apps' windows, which still use
+  Chrome's swiper.
 
 The page gets clicks under the title bar but never moves the window (a
 one-line patch to Chromium's web view, which otherwise asks to be draggable
@@ -274,7 +307,9 @@ tab handle; there's no close button, so Command-W (Chrome's Close Tab) closes
 them. The load progress bar (shown only once a load has taken half a second),
 status bubble, and JavaScript dialogs are Swift behind the bridge too. `make harness` runs all of it against the mock browser;
 `swift run --package-path core/ui FiberUIHarness --tabs 20` starts with 20
-tabs.
+tabs, `--ask-before-leaving` makes its pages ask before they're left, and
+`--downloads 4` gives a quit downloads to wait for. Its pages swipe too, and
+View > Simulate Swipe Back (Command-[) plays one without a trackpad.
 Not yet as described:
 
 - The rest of the window applies the snapshots it's pushed straight to its

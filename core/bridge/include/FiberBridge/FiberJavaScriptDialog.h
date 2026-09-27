@@ -70,6 +70,16 @@ NS_SWIFT_UI_ACTOR
                window:(NSWindow*)window
               actions:(id<FiberJavaScriptDialogActions>)actions;
 
+// Asks whether to leave the page, which asked with a beforeunload handler (or
+// whether to reload it; `content` says which): over the page, veiled, in
+// `window`, which comes forward. `site` names the page's site. `content`'s
+// kind is confirm.
++ (id<FiberJavaScriptDialog>)
+    leavePromptWithContent:(FiberJavaScriptDialogContent*)content
+                      site:(NSString*)site
+                    window:(NSWindow*)window
+                   actions:(id<FiberJavaScriptDialogActions>)actions;
+
 - (instancetype)init NS_UNAVAILABLE;
 
 @end

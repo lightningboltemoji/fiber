@@ -21,8 +21,31 @@ final class MockPageView: NSView {
     checkboxWithTitle: "Ask before leaving (beforeunload)", target: nil,
     action: nil)
 
+  /// Its window's history swipes start on it.
+  override func scrollWheel(with event: NSEvent) {
+    if browser?.swipe(with: event) != true {
+      super.scrollWheel(with: event)
+    }
+  }
+
+  /// What it looks like now, as Chrome's page snapshots would be.
+  func snapshot() -> NSImage? {
+    guard !bounds.isEmpty,
+      let rep = bitmapImageRepForCachingDisplay(in: bounds)
+    else {
+      return nil
+    }
+    cacheDisplay(in: bounds, to: rep)
+    let image = NSImage(size: bounds.size)
+    image.addRepresentation(rep)
+    return image
+  }
+
   override init(frame: NSRect) {
     super.init(frame: frame)
+    if CommandLine.arguments.contains("--ask-before-leaving") {
+      leaveCheckbox.state = .on
+    }
     titleLabel.font = .systemFont(ofSize: 28, weight: .semibold)
     urlLabel.textColor = .secondaryLabelColor
     resultLabel.textColor = .secondaryLabelColor

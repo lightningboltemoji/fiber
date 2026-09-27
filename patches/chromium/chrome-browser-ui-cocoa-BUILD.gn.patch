@@ -1,0 +1,35 @@
+diff --git a/chrome/browser/ui/cocoa/BUILD.gn b/chrome/browser/ui/cocoa/BUILD.gn
+index fcf3a297e1..7685b64a14 100644
+--- a/chrome/browser/ui/cocoa/BUILD.gn
++++ b/chrome/browser/ui/cocoa/BUILD.gn
+@@ -24,7 +24,9 @@ source_set("cocoa") {
+     "browser_window_command_handler.h",
+     "chrome_command_dispatcher_delegate.h",
+     "confirm_quit.h",
+-    "confirm_quit_panel_controller.h",
++
++    # Fiber: confirm_quit_panel_controller is cut (see
++    # //fiber/browser/hooks/confirm_quit.h).
+     "dock_icon.h",
+     "fullscreen/fullscreen_menubar_tracker.h",
+     "fullscreen/fullscreen_toolbar_controller.h",
+@@ -76,7 +78,8 @@ source_set("cocoa") {
+     "browser_window_command_handler.mm",
+     "chrome_command_dispatcher_delegate.mm",
+     "confirm_quit.cc",
+-    "confirm_quit_panel_controller.mm",
++
++    # Fiber: confirm_quit_panel_controller is cut.
+     "dock_icon.mm",
+     "fullscreen/fullscreen_menubar_tracker.mm",
+     "fullscreen/fullscreen_toolbar_animation_controller.h",
+@@ -406,7 +409,8 @@ source_set("interactive_ui_tests") {
+ 
+   sources = [
+     "apps/quit_with_apps_controller_mac_interactive_uitest.mm",
+-    "confirm_quit_panel_controller_interactive_uitest.mm",
++
++    # Fiber: confirm_quit_panel_controller is cut.
+     "status_bubble_mac_interactive_uitest.mm",
+     "tab_contents/web_contents_view_mac_interactive_uitest.mm",
+   ]

@@ -34,8 +34,12 @@
 #include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
+#include "fiber/browser/downloads/downloads_wait.h"
+#include "fiber/browser/swipe/history_swipe_navigation.h"
+#include "fiber/browser/swipe/page_snapshots.h"
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
@@ -141,6 +145,17 @@ FiberBrowserWindow* FiberBrowserWindow::FromWebContents(
   return nullptr;
 }
 
+// static
+FiberBrowserWindow* FiberBrowserWindow::FromNativeWindow(
+    gfx::NativeWindow window) {
+  for (FiberBrowserWindow* fiber_window : AllWindows()) {
+    if (fiber_window->GetNativeWindow() == window) {
+      return fiber_window;
+    }
+  }
+  return nullptr;
+}
+
 FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
     : browser_(browser) {
   AllWindows().push_back(this);
@@ -161,6 +176,9 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
 }
 
 FiberBrowserWindow::~FiberBrowserWindow() {
+  if (downloads_wait_) {
+    downloads_wait_->Close();
+  }
   std::erase(AllWindows(), this);
   browser_->GetFeatures().TearDownPreBrowserWindowDestruction();
   Observe(nullptr);
@@ -170,6 +188,38 @@ FiberBrowserWindow::~FiberBrowserWindow() {
 
 void FiberBrowserWindow::DeleteBrowserWindow() {
   delete this;
+}
+
+void FiberBrowserWindow::BeginHistorySwipe(bool back) {
+  // A swipe that lands while the last one's page is still coming.
+  history_swipe_navigation_.reset();
+  content::WebContents* web_contents = GetActiveWebContents();
+  [ui_ beginHistorySwipeInDirection:back ? FiberHistorySwipeDirectionBack
+                                         : FiberHistorySwipeDirectionForward
+                           snapshot:web_contents ? PageSnapshotAtOffset(
+                                                       web_contents,
+                                                       back ? -1 : 1)
+                                                 : nil];
+}
+
+void FiberBrowserWindow::UpdateHistorySwipe(double progress) {
+  [ui_ updateHistorySwipe:progress];
+}
+
+void FiberBrowserWindow::EndHistorySwipe(bool navigating) {
+  [ui_ endHistorySwipeNavigating:navigating];
+  content::WebContents* web_contents = GetActiveWebContents();
+  if (!navigating || !web_contents) {
+    [ui_ finishHistorySwipeNavigation];
+    return;
+  }
+  history_swipe_navigation_ = std::make_unique<HistorySwipeNavigation>(
+      web_contents, base::BindOnce(
+                        [](FiberBrowserWindow* window) {
+                          [window->ui_ finishHistorySwipeNavigation];
+                          window->history_swipe_navigation_.reset();
+                        },
+                        base::Unretained(this)));
 }
 
 void FiberBrowserWindow::ExecuteCommand(int command,
@@ -319,6 +369,8 @@ void FiberBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
                                             content::WebContents* new_contents,
                                             int index,
                                             int reason) {
+  // The last tab's swipe is over (the UI takes it down with the view).
+  history_swipe_navigation_.reset();
   // Swapping the view in and out of the window also updates each tab's
   // visibility, via WebContentsViewCocoa.
   [ui_ setContentsView:new_contents->GetNativeView().GetNativeNSView()];
@@ -488,10 +540,15 @@ void FiberBrowserWindow::ConfirmBrowserCloseWithPendingDownloads(
     int download_count,
     DownloadCloseType dialog_type,
     base::OnceCallback<void(bool)> callback) {
-  // TODO: Ask, like Chrome does. Until then closing cancels the downloads.
-  LOG(WARNING) << "Closing with " << download_count
-               << " download(s) in progress";
-  std::move(callback).Run(true);
+  // On the Mac, only an Incognito or Guest profile's last window gets here:
+  // closing it would cancel the profile's downloads. The close waits for them.
+  if (downloads_wait_) {
+    std::move(callback).Run(false);
+    return;
+  }
+  downloads_wait_ = DownloadsWait::Start(
+      DownloadsWait::Reason::kCloseWindow, {browser_->GetProfile()},
+      GetNativeWindow(), std::move(callback));
 }
 
 void FiberBrowserWindow::ShowAppMenu() {}
@@ -836,6 +893,14 @@ void FiberBrowserWindow::LoadProgressChanged(double progress) {
 
 void FiberBrowserWindow::DidStopLoading() {
   UpdateLoadProgress();
+}
+
+void FiberBrowserWindow::DidStartNavigation(
+    content::NavigationHandle* navigation_handle) {
+  // The page being left, for a swipe back (or forward) to it.
+  if (navigation_handle->IsInPrimaryMainFrame()) {
+    CapturePageSnapshot(web_contents());
+  }
 }
 
 }  // namespace fiber

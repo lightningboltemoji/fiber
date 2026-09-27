@@ -32,6 +32,12 @@ base::WeakPtr<javascript_dialogs::TabModalDialogView> ShowJavaScriptDialog(
     content::JavaScriptDialogManager::DialogClosedCallback dialog_callback,
     base::OnceClosure dialog_force_closed_callback);
 
+// Makes Fiber's UI show the JavaScript dialogs Chrome shows app-modally,
+// among them every page's prompt before it's left (beforeunload), in place of
+// Chrome's. Called at startup (see
+// patches/chromium/chrome-browser-chrome_browser_main.cc.patch).
+void InstallAppModalDialogFactory();
+
 }  // namespace fiber
 
 #endif  // FIBER_BROWSER_HOOKS_JAVASCRIPT_DIALOG_FACTORY_H_

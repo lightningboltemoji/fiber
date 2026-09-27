@@ -6,17 +6,25 @@ assert(is_mac)
 # //chrome/browser:browser (see patches/chromium/chrome-browser-BUILD.gn.patch)
 # and uses //chrome/browser headers through browser_public_dependencies.
 #
-#   hooks/    the functions Fiber's Chromium patches call
-#   window/   BrowserWindow and the stubs it needs
-#   dialogs/  dialogs Chrome shows for a tab
-#   new_tab/  chrome://newtab, Fiber's New Tab page
-#   omnibox/  Chrome's omnibox, with the command palette as its view
+#   hooks/      the functions Fiber's Chromium patches call
+#   window/     BrowserWindow and the stubs it needs
+#   dialogs/    dialogs Chrome shows for a tab, and app-modally
+#   downloads/  waiting for downloads before quitting or closing
+#   new_tab/    chrome://newtab, Fiber's New Tab page
+#   omnibox/    Chrome's omnibox, with the command palette as its view
+#   swipe/      swiping between pages
 source_set("browser") {
   sources = [
+    "dialogs/fiber_app_modal_dialog_view.h",
+    "dialogs/fiber_app_modal_dialog_view.mm",
     "dialogs/fiber_javascript_dialog_view.h",
     "dialogs/fiber_javascript_dialog_view.mm",
+    "downloads/downloads_wait.h",
+    "downloads/downloads_wait.mm",
     "hooks/browser_window_factory.h",
     "hooks/browser_window_factory.mm",
+    "hooks/confirm_quit.h",
+    "hooks/confirm_quit.mm",
     "hooks/feature_overrides.cc",
     "hooks/feature_overrides.h",
     "hooks/javascript_dialog_factory.h",
@@ -33,6 +41,12 @@ source_set("browser") {
     "omnibox/fiber_omnibox_popup_view.mm",
     "omnibox/fiber_omnibox_view.h",
     "omnibox/fiber_omnibox_view.mm",
+    "swipe/fiber_history_swiper.h",
+    "swipe/fiber_history_swiper.mm",
+    "swipe/history_swipe_navigation.h",
+    "swipe/history_swipe_navigation.mm",
+    "swipe/page_snapshots.h",
+    "swipe/page_snapshots.mm",
     "window/fiber_browser_window.h",
     "window/fiber_browser_window.mm",
     "window/fiber_browser_window_actions.h",
@@ -45,10 +59,13 @@ source_set("browser") {
   deps = [
     "//base",
     "//chrome/app:command_ids",
+    "//chrome/app:generated_resources",
     "//chrome/browser:browser_public_dependencies",
+    "//chrome/browser:chrome_browser_application_mac",
     "//chrome/browser:global_keyboard_shortcuts_mac",
     "//chrome/browser/profiles:profile",
     "//chrome/browser/themes",
+    "//chrome/browser/ui/blocked_content",
     "//chrome/browser/ui:browser_window_state",
     "//chrome/browser/ui/browser_active_state_manager",
     "//chrome/browser/ui/browser_window",
@@ -58,6 +75,8 @@ source_set("browser") {
     "//chrome/browser/ui/omnibox",
     "//chrome/browser/ui/tabs:tabs_public",
     "//components/bookmarks/browser",
+    "//components/download/content/public",
+    "//components/download/public/common:public",
     "//components/favicon/content",
     "//components/input",
     "//components/javascript_dialogs",
@@ -67,12 +86,17 @@ source_set("browser") {
     "//components/strings",
     "//components/tabs:public",
     "//components/url_formatter",
+    "//components/viz/common",
     "//content/public/browser",
     "//fiber/bridge",
     "//fiber/ui",
+    "//third_party/blink/public/common",
+    "//skia",
     "//third_party/metrics_proto",
     "//ui/base",
     "//ui/color",
+    "//ui/events",
+    "//ui/events/blink",
     "//ui/gfx",
     "//ui/native_theme",
     "//ui/strings",
