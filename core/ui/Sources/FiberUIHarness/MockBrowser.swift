@@ -449,7 +449,9 @@ final class MockBrowser: NSObject, FiberWindowActions {
         displayURL: isNewTabPage ? "" : host, title: tab.page.title,
         canGoBack: tab.index > 0,
         canGoForward: tab.index < tab.history.count - 1,
-        loading: tab.isLoading, newTabPage: isNewTabPage))
+        loading: tab.isLoading, newTabPage: isNewTabPage,
+        // What MockPageView fills with.
+        backgroundColor: .textBackgroundColor))
   }
 
   private func pushTabs() {

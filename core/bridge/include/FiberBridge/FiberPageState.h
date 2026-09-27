@@ -1,9 +1,9 @@
-#import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-// What a window shows of its active tab's page: the toolbar's controls and the
-// window title.
+// What a window shows of its active tab's page: the toolbar's controls, the
+// window title, and the tab stack beside the page.
 NS_SWIFT_SENDABLE
 @interface FiberPageState : NSObject
 
@@ -12,7 +12,9 @@ NS_SWIFT_SENDABLE
                          canGoBack:(BOOL)canGoBack
                       canGoForward:(BOOL)canGoForward
                            loading:(BOOL)loading
-                        newTabPage:(BOOL)newTabPage NS_DESIGNATED_INITIALIZER;
+                        newTabPage:(BOOL)newTabPage
+                   backgroundColor:(nullable NSColor*)backgroundColor
+    NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 // A short form of the URL (usually just the host), shown in the toolbar. Empty
@@ -24,6 +26,9 @@ NS_SWIFT_SENDABLE
 @property(readonly) BOOL isLoading;
 // Fiber's New Tab page (chrome://newtab), which the window draws.
 @property(readonly) BOOL isNewTabPage;
+// The page's background color, as its CSS sets it, if it has one. The tab
+// stack takes its colors from it.
+@property(readonly, nullable) NSColor* backgroundColor;
 
 @end
 
