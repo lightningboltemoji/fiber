@@ -22,6 +22,9 @@ if ! xcrun metal --version >/dev/null 2>&1; then
   exit 1
 fi
 
+# Apply what changed in patches/chromium/ (a pull, say) since the last build.
+"$ROOT/scripts/apply_patches.sh"
+
 cd "$ROOT/chromium/src"
 
 # Fiber's own args (core/build/args.gni), then the local config. Both use

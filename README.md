@@ -21,4 +21,4 @@ make dist       # self-contained dist/Fiber.app from out/Release, plus a zip
 make install    # the same app, into /Applications
 ```
 
-After editing a file under `chromium/src`, run `scripts/update_patches.sh` to regenerate `patches/chromium/`. Put new code in `core/` rather than adding files to the Chromium tree.
+After editing a file under `chromium/src`, run `make patches` to regenerate `patches/chromium/`. Every build applies what changed in `patches/chromium/` first (after a pull, say), without touching edits that aren't in a patch yet. Put new code in `core/` rather than adding files to the Chromium tree.

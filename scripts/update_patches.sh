@@ -15,3 +15,6 @@ git -C "$SRC" diff --name-only | while read -r file; do
   git -C "$SRC" diff --no-color -- "$file" > "$OUT/$name"
   echo "wrote $name"
 done
+
+# Record that chromium/src and the patches now match.
+"$ROOT/scripts/apply_patches.sh" --record
