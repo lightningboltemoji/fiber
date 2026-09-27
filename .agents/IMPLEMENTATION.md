@@ -290,8 +290,9 @@ controls float over it in Liquid Glass, mostly out of sight:
   area, not a backdrop, which would darken toward the window's edges.
   - *Holding Command-Q to quit* (Warn Before Quitting, `ui/QuitConfirmation.swift`,
     `hooks/confirm_quit.mm`): the veil falls over every window while the key
-    is held, then the windows fade out. Chrome's `ConfirmQuitPanelController`
-    is cut.
+    is held and drains off when it's let go; another press fills it from
+    there. Once it's full the windows fade out. Chrome's
+    `ConfirmQuitPanelController`, and its quit on a double press, are cut.
   - *Leave site?*: every page's beforeunload prompt (closing a tab or window,
     navigating, reloading, quitting), with the site's name. Chrome shows these
     through its app-modal dialog factory, which Fiber replaces

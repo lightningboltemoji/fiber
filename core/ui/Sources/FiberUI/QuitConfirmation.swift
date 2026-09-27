@@ -15,23 +15,31 @@ import FiberBridge
 }
 
 /// Holding Command-Q to quit. The veil falls over every browser window's page
-/// as the user holds the shortcut, and once they've held it long enough the
-/// windows fade out. Letting go sooner lifts it again. A second press soon
-/// after the first quits at once.
+/// as the user holds the shortcut, and drains back off it when they let go,
+/// like a bucket: another press fills it from wherever it had drained to. Once
+/// it's full the windows fade out.
 @MainActor
 enum QuitHold {
-  /// How long the user holds the shortcut to quit; the veil falls over it.
-  private static let holdDuration: TimeInterval = 0.8
-  /// A press this soon after the last one quits at once.
-  private static let repeatInterval: TimeInterval = 1
+  /// How long the user holds the shortcut to fill the veil from empty.
+  private static let holdDuration: TimeInterval = 0.65
+  /// How long a full veil takes to drain once the user lets go.
+  private static let drainDuration: TimeInterval = 1.6
   /// How often the loop checks on the key while waiting for it to go up.
   private static let pollInterval: TimeInterval = 0.1
   private static let fadeDuration: TimeInterval = 0.2
-  private static let liftDuration: TimeInterval = 0.3
   /// A press older than this isn't happening now (see run(keyCode:…)).
   private static let staleEventAge: TimeInterval = 2
 
-  private static var lastPress: Date?
+  /// How full the veil was when the user last let go, draining since
+  /// `releaseDate`.
+  private static var releasedLevel: CGFloat = 0
+  private static var releaseDate = Date.distantPast
+
+  /// How full the veil is at `date`, while the key's up.
+  private static func level(at date: Date) -> CGFloat {
+    let drained = date.timeIntervalSince(releaseDate) / drainDuration
+    return max(0, releasedLevel - drained)
+  }
 
   /// Runs until the key `keyCode` (the shortcut's) goes up, handling only
   /// key-ups meanwhile. Returns whether to quit.
@@ -44,18 +52,13 @@ enum QuitHold {
     if ProcessInfo.processInfo.systemUptime - timestamp > staleEventAge {
       return true
     }
-    let now = Date()
-    if let lastPress, now.timeIntervalSince(lastPress) < repeatInterval {
-      // The windows go at once, and the quit waits for the key to go up:
-      // held, it would repeat Command-Q into whichever app is active next.
-      hideWindows(duration: 0)
-      waitForKeyUp(keyCode: keyCode, deadline: nil)
-      return true
-    }
-    lastPress = now
+    let pressDate = Date()
+    let pressLevel = level(at: pressDate)
+    let fillDuration = (1 - pressLevel) * holdDuration
 
+    // Linear, filling and draining, so the veil shows the level.
     for controller in BrowserWindowController.all {
-      controller.setVeil(1, duration: holdDuration, timing: .easeIn)
+      controller.setVeil(1, duration: fillDuration, timing: .linear)
     }
     // VoiceOver says nothing on its own about why the app didn't quit.
     NSAccessibility.post(
@@ -67,19 +70,26 @@ enum QuitHold {
       ])
 
     let held = waitForKeyUp(
-      keyCode: keyCode, deadline: now.addingTimeInterval(holdDuration))
-    if !held {
-      for controller in BrowserWindowController.all {
-        controller.setVeil(0, duration: liftDuration, timing: .easeOut)
-      }
-      // Any a quit had faded out, too.
-      setWindowsAlpha(1, duration: liftDuration)
+      keyCode: keyCode, deadline: pressDate.addingTimeInterval(fillDuration))
+    if held {
+      releasedLevel = 0
+      return true
     }
-    return held
+    releaseDate = Date()
+    releasedLevel = min(
+      1, pressLevel + releaseDate.timeIntervalSince(pressDate) / holdDuration)
+    for controller in BrowserWindowController.all {
+      controller.setVeil(
+        0, duration: releasedLevel * drainDuration, timing: .linear)
+    }
+    // Any a quit had faded out, too.
+    setWindowsAlpha(1, duration: fadeDuration)
+    return false
   }
 
   /// Brings the windows back after a quit that didn't happen.
   static func restoreWindows() {
+    releasedLevel = 0
     // Lifted while they're out of sight.
     for controller in BrowserWindowController.all {
       controller.setVeil(0, duration: 0)
@@ -89,27 +99,23 @@ enum QuitHold {
 
   /// Pumps key-ups until the key `keyCode` is up, fading the windows out if it
   /// stays down past `deadline`. Returns whether it did. The key's repeats
-  /// and anything else that came in meanwhile are thrown away.
-  @discardableResult
-  private static func waitForKeyUp(keyCode: UInt16, deadline: Date?) -> Bool {
+  /// and anything else that came in meanwhile are thrown away: held, it would
+  /// repeat Command-Q into whichever app is active next.
+  private static func waitForKeyUp(keyCode: UInt16, deadline: Date) -> Bool {
     var pastDeadline = false
     var lastEvent: NSEvent?
     repeat {
       lastEvent = NSApp.nextEvent(
         matching: .keyUp, until: Date(timeIntervalSinceNow: pollInterval),
         inMode: .eventTracking, dequeue: true)
-      if let deadline, !pastDeadline, Date() >= deadline {
+      if !pastDeadline, Date() >= deadline {
         pastDeadline = true
-        hideWindows(duration: fadeDuration)
+        setWindowsAlpha(0, duration: fadeDuration)
       }
     } while CGEventSource.keyState(
       .combinedSessionState, key: CGKeyCode(keyCode))
     NSApp.discardEvents(matching: .any, before: lastEvent)
     return pastDeadline
-  }
-
-  private static func hideWindows(duration: TimeInterval) {
-    setWindowsAlpha(0, duration: duration)
   }
 
   /// The browser windows, and the sheets and other windows attached to them.
