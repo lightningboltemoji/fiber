@@ -23,10 +23,11 @@ struct DidOverscrollParams;
 // Like Chrome's, a scroll only becomes a swipe once the page has passed it up
 // (it didn't scroll, and its overscroll-behavior lets it through) and it's
 // mostly horizontal. From then on AppKit tracks it
-// (-[NSEvent trackSwipeEventWithOptions:…]), including the animation after the
-// user lets go, which carries on from the fingers' speed. Chrome only does
-// that for the Magic Mouse; it tracks trackpad touches itself, for a
-// progress bar that doesn't need the physics.
+// (-[NSEvent trackSwipeEventWithOptions:…]) while the fingers are down; when
+// they let go, the UI decides whether it lands and carries it on from the
+// fingers' speed. Chrome only uses AppKit's tracking for the Magic Mouse; it
+// tracks trackpad touches itself, for a progress bar that doesn't need the
+// physics.
 @interface FiberHistorySwiper : NSObject
 
 - (instancetype)initWithDelegate:(id<HistorySwiperDelegate>)delegate;

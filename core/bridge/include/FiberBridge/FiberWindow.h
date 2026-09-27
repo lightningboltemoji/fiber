@@ -79,9 +79,13 @@ NS_SWIFT_UI_ACTOR
 // last looked like, beside it; nil shows the window's background instead.
 - (void)beginHistorySwipeInDirection:(FiberHistorySwipeDirection)direction
                             snapshot:(nullable NSImage*)snapshot;
-// How far the swipe has gone, from 0 to 1 (the page it's going to showing
-// whole). After the user lets go, it's animated on to 0 or 1.
+// How far the user's fingers have taken the swipe, from 0 to 1 (the page
+// it's going to showing whole).
 - (void)updateHistorySwipe:(double)progress;
+// The user let go. The swipe decides from where it is and how fast it was
+// going whether it lands on the other page, carries itself there or back,
+// and then calls `completion` with whether it landed.
+- (void)releaseHistorySwipe:(void (^)(BOOL landed))completion;
 // The swipe is over. If `navigating`, the page is going back or forward, and
 // the snapshot covers it until -finishHistorySwipeNavigation; otherwise it's
 // back as it was.

@@ -313,7 +313,11 @@ final class MockBrowser: NSObject, FiberWindowActions {
       return false
     }
     isSwiping = true
-    var committed = false
+    // Once the user lets go, the UI carries the swipe on and says whether it
+    // landed; AppKit's tracking carries on unheeded until it's done.
+    var released = false
+    var settled = false
+    var tracked = false
     event.trackSwipeEvent(
       options: .lockDirection, dampenAmountThresholdMin: -1, max: 1
     ) { [weak self] amount, phase, isComplete, _ in
@@ -321,21 +325,27 @@ final class MockBrowser: NSObject, FiberWindowActions {
         guard let self else {
           return
         }
-        switch phase {
-        case .began:
+        if phase == .began {
           self.ui.beginHistorySwipe(
             in: back ? .back : .forward, snapshot: tab.snapshots[target])
-        case .ended:
-          committed = true
-        case .cancelled:
-          committed = false
-        default:
-          break
         }
-        self.ui.updateHistorySwipe(abs(amount))
+        if !released {
+          self.ui.updateHistorySwipe(abs(amount))
+          if phase == .ended || phase == .cancelled {
+            released = true
+            self.ui.releaseHistorySwipe { landed in
+              settled = true
+              self.isSwiping = !tracked
+              self.finishSwipe(to: target, committed: landed)
+            }
+          }
+        }
         if isComplete {
-          self.isSwiping = false
-          self.finishSwipe(to: target, committed: committed)
+          tracked = true
+          if !released {
+            self.finishSwipe(to: target, committed: false)
+          }
+          self.isSwiping = released && !settled
         }
       }
     }
@@ -350,8 +360,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     simulateSwipe(back: false)
   }
 
-  /// A swipe the way AppKit drives one, without a trackpad: dragged halfway
-  /// over a second, then let go.
+  /// A swipe without a trackpad: dragged halfway over a second, then let go.
   private func simulateSwipe(back: Bool) {
     let tab = activeTab!
     let target = tab.index + (back ? -1 : 1)
@@ -369,13 +378,15 @@ final class MockBrowser: NSObject, FiberWindowActions {
           return
         }
         let t = Date().timeIntervalSince(start)
-        let progress = t < 1.2 ? 0.5 * t / 1.2 : min(0.5 + (t - 1.2) / 0.6, 1)
-        self.ui.updateHistorySwipe(progress)
-        if progress >= 1 {
-          self.swipeTimer?.invalidate()
-          self.swipeTimer = nil
+        self.ui.updateHistorySwipe(0.5 * min(t / 1.2, 1))
+        guard t >= 1.2 else {
+          return
+        }
+        self.swipeTimer?.invalidate()
+        self.swipeTimer = nil
+        self.ui.releaseHistorySwipe { landed in
           self.isSwiping = false
-          self.finishSwipe(to: target, committed: true)
+          self.finishSwipe(to: target, committed: landed)
         }
       }
     }

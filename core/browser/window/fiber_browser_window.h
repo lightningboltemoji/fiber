@@ -67,11 +67,13 @@ class FiberBrowserWindow : public BrowserWindow,
   void UpdatePageState();
 
   // Swiping between the active tab's pages, for FiberHistorySwiper: see
-  // FiberWindow's -beginHistorySwipeInDirection:snapshot:. `navigating`: the
-  // swipe landed, and the page is about to go back or forward; the UI covers
-  // it until the page it's going to shows.
+  // FiberWindow's -beginHistorySwipeInDirection:snapshot:. `settled` is
+  // called once the swipe, let go, has carried itself on, with whether it
+  // landed. `navigating`: the swipe landed, and the page is about to go back
+  // or forward; the UI covers it until the page it's going to shows.
   void BeginHistorySwipe(bool back);
   void UpdateHistorySwipe(double progress);
+  void ReleaseHistorySwipe(void (^settled)(BOOL landed));
   void EndHistorySwipe(bool navigating);
 
   // BrowserWindow:

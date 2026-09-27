@@ -98,12 +98,37 @@ constexpr CGFloat kVerticalScrollDistance = 10;
   NSWindow* nsWindow = event.window;
   __weak FiberHistorySwiper* weakSelf = self;
   __block BOOL began = NO;
-  // Whether the user let go far enough (or fast enough) to go to the other
-  // page, rather than back.
-  __block BOOL landed = NO;
+  // Once the user lets go, the UI decides whether the swipe lands and carries
+  // it there itself: AppKit's own call (its phase, ended or cancelled) often
+  // goes back from a swipe slowed to a stop near the end. AppKit's tracking
+  // carries on unheeded, keeping the gesture's momentum off the page, until
+  // it's done.
+  __block BOOL released = NO;
+  __block BOOL settled = NO;
+  __block BOOL tracked = NO;
+  // The swipe is done: going now, once it's carried the page off, so the page
+  // doesn't change under the fingers.
+  void (^end)(BOOL) = ^(BOOL landed) {
+    FiberHistorySwiper* strongSelf = weakSelf;
+    fiber::FiberBrowserWindow* window =
+        fiber::FiberBrowserWindow::FromNativeWindow(
+            gfx::NativeWindow(nsWindow));
+    const bool navigating = landed && strongSelf && window;
+    if (window) {
+      window->EndHistorySwipe(navigating);
+    }
+    if (navigating) {
+      [strongSelf.delegate navigateInDirection:direction onWindow:nsWindow];
+    }
+  };
+  void (^done)(void) = ^{
+    FiberHistorySwiper* strongSelf = weakSelf;
+    if (strongSelf && tracked && (settled || !released)) {
+      strongSelf->_swiping = NO;
+    }
+  };
   // Locked to the direction it starts in, so swiping back past the start
-  // doesn't turn it around. AppKit carries the amount on to 0 or ±1 after the
-  // user lets go, then completes.
+  // doesn't turn it around.
   [event trackSwipeEventWithOptions:NSEventSwipeTrackingLockDirection
            dampenAmountThresholdMin:-1
                                 max:1
@@ -115,38 +140,38 @@ constexpr CGFloat kVerticalScrollDistance = 10;
                                  gfx::NativeWindow(nsWindow));
                          if (!window) {
                            *stop = YES;
-                           if (strongSelf) {
-                             strongSelf->_swiping = NO;
-                           }
+                           tracked = YES;
+                           settled = YES;
+                           done();
                            return;
                          }
                          if (!began) {
                            began = YES;
                            window->BeginHistorySwipe(back);
                          }
-                         if (phase == NSEventPhaseEnded) {
-                           landed = YES;
-                         } else if (phase == NSEventPhaseCancelled) {
-                           landed = NO;
+                         if (!released) {
+                           window->UpdateHistorySwipe(std::abs(gestureAmount));
+                           if (phase == NSEventPhaseEnded ||
+                               phase == NSEventPhaseCancelled) {
+                             released = YES;
+                             window->ReleaseHistorySwipe(^(BOOL landed) {
+                               settled = YES;
+                               end(landed);
+                               done();
+                             });
+                           }
                          }
-                         window->UpdateHistorySwipe(std::abs(gestureAmount));
                          if (!isComplete && strongSelf) {
                            return;
                          }
-                         // The page is gone (a crash, say), or the swipe is
-                         // done: going now, once it's carried the page off,
-                         // so the page doesn't change under the fingers.
                          *stop = YES;
-                         const bool navigating = landed && strongSelf;
-                         window->EndHistorySwipe(navigating);
-                         if (strongSelf) {
-                           strongSelf->_swiping = NO;
+                         tracked = YES;
+                         // The page is gone (a crash, say) before the user
+                         // let go.
+                         if (!released) {
+                           end(NO);
                          }
-                         if (navigating) {
-                           [strongSelf.delegate
-                               navigateInDirection:direction
-                                          onWindow:nsWindow];
-                         }
+                         done();
                        }];
 }
 

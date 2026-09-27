@@ -10,19 +10,29 @@ import FiberBridge
 /// - Forward: the next page slides in from the right over this one, which
 ///   draws back a little to the left, darkening.
 ///
-/// The browser drives the progress, from AppKit's swipe tracking, which
-/// animates it on after the user lets go. Once the swipe lands on the other
-/// page, the snapshot covers the page until the browser has it showing.
+/// The browser drives the progress from AppKit's swipe tracking while the
+/// user's fingers are down. When they let go, the swipe decides whether it
+/// lands and carries itself there, on from the fingers' speed. Once it lands
+/// on the other page, the snapshot covers the page until the browser has it
+/// showing.
 @MainActor
-final class HistorySwipe {
+final class HistorySwipe: NSObject {
   /// How far the page underneath moves over the whole swipe, as a fraction of
   /// the window's width.
-  private static let parallax: CGFloat = 0.25
+  private static let parallax: CGFloat = 0.05
   /// How dark the page underneath is at its most covered.
   private static let underDim: Float = 0.15
-  private static let shadowWidth: CGFloat = 28
   private static let shadowOpacity: Float = 0.22
   private static let fadeDuration: TimeInterval = 0.18
+  /// Letting go, the swipe lands if it would coast past halfway: where it is,
+  /// plus how far its speed would carry it in this long. Slowing to a stop
+  /// near the end lands; a flick lands from anywhere; pulling back doesn't.
+  private static let projection: CFTimeInterval = 0.25
+  /// How far back the fingers' speed is measured from when they let go.
+  private static let velocityWindow: CFTimeInterval = 0.08
+  /// The stiffness of the (critically damped) spring that carries the swipe
+  /// on after the user lets go: higher settles sooner.
+  private static let settleStiffness: Double = 22
 
   /// Holds the snapshot, the darkening and the shadow. It goes under the page
   /// area going back and over it going forward; its owner adds it with
@@ -32,29 +42,111 @@ final class HistorySwipe {
   var place: (_ view: NSView, _ above: Bool) -> Void = { _, _ in }
 
   private let pageArea: NSView
+  private let page: NSView
   private var direction = FiberHistorySwipeDirection.back
   private var progress: CGFloat = 0
+  /// The progress the browser reported lately, for the fingers' speed.
+  private var samples: [(time: CFTimeInterval, progress: CGFloat)] = []
+  /// Set once the user lets go, while the swipe carries itself on.
+  private var settle: Settle?
   /// Set once the swipe has landed, while the snapshot covers the page.
   private var isCovering = false
 
-  /// Moves `pageArea` (the page and the gutter continuing it).
-  init(pageArea: NSView) {
+  private struct Settle {
+    let start: CFTimeInterval
+    let from: CGFloat
+    let target: CGFloat
+    let velocity: CGFloat
+    let link: CADisplayLink
+    let completion: (Bool) -> Void
+  }
+
+  /// Moves `pageArea` (the page and the gutter continuing it). `page`, in it,
+  /// is where the snapshot goes, the page's size and shape.
+  init(pageArea: NSView, page: NSView) {
     self.pageArea = pageArea
+    self.page = page
+    super.init()
     view.isHidden = true
   }
 
   func begin(direction: FiberHistorySwipeDirection, snapshot: NSImage?) {
     reset()
     self.direction = direction
-    view.setSnapshot(snapshot)
     place(view, direction == .forward)
     view.frame = pageArea.frame
+    view.setPage(
+      frame: page.frame, corners: page.layer?.maskedCorners ?? [],
+      snapshot: snapshot)
     view.isHidden = false
-    update(progress: 0)
+    apply(progress: 0)
   }
 
+  /// Where the user's fingers have the swipe, from the browser.
   func update(progress: Double) {
-    self.progress = min(max(CGFloat(progress), 0), 1)
+    guard settle == nil else {
+      return
+    }
+    let now = CACurrentMediaTime()
+    samples.removeAll { now - $0.time > Self.velocityWindow }
+    samples.append((now, CGFloat(progress)))
+    apply(progress: CGFloat(progress))
+  }
+
+  /// The user let go: the swipe lands or goes back, and calls `completion`
+  /// with which once it's there.
+  func release(_ completion: @escaping (Bool) -> Void) {
+    guard settle == nil, let window = pageArea.window else {
+      completion(false)
+      return
+    }
+    let now = CACurrentMediaTime()
+    samples.removeAll { now - $0.time > Self.velocityWindow }
+    var velocity: CGFloat = 0
+    if let first = samples.first, let last = samples.last,
+      last.time > first.time
+    {
+      velocity = (last.progress - first.progress) / (last.time - first.time)
+    }
+    samples.removeAll()
+    let landing = progress + velocity * Self.projection > 0.5
+    let link = window.displayLink(target: self, selector: #selector(step(_:)))
+    settle = Settle(
+      start: now, from: progress, target: landing ? 1 : 0,
+      velocity: velocity, link: link, completion: completion)
+    link.add(to: .main, forMode: .common)
+  }
+
+  @objc private func step(_ link: CADisplayLink) {
+    guard let settle else {
+      link.invalidate()
+      return
+    }
+    // A critically damped spring from where the user let go, at the
+    // fingers' speed. It's done once it reaches the target.
+    let omega = Self.settleStiffness
+    let t = max(link.targetTimestamp - settle.start, 0)
+    let d0 = Double(settle.from - settle.target)
+    let d = (d0 + (Double(settle.velocity) + omega * d0) * t) * exp(-omega * t)
+    if d * d0 <= 0 || abs(d) < 0.001 {
+      apply(progress: settle.target)
+      endSettle(landed: settle.target == 1)
+    } else {
+      apply(progress: settle.target + CGFloat(d))
+    }
+  }
+
+  private func endSettle(landed: Bool) {
+    guard let settle else {
+      return
+    }
+    self.settle = nil
+    settle.link.invalidate()
+    settle.completion(landed)
+  }
+
+  private func apply(progress: CGFloat) {
+    self.progress = min(max(progress, 0), 1)
     let width = view.bounds.width
     let p = self.progress
     let pageOffset: CGFloat
@@ -121,8 +213,11 @@ final class HistorySwipe {
     }
   }
 
-  /// Puts the page back and takes the swipe down, at once.
+  /// Puts the page back and takes the swipe down, at once. A swipe still
+  /// carrying itself on doesn't land.
   func reset() {
+    endSettle(landed: false)
+    samples.removeAll()
     isCovering = false
     CATransaction.begin()
     CATransaction.setDisableActions(true)
@@ -130,7 +225,7 @@ final class HistorySwipe {
     CATransaction.commit()
     view.isHidden = true
     view.alphaValue = 1
-    view.setSnapshot(nil)
+    view.setPage(frame: .zero, corners: [], snapshot: nil)
   }
 }
 
@@ -142,15 +237,24 @@ final class HistorySwipeView: NSView {
   private let dimLayer = CALayer()
   private let shadowLayer = CAGradientLayer()
   private let shadowWidth: CGFloat = 28
+  /// Where the page is, in this view: where the snapshot goes.
+  private var pageFrame = NSRect.zero
+  private var pageCorners: CACornerMask = []
 
   override init(frame: NSRect) {
     super.init(frame: frame)
     wantsLayer = true
     layer?.masksToBounds = true
-    snapshotLayer.contentsGravity = .resizeAspectFill
+    // As the page was, at its size: a window resized since shows more or
+    // less of it, with the background past it.
+    snapshotLayer.contentsGravity = .topLeft
     snapshotLayer.masksToBounds = true
     dimLayer.backgroundColor = NSColor.black.cgColor
     dimLayer.opacity = 0
+    for layer in [snapshotLayer, dimLayer] {
+      layer.cornerRadius = PageGutter.cornerRadius
+      layer.cornerCurve = .continuous
+    }
     shadowLayer.startPoint = CGPoint(x: 0, y: 0.5)
     shadowLayer.endPoint = CGPoint(x: 1, y: 0.5)
     shadowLayer.colors = [
@@ -171,43 +275,50 @@ final class HistorySwipeView: NSView {
     nil
   }
 
-  /// `nil` shows the window's background, as the page would be before it
-  /// draws.
-  func setSnapshot(_ snapshot: NSImage?) {
+  /// Where the page is in this view and which of its corners are rounded,
+  /// and what the page swiped to looked like: `nil` shows the window's
+  /// background, as the page would be before it draws.
+  func setPage(frame: NSRect, corners: CACornerMask, snapshot: NSImage?) {
+    pageFrame = frame
+    pageCorners = corners
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    if let snapshot {
-      snapshotLayer.contents = snapshot
-      snapshotLayer.contentsScale = window?.backingScaleFactor ?? 2
-      snapshotLayer.backgroundColor = nil
-    } else {
-      snapshotLayer.contents = nil
-      effectiveAppearance.performAsCurrentDrawingAppearance {
-        snapshotLayer.backgroundColor = NSColor.windowBackgroundColor.cgColor
-      }
+    snapshotLayer.maskedCorners = corners
+    snapshotLayer.contents = snapshot?.cgImage(
+      forProposedRect: nil, context: nil, hints: nil)
+    snapshotLayer.contentsScale = window?.backingScaleFactor ?? 2
+    effectiveAppearance.performAsCurrentDrawingAppearance {
+      snapshotLayer.backgroundColor = NSColor.windowBackgroundColor.cgColor
     }
     CATransaction.commit()
   }
 
-  /// Lays the layers out for a point in the swipe. `dimsSnapshot`: the
-  /// darkening is over the snapshot (going back), not the page under this
-  /// view (going forward). `shadowEdge` is the x the shadow falls left from.
+  /// Lays the layers out for a point in the swipe. `snapshotX` is how far the
+  /// snapshot is from the page's place. `dimsSnapshot`: the darkening is over
+  /// the snapshot (going back), not the page under this view (going
+  /// forward). `shadowEdge` is the x the shadow falls left from.
   func layout(
     snapshotX: CGFloat, dim: Float, dimsSnapshot: Bool, shadowEdge: CGFloat,
     shadowOpacity: Float
   ) {
-    let bounds = self.bounds
-    snapshotLayer.frame = bounds.offsetBy(dx: snapshotX, dy: 0)
-    dimLayer.frame = dimsSnapshot ? snapshotLayer.frame : bounds
-    // Going forward, the darkening is on the page under the view, which the
-    // snapshot covers from its left edge.
-    if !dimsSnapshot {
-      dimLayer.frame.size.width = max(snapshotX, 0)
+    snapshotLayer.frame = pageFrame.offsetBy(dx: snapshotX, dy: 0)
+    if dimsSnapshot {
+      dimLayer.frame = snapshotLayer.frame
+      dimLayer.maskedCorners = pageCorners
+    } else {
+      // Going forward, the darkening is on the page under the view, which
+      // the snapshot covers from its left edge.
+      dimLayer.frame = pageFrame
+      dimLayer.frame.size.width = max(
+        snapshotLayer.frame.minX - pageFrame.minX, 0)
+      dimLayer.maskedCorners = pageCorners.intersection([
+        .layerMinXMinYCorner, .layerMinXMaxYCorner,
+      ])
     }
     dimLayer.opacity = dim
     shadowLayer.frame = NSRect(
-      x: shadowEdge - shadowWidth, y: 0, width: shadowWidth,
-      height: bounds.height)
+      x: shadowEdge - shadowWidth, y: pageFrame.minY, width: shadowWidth,
+      height: pageFrame.height)
     shadowLayer.opacity = shadowOpacity
   }
 }

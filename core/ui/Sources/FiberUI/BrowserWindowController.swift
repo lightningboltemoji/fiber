@@ -70,7 +70,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Blurs the page and darkens the window while it waits on the user.
   private lazy var veil = Veil(blurring: pageArea)
   /// Swiping between pages moves the page area.
-  private lazy var historySwipe = HistorySwipe(pageArea: pageArea)
+  private lazy var historySwipe = HistorySwipe(pageArea: pageArea, page: pageView)
   /// What the window is waiting on the user for, over the veil.
   private var prompt: VeilPrompt?
   /// Where keyboard focus was before the prompt took it.
@@ -479,6 +479,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   func updateHistorySwipe(_ progress: Double) {
     historySwipe.update(progress: progress)
+  }
+
+  func releaseHistorySwipe(_ completion: @escaping (Bool) -> Void) {
+    historySwipe.release(completion)
   }
 
   func endHistorySwipeNavigating(_ navigating: Bool) {

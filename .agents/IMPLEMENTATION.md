@@ -315,10 +315,11 @@ controls float over it in Liquid Glass, mostly out of sight:
   view's menu. DevTools windows keep Chrome's Cocoa menu.
 - **Swiping between pages** (`swipe/fiber_history_swiper.mm`,
   `ui/HistorySwipe.swift`): as in Safari, the page follows the fingers like a
-  sheet of paper, over (going back) or under (forward) the page it's going to,
-  and lands or springs back with AppKit's swipe physics
-  (`-[NSEvent trackSwipeEventWithOptions:…]`, for trackpads as well as the
-  Magic Mouse). A scroll only becomes a swipe once the page passes it up, as in
+  sheet of paper, over (going back) or under (forward) the page it's going to.
+  AppKit tracks the fingers (`-[NSEvent trackSwipeEventWithOptions:…]`, for
+  trackpads as well as the Magic Mouse), but not the landing: its call often
+  goes back from a swipe slowed near the end, so on letting go the UI lands it
+  if it would coast past halfway, and springs it there itself. A scroll only becomes a swipe once the page passes it up, as in
   Chrome. The page it's going to shows as it last looked
   (`swipe/page_snapshots.mm`: each page is captured as it's left, within a
   memory budget) until it draws. Chrome's arrows (`HistoryOverlayController`)

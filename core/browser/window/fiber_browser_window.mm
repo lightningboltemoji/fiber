@@ -209,6 +209,10 @@ void FiberBrowserWindow::UpdateHistorySwipe(double progress) {
   [ui_ updateHistorySwipe:progress];
 }
 
+void FiberBrowserWindow::ReleaseHistorySwipe(void (^settled)(BOOL landed)) {
+  [ui_ releaseHistorySwipe:settled];
+}
+
 void FiberBrowserWindow::EndHistorySwipe(bool navigating) {
   [ui_ endHistorySwipeNavigating:navigating];
   content::WebContents* web_contents = GetActiveWebContents();
