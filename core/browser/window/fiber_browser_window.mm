@@ -2,6 +2,8 @@
 
 #import <Cocoa/Cocoa.h>
 
+#include <optional>
+
 #import "FiberBridge/FiberBridge.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
@@ -43,6 +45,7 @@
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
+#include "skia/ext/skia_utils_mac.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/color/color_provider_utils.h"
@@ -452,6 +455,9 @@ void FiberBrowserWindow::UpdatePageState() {
             model->GetURL()));
   }
   content::NavigationController& navigation = active->GetController();
+  std::optional<SkColor> background = active->GetBackgroundColor();
+  NSColor* background_color =
+      background ? skia::SkColorToSRGBNSColor(*background) : nil;
   [ui_ setPageState:[[FiberPageState alloc]
                         initWithDisplayURL:display_url
                                      title:base::SysUTF16ToNSString(
@@ -459,7 +465,8 @@ void FiberBrowserWindow::UpdatePageState() {
                                  canGoBack:navigation.CanGoBack()
                               canGoForward:navigation.CanGoForward()
                                    loading:active->IsLoading()
-                                newTabPage:IsNewTabPage(active)]];
+                                newTabPage:IsNewTabPage(active)
+                           backgroundColor:background_color]];
 }
 
 bool FiberBrowserWindow::UpdateToolbarSecurityState() {
@@ -893,6 +900,11 @@ void FiberBrowserWindow::LoadProgressChanged(double progress) {
 
 void FiberBrowserWindow::DidStopLoading() {
   UpdateLoadProgress();
+}
+
+void FiberBrowserWindow::OnBackgroundColorChanged() {
+  // The tab stack takes its colors from it.
+  UpdatePageState();
 }
 
 void FiberBrowserWindow::DidStartNavigation(

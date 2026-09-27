@@ -268,18 +268,20 @@ controls float over it in Liquid Glass, mostly out of sight:
   An extension's New Tab page still replaces it.
   Switching to a tab restores its focus as Chrome's views window does, which
   on the New Tab page means the command palette.
-- **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): a
-  half-capsule bump on the right edge, a third of the window tall, over the
-  page. The page's own scrollbar (its main frame's, when overlay scrollbars
-  are on) sits in from the window's edge and short of its corners, clear of
-  the bump (`renderer/hooks/page_scrollbar.cc`, from Blink's
-  `PaintLayerScrollableArea::RectForVerticalScrollbar()`, so it paints,
-  hit-tests and composites there). Other scrollers against the edge, pages'
-  own styled scrollbars and legacy (always shown) scrollbars still run under
-  it. Hovering it morphs it into a panel listing the tabs, placed so the
-  active tab is level with the pointer. Scrolling moves the panel under the pointer like a picker
+- **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): the
+  page stops 8pt short of the window's right edge, and that gutter
+  (`ui/PageGutter.swift`, which shows the page as the top of a stack of tabs)
+  is the picker's handle: hovering anywhere along it opens a panel listing
+  the tabs, placed so the active tab is level with the pointer, which comes
+  out of the gutter like a drop of glass that stretches out and spreads into
+  the panel; dragging it moves the window. Scrolling moves the panel under the pointer like a picker
   wheel, and lifting off selects the tab that settles there; clicking selects
   too. AppKit takes all the input; SwiftUI draws, over an `@Observable` model.
+  The page's own scrollbar (its main frame's, when overlay scrollbars are on)
+  sits 4pt in from the page's edge and stops short of its rounded corners
+  (`renderer/hooks/page_scrollbar.cc`, from Blink's
+  `PaintLayerScrollableArea::RectForVerticalScrollbar()`, so it paints,
+  hit-tests and composites there).
 - **The veil** (`ui/Veil.swift`): when a window waits on the user, its page
   blurs and the window darkens, and what it's waiting for shows over it
   (`ui/VeilPrompt.swift`: a title, a message, glass buttons; Return and

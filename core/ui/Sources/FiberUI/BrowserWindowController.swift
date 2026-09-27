@@ -12,8 +12,8 @@ import FiberBridge
 /// A browser window and its native chrome, all floating over the page: the
 /// toolbar (shown with Command-S), the tab picker on the right edge, the
 /// command palette (Command-L), the load
-/// progress bar, and the link status bubble. The page's own scrollbar keeps
-/// clear of the tab picker (see fiber/renderer/hooks/page_scrollbar.h).
+/// progress bar, and the link status bubble. The page stops short of the
+/// window's right edge, leaving a gutter for the tab picker (see PageGutter).
 /// Reports what the user does to its actions.
 @MainActor
 final class BrowserWindowController: NSObject, FiberWindow {
@@ -55,8 +55,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let tabPicker = TabPicker()
   private let commandPalette = CommandPalette()
   private let newTabView = NewTabView()
-  /// The page and the New Tab page over it, which the veil blurs as one.
+  /// The page and the gutter behind it, which the veil blurs as one.
   private let pageArea = NSView()
+  /// The page and the New Tab page over it, with its corners rounded like the
+  /// window's. It stops short of the window's right edge, where the gutter
+  /// shows the tab stack behind it.
+  private let pageView = NSView()
+  private let gutter = PageGutter()
   /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
   /// draws over the (empty) page.
   private var isNewTabPage = false
@@ -127,12 +132,32 @@ final class BrowserWindowController: NSObject, FiberWindow {
         view, positioned: above ? .above : .below, relativeTo: self.pageArea)
     }
 
+    // Behind the page, and under its edge.
+    let gutterWidth = PageGutter.width + PageGutter.underlap
+    gutter.frame = NSRect(
+      x: content.bounds.width - gutterWidth, y: 0, width: gutterWidth,
+      height: content.bounds.height)
+    gutter.autoresizingMask = [.height, .minXMargin]
+    pageArea.addSubview(gutter)
+
+    pageView.frame = NSRect(
+      x: 0, y: 0, width: content.bounds.width - PageGutter.width,
+      height: content.bounds.height)
+    pageView.autoresizingMask = [.width, .height]
+    pageView.wantsLayer = true
+    // Clips the page's own layer too.
+    pageView.layer?.masksToBounds = true
+    pageView.layer?.cornerRadius = PageGutter.cornerRadius
+    pageView.layer?.cornerCurve = .continuous
+    pageArea.addSubview(pageView)
+    updatePageCorners()
+
     // Over the page (see setContentsView(_:)).
-    newTabView.frame = pageArea.bounds
+    newTabView.frame = pageView.bounds
     newTabView.autoresizingMask = [.width, .height]
     newTabView.isHidden = true
     newTabView.onClick = { [weak self] in self?.showCommandPalette() }
-    pageArea.addSubview(newTabView)
+    pageView.addSubview(newTabView)
 
     progressBar.frame = NSRect(
       x: 0, y: content.bounds.height - Self.progressBarHeight,
@@ -304,15 +329,21 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     // The toolbar and tab picker float over the page.
-    view.frame = pageArea.bounds
+    view.frame = pageView.bounds
     view.autoresizingMask = [.width, .height]
-    pageArea.addSubview(view, positioned: .below, relativeTo: newTabView)
+    pageView.addSubview(view, positioned: .below, relativeTo: newTabView)
   }
 
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
     newTabView.isHidden = !isNewTabPage
+    // The stack steps from what shows as the page: the New Tab page is drawn
+    // in the window's background color, and a page without a background of
+    // its own is white.
+    gutter.pageColor =
+      isNewTabPage
+      ? .windowBackgroundColor : state.backgroundColor ?? .white
     toolbar.setAddress(state.displayURL)
     toolbar.backButton.isEnabled = state.canGoBack
     toolbar.forwardButton.isEnabled = state.canGoForward
@@ -344,7 +375,27 @@ final class BrowserWindowController: NSObject, FiberWindow {
       closeCommandPalette()
     }
     tabPicker.isHidden = !visible
+    // A fullscreen page gets the whole window.
+    gutter.isHidden = !visible
+    pageView.frame = pageArea.bounds.divided(
+      atDistance: visible ? PageGutter.width : 0, from: .maxXEdge
+    ).remainder
+    updatePageCorners()
     updateToolbar(animated: false)
+  }
+
+  /// Rounds the page like the window: against the gutter, and at the
+  /// window's own corners. A fullscreen page, and the page's edges against a
+  /// fullscreen window's screen, stay square.
+  private func updatePageCorners(windowFullScreen: Bool? = nil) {
+    var corners: CACornerMask = []
+    if areControlsVisible {
+      corners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+      if !(windowFullScreen ?? window.styleMask.contains(.fullScreen)) {
+        corners.formUnion([.layerMinXMinYCorner, .layerMinXMaxYCorner])
+      }
+    }
+    pageView.layer?.maskedCorners = corners
   }
 
   // MARK: Veil
@@ -499,6 +550,11 @@ extension BrowserWindowController: NSWindowDelegate {
 
   func windowWillEnterFullScreen(_ notification: Notification) {
     updateWindowControls(animated: false)
+    updatePageCorners(windowFullScreen: true)
+  }
+
+  func windowWillExitFullScreen(_ notification: Notification) {
+    updatePageCorners(windowFullScreen: false)
   }
 
   func windowDidEnterFullScreen(_ notification: Notification) {
