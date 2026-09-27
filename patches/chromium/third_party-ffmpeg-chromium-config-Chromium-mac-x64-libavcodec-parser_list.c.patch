@@ -1,0 +1,10 @@
+diff --git a/third_party/ffmpeg/chromium/config/Chromium/mac/x64/libavcodec/parser_list.c b/third_party/ffmpeg/chromium/config/Chromium/mac/x64/libavcodec/parser_list.c
+index dddcf25..e5475bf 100644
+--- a/third_party/ffmpeg/chromium/config/Chromium/mac/x64/libavcodec/parser_list.c
++++ b/third_party/ffmpeg/chromium/config/Chromium/mac/x64/libavcodec/parser_list.c
+@@ -1,4 +1,5 @@
+ static const FFCodecParser * const parser_list[] = {
++    &ff_aac_parser,
+     &ff_flac_parser,
+     &ff_mpegaudio_parser,
+     &ff_opus_parser,

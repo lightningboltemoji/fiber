@@ -1,0 +1,336 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>web audio tests</title>
+<pre id="log"></pre>
+<script type="module">
+// decodeAudioData against Apple's own decode (afconvert), sample by sample.
+const logEl = document.getElementById('log');
+function log(s) { logEl.textContent += s + '\n'; fetch('/log', {method: 'POST', body: s}); }
+const params = new URLSearchParams(location.search);
+const only = params.get('only');
+const refs = await (await fetch('refs.json')).json();
+
+async function decode(file, rate = 44100) {
+  const data = await (await fetch(file)).arrayBuffer();
+  const ctx = new OfflineAudioContext(1, 1, rate);
+  const t0 = performance.now();
+  try {
+    const b = await ctx.decodeAudioData(data);
+    return {buffer: b, ms: Math.round(performance.now() - t0)};
+  } catch (e) {
+    return {error: String(e), ms: Math.round(performance.now() - t0)};
+  }
+}
+
+// Against the reference: same channels, rate, length, and samples (after the
+// best alignment within a few thousand frames, which should be 0).
+async function compare(name, file = `${name}.m4a`) {
+  const ref = refs[name];
+  const r = await decode(file, ref.rate);
+  if (r.error) return {error: r.error};
+  const b = r.buffer;
+  const refData = new Float32Array(await (await fetch(`ref_${name}.f32`)).arrayBuffer());
+  const out = {channels: b.numberOfChannels, rate: b.sampleRate, frames: b.length, refFrames: ref.frames, refChannels: ref.channels, ms: r.ms};
+  if (b.numberOfChannels != ref.channels) return {...out, ok: false};
+  // Alignment on channel 0, over a window in the middle.
+  const c0 = b.getChannelData(0);
+  const mid = Math.floor(Math.min(b.length, ref.frames) / 2), win = 4096;
+  let best = 0, bestErr = Infinity;
+  for (let off = -3000; off <= 3000; off++) {
+    let err = 0;
+    for (let i = 0; i < win; i += 7) {
+      const d = c0[mid + i + off] - refData[(mid + i) * ref.channels];
+      err += d * d;
+    }
+    if (err < bestErr) { bestErr = err; best = off; }
+  }
+  let maxErr = 0;
+  const n = Math.min(b.length, ref.frames) - Math.abs(best) - 1;
+  for (let ch = 0; ch < ref.channels; ch++) {
+    const c = b.getChannelData(ch);
+    for (let i = Math.max(0, -best); i < n; i++) {
+      const d = Math.abs(c[i + best] - refData[i * ref.channels + ch]);
+      if (d > maxErr) maxErr = d;
+    }
+  }
+  return {...out, offset: best, maxErr: +maxErr.toExponential(2),
+          ok: best == 0 && maxErr < 1e-4 && Math.abs(b.length - ref.frames) <= 1};
+}
+
+// A decode that should just work: channels, about 3 s, and a tone in it.
+async function plausible(file, channels) {
+  const r = await decode(file);
+  if (r.error) return {error: r.error, ok: false};
+  const b = r.buffer;
+  const c = b.getChannelData(0);
+  let s = 0;
+  for (let i = 0; i < c.length; i++) s += c[i] * c[i];
+  const rms = Math.sqrt(s / c.length);
+  return {channels: b.numberOfChannels, rate: b.sampleRate, duration: +b.duration.toFixed(3), rms: +rms.toFixed(3), ms: r.ms,
+          ok: b.numberOfChannels == channels && Math.abs(b.duration - 3) < 0.1 && rms > 0.05};
+}
+
+const tests = {};
+for (const n of ['lc1', 'lc2', 'lc6', 'he1', 'he2', 'hev2', 'ff_lc2', 'ff_lc6', 'eld2', 'ld2']) tests[`aac_${n}`] = () => compare(n);
+tests.aac_long_3min = async () => { const r = await compare('long'); return {...r, ok: r.ok && r.ms < 10000}; };
+tests.aac_in_mp4_with_video = () => plausible('av.mp4', 2);
+tests.aac_adts = () => plausible('lc2.aac', 2);
+tests.mp3 = () => plausible('s.mp3', 2);
+tests.opus = () => plausible('s.opus', 2);
+tests.flac = () => plausible('s.flac', 2);
+tests.aac_six_at_once = async () => {
+  const rs = await Promise.all(['lc1', 'lc2', 'he1', 'he2', 'hev2', 'ff_lc2'].map(n => compare(n)));
+  return {ok: rs.every(r => r.ok), results: rs.map(r => r.ok)};
+};
+// A frame that starts decoding and goes away mid-decode; then decoding still works.
+tests.aac_frame_removed_mid_decode = async () => {
+  for (let i = 0; i < 3; i++) {
+    const f = document.createElement('iframe');
+    f.srcdoc = `<script>fetch('long.m4a').then(r => r.arrayBuffer()).then(b => { parent.postMessage('go', '*'); new AudioContext().decodeAudioData(b); });<\/script>`;
+    const started = new Promise(r => addEventListener('message', r, {once: true}));
+    document.body.append(f);
+    await started;
+    await new Promise(r => setTimeout(r, 50));
+    f.remove();
+  }
+  const r = await compare('lc2');
+  return {...r, ok: r.ok};
+};
+
+// WebCodecs' AudioDecoder (the same GPU decoder, with no trimming): after
+// the encoder's priming, the samples are Apple's.
+const aindex = await (await fetch('aindex.json')).json();
+async function webcodecsAac(name, codec) {
+  const idx = aindex[name], ref = refs[name];
+  const data = new Uint8Array(await (await fetch(idx.file)).arrayBuffer());
+  const chunks = [];
+  let error = null, format = null;
+  const dec = new AudioDecoder({
+    output: a => {
+      format = `${a.format} ${a.sampleRate}Hz ${a.numberOfChannels}ch`;
+      const planes = [];
+      for (let c = 0; c < a.numberOfChannels; c++) {
+        const f = new Float32Array(a.numberOfFrames);
+        a.copyTo(f, {planeIndex: c, format: 'f32-planar'});
+        planes.push(f);
+      }
+      chunks.push(planes);
+      a.close();
+    },
+    error: e => { error = String(e); },
+  });
+  const description = Uint8Array.from(idx.asc.match(/../g).map(x => parseInt(x, 16)));
+  const config = {codec, sampleRate: ref.rate, numberOfChannels: ref.channels, description};
+  if (!(await AudioDecoder.isConfigSupported(config)).supported) return {error: 'unsupported', ok: false};
+  dec.configure(config);
+  for (const smp of idx.samples)
+    dec.decode(new EncodedAudioChunk({type: 'key', timestamp: smp.pts, data: data.subarray(smp.off, smp.off + smp.size)}));
+  await dec.flush();
+  if (error) return {error, ok: false};
+  const total = chunks.reduce((a, p) => a + p[0].length, 0);
+  const chans = [...Array(ref.channels)].map((_, c) => { const o = new Float32Array(total); let k = 0; for (const p of chunks) { o.set(p[c], k); k += p[c].length; } return o; });
+  const refData = new Float32Array(await (await fetch(`ref_${name}.f32`)).arrayBuffer());
+  const mid = Math.floor(ref.frames / 2), win = 4096;
+  let best = 0, bestErr = Infinity;
+  for (let off = 0; off <= 6000; off++) {
+    let err = 0;
+    for (let i = 0; i < win; i += 7) { const d = chans[0][mid + i + off] - refData[(mid + i) * ref.channels]; err += d * d; }
+    if (err < bestErr) { bestErr = err; best = off; }
+  }
+  let maxErr = 0;
+  for (let c = 0; c < ref.channels; c++)
+    for (let i = 0; i < ref.frames && i + best < total; i++) maxErr = Math.max(maxErr, Math.abs(chans[c][i + best] - refData[i * ref.channels + c]));
+  return {format, frames: total, priming: best, maxErr: +maxErr.toExponential(2), ok: maxErr < 1e-4 && total >= ref.frames + best};
+}
+tests.webcodecs_aac_lc2 = () => webcodecsAac('lc2', 'mp4a.40.2');
+tests.webcodecs_aac_lc6 = () => webcodecsAac('lc6', 'mp4a.40.2');
+tests.webcodecs_he_aac = () => webcodecsAac('he2', 'mp4a.40.5');
+tests.webcodecs_he_aac_v2 = () => webcodecsAac('hev2', 'mp4a.40.29');
+
+// ADTS: src= playback and MSE (audio/aac), HE-AAC's SBR and PS implied.
+async function play(src, secs = 2.5, expectHz = 0) {
+  const a = document.createElement('audio');
+  let error = null;
+  a.addEventListener('error', () => { error = a.error ? `${a.error.code}: ${a.error.message}` : 'error'; });
+  const ctx = new AudioContext();
+  const node = ctx.createMediaElementSource(a);
+  const an = ctx.createAnalyser(); an.fftSize = 8192;
+  const g = ctx.createGain(); g.gain.value = 0;
+  node.connect(an).connect(g).connect(ctx.destination);
+  if (typeof src == 'string') a.src = src; else await src(a);
+  await ctx.resume();
+  try { await Promise.race([a.play(), new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 5000))]); } catch (e) { error = error || 'play(): ' + e.message; }
+  const fd = new Float32Array(an.frequencyBinCount);
+  let hf = -Infinity, rms = 0, peakHz = 0;
+  const td = new Float32Array(an.fftSize);
+  const end = performance.now() + secs * 1000;
+  while (performance.now() < end && !error && !a.ended) {
+    await new Promise(r => setTimeout(r, 100));
+    an.getFloatTimeDomainData(td);
+    const r = Math.sqrt(td.reduce((x, v) => x + v * v, 0) / td.length);
+    if (r > rms) {
+      rms = r;
+      an.getFloatFrequencyData(fd);
+      let best = 0;
+      for (let i = 1; i < fd.length; i++) if (fd[i] > fd[best]) best = i;
+      peakHz = Math.round(best * ctx.sampleRate / an.fftSize);
+    }
+  }
+  a.pause();
+  await ctx.close();
+  return {error, t: +a.currentTime.toFixed(2), rms: +rms.toFixed(3), peakHz, ok: !error && a.currentTime > 1 && rms > 0.05 && (!expectHz || Math.abs(peakHz - expectHz) < 1000)};
+}
+tests.src_adts_lc = () => play('lc2b.aac');
+tests.src_adts_he = () => play('he2.aac');
+tests.src_adts_hev2 = () => play('hev2.aac');
+tests.hls_ts_he_aac = () => play('hls_he/master.m3u8');
+tests.mse_adts_he = () => play(async a => {
+  const ms = new MediaSource(); a.src = URL.createObjectURL(ms);
+  await new Promise(r => ms.addEventListener('sourceopen', r, {once: true}));
+  const sb = ms.addSourceBuffer('audio/aac');
+  await new Promise(r => { sb.addEventListener('updateend', r, {once: true}); fetch('he2.aac').then(x => x.arrayBuffer()).then(b => sb.appendBuffer(b)); });
+  ms.endOfStream();
+});
+tests.decode_adts_he = async () => { const r = await plausible('he2.aac', 2); return {...r, ok: r.channels == 2 && r.rms > 0.05 && Math.abs(r.duration - 3) < 0.2}; };
+// SBR: a 15 kHz tone, which only HE-AAC's SBR layer carries.
+tests.sbr_src_m4a = () => play('hf_he.m4a', 2.5, 15000);
+tests.sbr_mse_fmp4 = () => play(async a => {
+  const ms = new MediaSource(); a.src = URL.createObjectURL(ms);
+  await new Promise(r => ms.addEventListener('sourceopen', r, {once: true}));
+  const sb = ms.addSourceBuffer('audio/mp4; codecs="mp4a.40.5"');
+  await new Promise(r => { sb.addEventListener('updateend', r, {once: true}); fetch('hf_he.frag.mp4').then(x => x.arrayBuffer()).then(b => sb.appendBuffer(b)); });
+  ms.endOfStream();
+}, 2.5, 15000);
+// The GPU process's AAC decoder, given AAC-LC as ADTS describes HE-AAC: it
+// decodes SBR (the 15 kHz tone) at twice the rate. (Through an <audio>
+// routed to Web Audio, the renderer resamples to the stream's rate, 22.05 kHz,
+// which drops that band; Chrome's does too.)
+tests.sbr_webcodecs_adts = async () => {
+  const idx = await (await fetch('hf_adts.json')).json();
+  const data = new Uint8Array(await (await fetch(idx.file)).arrayBuffer());
+  let rate = 0, channels = 0, error = null;
+  const pcm = [];
+  const dec = new AudioDecoder({output: a => { rate = a.sampleRate; channels = a.numberOfChannels; const f = new Float32Array(a.numberOfFrames); a.copyTo(f, {planeIndex: 0, format: 'f32-planar'}); pcm.push(f); a.close(); }, error: e => { error = String(e); }});
+  dec.configure({codec: 'mp4a.40.2', sampleRate: idx.rate, numberOfChannels: idx.channels, description: Uint8Array.from(idx.asc.match(/../g).map(x => parseInt(x, 16)))});
+  let t = 0;
+  for (const [off, n] of idx.frames) { dec.decode(new EncodedAudioChunk({type: 'key', timestamp: t, data: data.subarray(off, off + n)})); t += 1024 * 1e6 / idx.rate; }
+  await dec.flush();
+  if (error) return {error, ok: false};
+  const c = new Float32Array(pcm.reduce((a, p) => a + p.length, 0)); let k = 0; for (const p of pcm) { c.set(p, k); k += p.length; }
+  const mid = c.length >> 1; let best = 0, bestHz = 0;
+  for (let hz = 1000; hz < rate / 2; hz += 50) { let re = 0, im = 0; for (let i = 0; i < 4096; i++) { const x = 2 * Math.PI * hz * i / rate; re += c[mid + i] * Math.cos(x); im += c[mid + i] * Math.sin(x); } if (re * re + im * im > best) { best = re * re + im * im; bestHz = hz; } }
+  return {rate, channels, peakHz: bestHz, ok: rate == 2 * idx.rate && Math.abs(bestHz - 15000) < 1000};
+};
+// WebCodecs without a description: ADTS, headers and all (the AAC codec
+// registration). The configured rate is the one ADTS gives, the core's for
+// HE-AAC; what comes out is what the stream decodes to.
+async function webcodecsAdts(file, codec, configRate, channels, expect) {
+  const data = new Uint8Array(await (await fetch(file)).arrayBuffer());
+  let rate = 0, outChannels = 0, error = null;
+  const pcm = [];
+  const dec = new AudioDecoder({output: a => { rate = a.sampleRate; outChannels = a.numberOfChannels; const f = new Float32Array(a.numberOfFrames); a.copyTo(f, {planeIndex: 0, format: 'f32-planar'}); pcm.push(f); a.close(); }, error: e => { error = String(e); }});
+  dec.configure({codec, sampleRate: configRate, numberOfChannels: channels});
+  let t = 0;
+  for (let i = 0; i + 7 <= data.length;) {
+    if (data[i] != 0xff || (data[i + 1] & 0xf6) != 0xf0) { i++; continue; }
+    const n = ((data[i + 3] & 3) << 11) | (data[i + 4] << 3) | (data[i + 5] >> 5);
+    dec.decode(new EncodedAudioChunk({type: 'key', timestamp: t, data: data.subarray(i, i + n)}));
+    t += 1024 * 1e6 / configRate;
+    i += n;
+  }
+  try { await dec.flush(); } catch (e) { error = error || String(e); }
+  if (error) return {error, ok: false};
+  const c = new Float32Array(pcm.reduce((a, p) => a + p.length, 0)); let k = 0; for (const p of pcm) { c.set(p, k); k += p.length; }
+  const mid = c.length >> 1; let best = 0, peakHz = 0;
+  for (let hz = 100; hz < rate / 2; hz += 20) { let re = 0, im = 0; for (let i = 0; i < 4096; i++) { const x = 2 * Math.PI * hz * i / rate; re += c[mid + i] * Math.cos(x); im += c[mid + i] * Math.sin(x); } if (re * re + im * im > best) { best = re * re + im * im; peakHz = hz; } }
+  const duration = +(c.length / rate).toFixed(2);
+  return {rate, channels: outChannels, peakHz, duration,
+          ok: rate == expect.rate && outChannels == expect.channels && Math.abs(peakHz - expect.hz) < (expect.tolerance || 50) && Math.abs(duration - 3) < 0.2};
+}
+tests.webcodecs_adts_lc = () => webcodecsAdts('lc2b.aac', 'mp4a.40.2', 44100, 2, {rate: 44100, channels: 2, hz: 440});
+// SBR's band is rebuilt, not coded: the tone comes back near 15 kHz.
+tests.webcodecs_adts_he = () => webcodecsAdts('hf_he.aac', 'mp4a.40.5', 22050, 2, {rate: 44100, channels: 2, hz: 15000, tolerance: 1000});
+// HE-AAC v2's core is mono; PS makes it stereo.
+tests.webcodecs_adts_hev2 = () => webcodecsAdts('hev2.aac', 'mp4a.40.29', 22050, 1, {rate: 44100, channels: 2, hz: 440});
+tests.sbr_mse_adts = () => play(async a => {
+  const ms = new MediaSource(); a.src = URL.createObjectURL(ms);
+  await new Promise(r => ms.addEventListener('sourceopen', r, {once: true}));
+  const sb = ms.addSourceBuffer('audio/aac');
+  await new Promise(r => { sb.addEventListener('updateend', r, {once: true}); fetch('hf_he.aac').then(x => x.arrayBuffer()).then(b => sb.appendBuffer(b)); });
+  ms.endOfStream();
+}, 2.5, 15000);
+tests.sbr_hls_ts = () => play('hls_hf/master.m3u8', 2.5, 15000);
+tests.sbr_src_adts = () => play('hf_he.aac', 2.5, 15000);
+tests.sbr_decode_adts = async () => {
+  const r = await decode('hf_he.aac', 44100);
+  if (r.error) return {error: r.error, ok: false};
+  const c = r.buffer.getChannelData(0), n = 4096, mid = c.length >> 1;
+  let best = 0, bestHz = 0;
+  for (let hz = 1000; hz < 20000; hz += 50) {
+    let re = 0, im = 0;
+    for (let i = 0; i < n; i++) { const a = 2 * Math.PI * hz * i / 44100; re += c[mid + i] * Math.cos(a); im += c[mid + i] * Math.sin(a); }
+    if (re * re + im * im > best) { best = re * re + im * im; bestHz = hz; }
+  }
+  return {channels: r.buffer.numberOfChannels, duration: +r.buffer.duration.toFixed(3), peakHz: bestHz, ok: Math.abs(bestHz - 15000) < 1000 && Math.abs(r.buffer.duration - 3) < 0.2};
+};
+
+// A seek, as WebCodecs sees it: decode, reset, and go on from a later packet.
+// After a packet or two of warm-up, the samples are Apple's, at the packet's
+// place in the stream.
+// HE-AAC's SBR adds noise from a pseudo-random sequence that depends on where
+// decoding started, so after a seek it matches only to about -80 dB.
+async function webcodecsSeek(name, codec, fpp, priming, from, warmup = 2, tolerance = 1e-4) {
+  const idx = aindex[name], ref = refs[name];
+  const data = new Uint8Array(await (await fetch(idx.file)).arrayBuffer());
+  let chunks = [], error = null, firstTs = null;
+  const dec = new AudioDecoder({output: a => { if (firstTs == null) firstTs = a.timestamp; const f = new Float32Array(a.numberOfFrames); a.copyTo(f, {planeIndex: 0, format: 'f32-planar'}); chunks.push(f); a.close(); }, error: e => { error = String(e); }});
+  const config = {codec, sampleRate: ref.rate, numberOfChannels: ref.channels, description: Uint8Array.from(idx.asc.match(/../g).map(x => parseInt(x, 16)))};
+  const feed = (a, b) => { for (let i = a; i < b; i++) { const smp = idx.samples[i]; dec.decode(new EncodedAudioChunk({type: 'key', timestamp: smp.pts, data: data.subarray(smp.off, smp.off + smp.size)})); } };
+  dec.configure(config);
+  feed(0, 20);
+  await dec.flush();
+  dec.reset();
+  chunks = []; firstTs = null;
+  dec.configure(config);
+  feed(from, idx.samples.length);
+  await dec.flush();
+  if (error) return {error, ok: false};
+  const out = new Float32Array(chunks.reduce((a, c) => a + c.length, 0)); let k = 0; for (const c of chunks) { out.set(c, k); k += c.length; }
+  const refData = new Float32Array(await (await fetch(`ref_${name}.f32`)).arrayBuffer());
+  // Output frame i is stream frame from * fpp + i, which is reference frame
+  // from * fpp + i - priming. Skip two packets of warm-up.
+  let maxErr = 0;
+  for (let i = warmup * fpp; i < out.length; i++) {
+    const r = from * fpp + i - priming;
+    if (r < 0 || r >= ref.frames) continue;
+    maxErr = Math.max(maxErr, Math.abs(out[i] - refData[r * ref.channels]));
+  }
+  const perPacket = [];
+  for (let p = 0; p * fpp < out.length; p++) {
+    let m = 0;
+    for (let i = p * fpp; i < Math.min(out.length, (p + 1) * fpp); i++) { const r = from * fpp + i - priming; if (r >= 0 && r < ref.frames) m = Math.max(m, Math.abs(out[i] - refData[r * ref.channels])); }
+    perPacket.push(+m.toExponential(1));
+  }
+  return {frames: out.length, firstTs, maxErr: +maxErr.toExponential(2), ok: maxErr < tolerance && out.length >= (idx.samples.length - from) * fpp};
+}
+tests.webcodecs_seek_he_aac = () => webcodecsSeek("he2", "mp4a.40.5", 2048, 4224, 30, 2, 1e-3);
+tests.webcodecs_seek_aac_lc = () => webcodecsSeek('lc2', 'mp4a.40.2', 1024, 2112, 60);
+
+// Known limitations (.agents/MEDIA.md): these run, and don't fail the page.
+const known = {
+  sbr_mse_adts: "routed to Web Audio, the element plays at ADTS's core rate, below SBR's band (Chrome too)",
+  sbr_hls_ts: "routed to Web Audio, the element plays at ADTS's core rate, below SBR's band (Chrome too)",
+};
+
+const results = {};
+for (const [name, fn] of Object.entries(tests)) {
+  if (only && !name.match(only)) continue;
+  let r;
+  try { r = await fn(); } catch (e) { r = {error: 'threw: ' + e, ok: false}; }
+  results[name] = r;
+  log(`${r.ok ? 'PASS' : known[name] ? 'KNOWN' : 'FAIL'} ${name} ${JSON.stringify(r)}`);
+}
+const failed = Object.entries(results).filter(([n, r]) => !r.ok && !known[n]).map(([n]) => n);
+const fixed = Object.entries(results).filter(([n, r]) => r.ok && known[n]).map(([n]) => n);
+await fetch('/report', {method: 'POST', body: JSON.stringify({passed: Object.keys(results).length - failed.length, failed, fixed}, null, 1)});
+</script>

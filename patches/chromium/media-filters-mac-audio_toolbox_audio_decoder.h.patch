@@ -1,0 +1,30 @@
+diff --git a/media/filters/mac/audio_toolbox_audio_decoder.h b/media/filters/mac/audio_toolbox_audio_decoder.h
+index b50c0ca201..c824220ab4 100644
+--- a/media/filters/mac/audio_toolbox_audio_decoder.h
++++ b/media/filters/mac/audio_toolbox_audio_decoder.h
+@@ -8,6 +8,7 @@
+ #include <AudioToolbox/AudioToolbox.h>
+ 
+ #include <memory>
++#include <optional>
+ 
+ #include "base/apple/scoped_typeref.h"
+ #include "base/memory/free_deleter.h"
+@@ -78,6 +79,17 @@ class MEDIA_EXPORT AudioToolboxAudioDecoder : public AudioDecoder {
+   // Keeps track of the last input timestamp to use for output generated during
+   // flush (EOS).
+   base::TimeDelta last_input_timestamp_ = kNoTimestamp;
++
++  // Fiber: whether the next output is the first since the converter started,
++  // which may leave out the decoder's delay (see Decode()), and what
++  // `discard_helper_` was made with.
++  bool first_output_ = true;
++  int sample_rate_ = 0;
++  int codec_delay_ = 0;
++
++  // Fiber: the config of AAC that has none of its own, until its first frame
++  // (see Initialize()).
++  std::optional<AudioDecoderConfig> adts_config_;
+ };
+ 
+ }  // namespace media

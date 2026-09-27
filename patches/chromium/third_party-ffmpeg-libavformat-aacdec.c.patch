@@ -1,0 +1,40 @@
+diff --git a/third_party/ffmpeg/libavformat/aacdec.c b/third_party/ffmpeg/libavformat/aacdec.c
+index 7968e52..cbf6c32 100644
+--- a/third_party/ffmpeg/libavformat/aacdec.c
++++ b/third_party/ffmpeg/libavformat/aacdec.c
+@@ -22,6 +22,8 @@
+ 
+ #include "libavutil/avassert.h"
+ #include "libavutil/intreadwrite.h"
++#include "libavcodec/adts_header.h"
++#include "libavcodec/adts_parser.h"
+ #include "avformat.h"
+ #include "avio_internal.h"
+ #include "demux.h"
+@@ -129,6 +131,26 @@ static int adts_aac_read_header(AVFormatContext *s)
+     if (ret < 0)
+         return ret;
+ 
++#if !CONFIG_AAC_DECODER
++    // Fiber: with no decoder to find them, the sample rate, channels and
++    // frame size (the core's, for HE-AAC) and profile the first header gives.
++    {
++        uint8_t buf[AV_AAC_ADTS_HEADER_SIZE + AV_INPUT_BUFFER_PADDING_SIZE] = { 0 };
++        AACADTSHeaderInfo hdr, *phdr = &hdr;
++        const int64_t pos = avio_tell(s->pb);
++        if (avio_read(s->pb, buf, AV_AAC_ADTS_HEADER_SIZE) == AV_AAC_ADTS_HEADER_SIZE &&
++            avpriv_adts_header_parse(&phdr, buf, AV_AAC_ADTS_HEADER_SIZE) >= 0 &&
++            hdr.chan_config) {
++            st->codecpar->sample_rate = hdr.sample_rate;
++            st->codecpar->frame_size  = hdr.samples;
++            st->codecpar->profile     = hdr.object_type - 1;
++            av_channel_layout_default(&st->codecpar->ch_layout,
++                                      hdr.chan_config == 7 ? 8 : hdr.chan_config);
++        }
++        avio_seek(s->pb, pos, SEEK_SET);
++    }
++#endif
++
+     // LCM of all possible ADTS sample rates
+     avpriv_set_pts_info(st, 64, 1, 28224000);
+ 

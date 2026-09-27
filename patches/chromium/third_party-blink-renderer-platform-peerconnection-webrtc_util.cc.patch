@@ -1,0 +1,25 @@
+diff --git a/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc b/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc
+index 63011d9d02..9b61a6cc08 100644
+--- a/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc
++++ b/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc
+@@ -125,13 +125,19 @@ IsH264ConstrainedBaselineProfileAvailableForAcceleratedEncoder() {
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
+     BUILDFLAG(IS_ANDROID)
+   return base::FeatureList::IsEnabled(kPlatformH264CbpEncoding);
++#elif BUILDFLAG(IS_MAC)
++  // Fiber: VideoToolbox's Baseline is Constrained Baseline (see
++  // vt_video_encode_accelerator_mac.mm), which most endpoints ask for.
++  return true;
+ #else
+   return false;
+ #endif
+ }
+ 
+ bool PLATFORM_EXPORT UseH264AcceleratedEncoderForWebRTC() {
+-#if !BUILDFLAG(IS_ANDROID)
++// Fiber: and on macOS, where Fiber has no software H.264 encoder: WebRTC uses
++// VideoToolbox's without a fallback, as it does for HEVC.
++#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_MAC)
+   // On non-Android, H264 HW encoder cannot be used unless SW encoder is also
+   // available because of assumptions that SW fallback is always possible. This
+   // check should be removed when SW implementation is always available.

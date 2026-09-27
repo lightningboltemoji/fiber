@@ -21,6 +21,15 @@ swift_keep_intermediate_files = true
 # Google features (Lens, AI Mode, Gemini, omnibox experiments).
 disable_fieldtrial_testing_config = true
 
+# H.264, AAC and MP4, decoded by macOS. Much of the web's video is only served
+# as H.264 and AAC in MP4 (Reddit's, for one), and a player that finds nothing
+# it can play just spins. Chromium's build of ffmpeg has no H.264 or AAC
+# decoder, and nothing else here brings one (see .agents/MEDIA.md).
+proprietary_codecs = true
+ffmpeg_branding = "Chromium"
+media_use_openh264 = false
+enable_ffmpeg_video_decoders = false
+
 enable_swiftshader = false
 enable_swiftshader_vulkan = false
 angle_enable_swiftshader = false

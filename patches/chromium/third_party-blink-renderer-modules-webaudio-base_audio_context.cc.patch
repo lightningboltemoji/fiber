@@ -1,0 +1,17 @@
+diff --git a/third_party/blink/renderer/modules/webaudio/base_audio_context.cc b/third_party/blink/renderer/modules/webaudio/base_audio_context.cc
+index 21ae43841d..733636d3bc 100644
+--- a/third_party/blink/renderer/modules/webaudio/base_audio_context.cc
++++ b/third_party/blink/renderer/modules/webaudio/base_audio_context.cc
+@@ -410,8 +410,12 @@ ScriptPromise<AudioBuffer> BaseAudioContext::decodeAudioData(
+     // on the main thread.  Must not modify any of the parameters except
+     // `audio_data_contents`.  They are used to associate this decoding instance
+     // with the caller to process the decoding appropriately when finished.
++    // Fiber: it may wait on the GPU process, which decodes AAC (see
++    // content/renderer/media/audio_decoder.cc).
+     worker_pool::PostTask(
+         FROM_HERE,
++        {base::MayBlock(), base::WithBaseSyncPrimitives(),
++         base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
+         CrossThreadBindOnce(
+             &DecodeOnBackgroundThread, std::move(audio_data_contents),
+             sampleRate(), MakeCrossThreadHandle(success_callback),

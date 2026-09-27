@@ -23,10 +23,23 @@ SRC="$ROOT/chromium/src"
 STAMP="$SRC/.git/fiber-patches"
 MODE="${1:-apply}"
 
+# Repositories nested in chromium/src (DEPS checkouts) that Fiber patches files
+# in; update_patches.sh has the same list. A file's patch names its path from
+# chromium/src, and git apply there reaches into them.
+NESTED=(third_party/ffmpeg)
+
 fail() { echo "error: $*" >&2; exit 1; }
+# The repository `file` is in, and its path there.
+repo_of() {
+  local r
+  for r in ${NESTED[@]+"${NESTED[@]}"}; do
+    [[ "$1" == "$r/"* ]] && { echo "$SRC/$r ${1#"$r/"}"; return; }
+  done
+  echo "$SRC $1"
+}
 contents() { git -C "$SRC" hash-object -- "$1"; }
-pristine() { git -C "$SRC" diff --quiet -- "$1"; }
-reset() { git -C "$SRC" checkout -- "$1"; }
+pristine() { local repo path; read -r repo path <<< "$(repo_of "$1")"; git -C "$repo" diff --quiet -- "$path"; }
+reset() { local repo path; read -r repo path <<< "$(repo_of "$1")"; git -C "$repo" checkout -- "$path"; }
 # "<patch hash> <contents>" as of the last time the file matched its patch.
 synced() { [[ -f "$STAMP" ]] && awk -v f="$1" '$3 == f { print $1, $2 }' "$STAMP" || true; }
 
@@ -91,8 +104,8 @@ for i in ${patches[@]+"${!patches[@]}"}; do
     continue
   else
     fail "$file has edits that aren't in its patch, and the patch has changed" \
-      "since. Discard them (git -C chromium/src checkout -- $file) and re-run," \
-      "or merge the patch into them by hand and run make patches."
+      "since. Discard them (git checkout -- the file, in its repository) and" \
+      "re-run, or merge the patch into them by hand and run make patches."
   fi
   echo "$want $(contents "$file") $file" >> "$next_stamp"
 done

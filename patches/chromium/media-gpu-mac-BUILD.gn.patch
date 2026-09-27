@@ -1,0 +1,16 @@
+diff --git a/media/gpu/mac/BUILD.gn b/media/gpu/mac/BUILD.gn
+index db06f469b4..7904f8b52c 100644
+--- a/media/gpu/mac/BUILD.gn
++++ b/media/gpu/mac/BUILD.gn
+@@ -73,6 +73,11 @@ source_set("mac") {
+     "//ui/gfx/geometry",
+     "//ui/gl",
+   ]
++
++  # Fiber: Fiber's H.264 and HEVC decoders, which include this target's
++  # headers (see video_toolbox_video_decoder.cc).
++  deps += [ "//fiber/media:video_toolbox" ]
++  allow_circular_includes_from = [ "//fiber/media:video_toolbox" ]
+ }
+ 
+ source_set("unit_tests") {

@@ -1,0 +1,14 @@
+diff --git a/media/mojo/clients/BUILD.gn b/media/mojo/clients/BUILD.gn
+index 0319969a98..9ac060c316 100644
+--- a/media/mojo/clients/BUILD.gn
++++ b/media/mojo/clients/BUILD.gn
+@@ -30,6 +30,9 @@ source_set("clients") {
+     "//third_party/blink/renderer/modules/peerconnection",
+     "//third_party/blink/renderer/modules/webcodecs",
+     "//third_party/blink/renderer/platform",
++
++    # Fiber: Web Audio's AAC decoding (see //fiber/media:web_audio).
++    "//fiber/media:web_audio",
+   ]
+ 
+   sources = [

@@ -1,0 +1,73 @@
+diff --git a/media/ffmpeg/ffmpeg_common.cc b/media/ffmpeg/ffmpeg_common.cc
+index 280dce6885..409b108e69 100644
+--- a/media/ffmpeg/ffmpeg_common.cc
++++ b/media/ffmpeg/ffmpeg_common.cc
+@@ -14,6 +14,7 @@
+ #include "base/strings/string_split.h"
+ #include "base/strings/string_util.h"
+ #include "build/build_config.h"
++#include "fiber/media/aac/audio_specific_config.h"
+ #include "media/base/audio_decoder_config.h"
+ #include "media/base/audio_timestamp_helper.h"
+ #include "media/base/decoder_buffer.h"
+@@ -415,6 +416,11 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
+       sample_format = kSampleFormatMpegHAudio;
+       break;
+ #endif
++    // Fiber: likewise AAC, which Fiber leaves to AudioToolbox, as Chromium's
++    // MP4 and ADTS parsers do.
++    case AudioCodec::kAAC:
++      sample_format = kSampleFormatS16;
++      break;
+ 
+     default:
+       break;
+@@ -443,6 +449,14 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
+         .copy_from_nonoverlapping(AVCodecContextExtraDataToSpan(codec_context));
+   }
+ 
++  // Fiber: AudioToolbox needs AAC's AudioSpecificConfig, which ffmpeg's ADTS
++  // demuxer doesn't give.
++  if (codec == AudioCodec::kAAC && extra_data.empty()) {
++    extra_data = fiber::AdtsAudioSpecificConfig(
++        codec_context->profile, codec_context->sample_rate,
++        codec_context->ch_layout.nb_channels);
++  }
++
+   // FFmpeg exports AAC edit list padding in
+   // AVCodecParameters::initial_padding, which propagates to
+   // codec_context->delay. AAC does not have a pipeline decoder delay, and
+@@ -483,13 +497,31 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
+       if (aac_parser.Parse(extra_data, &media_log))
+         config->set_profile(aac_parser.GetProfile());
+     }
++
++    // Fiber: AudioToolbox decodes AAC, and what it puts out can differ from
++    // what ffmpeg reads in the container: HE-AAC's SBR at twice the rate, and
++    // its PS in stereo. Describe that, as Chromium's MP4 parser does.
++    const std::optional<fiber::AudioToolboxOutput> output =
++        fiber::AudioToolboxOutputFormat(extra_data);
++    if (output && (output->sample_rate != config->samples_per_second() ||
++                   output->channels != config->channels())) {
++      const AudioCodecProfile profile = config->profile();
++      config->Initialize(
++          codec, sample_format,
++          {GuessChannelLayout(output->channels), output->channels},
++          output->sample_rate, extra_data, encryption_scheme, seek_preroll,
++          codec_delay);
++      config->set_profile(profile);
++    }
+   }
+ #endif
+ 
+   // Verify that AudioConfig.bytes_per_channel was calculated correctly for
+   // codecs that have |sample_fmt| set by FFmpeg.
+-  DCHECK_EQ(av_get_bytes_per_sample(codec_context->sample_fmt),
+-            config->bytes_per_channel());
++  // Fiber: and only for them, which AAC isn't in Fiber (see above).
++  DCHECK(codec_context->sample_fmt == AV_SAMPLE_FMT_NONE ||
++         av_get_bytes_per_sample(codec_context->sample_fmt) ==
++             config->bytes_per_channel());
+   return true;
+ }
+ 

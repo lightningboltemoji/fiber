@@ -8,12 +8,21 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/chromium/src"
 OUT="$ROOT/patches/chromium"
 
+# Repositories nested in chromium/src that Fiber patches files in (see
+# apply_patches.sh). Their patches name paths from chromium/src too.
+NESTED=(third_party/ffmpeg)
+
 mkdir -p "$OUT"
 rm -f "$OUT"/*.patch
-git -C "$SRC" diff --name-only | while read -r file; do
-  name="${file//\//-}.patch"
-  git -C "$SRC" diff --no-color -- "$file" > "$OUT/$name"
-  echo "wrote $name"
+for repo in . ${NESTED[@]+"${NESTED[@]}"}; do
+  prefix="${repo#.}"
+  prefix="${prefix:+$prefix/}"
+  git -C "$SRC/$repo" diff --name-only | while read -r file; do
+    name="${prefix//\//-}${file//\//-}.patch"
+    git -C "$SRC/$repo" diff --no-color --src-prefix="a/$prefix" \
+      --dst-prefix="b/$prefix" -- "$file" > "$OUT/$name"
+    echo "wrote $name"
+  done
 done
 
 # Record that chromium/src and the patches now match.

@@ -1,0 +1,12 @@
+# What video/gen.sh and audio/gen.sh generate.
+/video/*
+!/video/gen.sh
+!/video/index.py
+!/video/vtref.swift
+!/video/*.html
+/audio/*
+!/audio/gen.sh
+!/audio/aindex.py
+!/audio/*.html
+/fiber.log
+/profile/

@@ -1,0 +1,92 @@
+assert(is_mac)
+
+# Fiber's integration with Chromium's media stack. Fiber leaves the decoding of
+# H.264, HEVC and AAC to macOS instead of building decoders of its own (see
+# //fiber/build/args.gni).
+#
+#   aac/        AAC's AudioSpecificConfig, as AudioToolbox is given it
+#   hooks/      the functions Fiber's media patches call
+#   video/      H.264 and HEVC for Chromium's VideoToolbox decoder
+#   web_audio/  AAC for Web Audio, decoded in the GPU process
+
+# AAC through AudioToolbox. It's linked into //media (see
+# patches/chromium/media-filters-BUILD.gn.patch), so it depends on nothing
+# //media couldn't.
+source_set("media") {
+  sources = [
+    "hooks/audio_toolbox_aac.cc",
+    "hooks/audio_toolbox_aac.h",
+  ]
+  deps = [
+    ":aac",
+    "//base",
+  ]
+  frameworks = [ "AudioToolbox.framework" ]
+  visibility = [ "//media/filters" ]
+}
+
+# H.264 and HEVC through VideoToolbox, in place of Chromium's H264Decoder and
+# H265Decoder. It's linked into //media/gpu/mac, part of the media_gpu
+# component (see patches/chromium/media-gpu-mac-BUILD.gn.patch), and includes
+# its headers.
+source_set("video_toolbox") {
+  sources = [
+    "hooks/video_toolbox_decoder.cc",
+    "hooks/video_toolbox_decoder.h",
+    "video/h264_passthrough_decoder.cc",
+    "video/h264_passthrough_decoder.h",
+    "video/h265_passthrough_decoder.cc",
+    "video/h265_passthrough_decoder.h",
+    "video/passthrough_decoder.cc",
+    "video/passthrough_decoder.h",
+  ]
+  defines = [ "MEDIA_GPU_IMPLEMENTATION" ]
+  deps = [
+    "//base",
+    "//media",
+    "//ui/gfx:color_space",
+    "//ui/gfx/geometry",
+  ]
+  frameworks = [
+    "CoreFoundation.framework",
+    "CoreMedia.framework",
+    "VideoToolbox.framework",
+  ]
+  visibility = [ "//media/gpu/mac" ]
+}
+
+# AAC for Web Audio's decodeAudioData, which decodes in the renderer, through
+# AudioToolbox in the GPU process. It's linked into //content/renderer (see
+# patches/chromium/content-renderer-BUILD.gn.patch).
+source_set("web_audio") {
+  sources = [
+    "hooks/web_audio_decoder.cc",
+    "hooks/web_audio_decoder.h",
+    "web_audio/gpu_audio_decoder.cc",
+    "web_audio/gpu_audio_decoder.h",
+  ]
+  deps = [
+    "//base",
+    "//media",
+    "//media/mojo/clients",
+    "//media/mojo/mojom",
+    "//mojo/public/cpp/bindings",
+    "//third_party/blink/public:blink",
+  ]
+  visibility = [ "//content/renderer" ]
+}
+
+# AAC's AudioSpecificConfig, as AudioToolbox is given it: in the GPU process,
+# and in the renderer, whose ffmpeg demuxes it (see
+# patches/chromium/media-ffmpeg-BUILD.gn.patch).
+source_set("aac") {
+  sources = [
+    "aac/audio_specific_config.cc",
+    "aac/audio_specific_config.h",
+  ]
+  deps = [ "//base" ]
+  visibility = [
+    ":media",
+    "//media/ffmpeg",
+  ]
+}

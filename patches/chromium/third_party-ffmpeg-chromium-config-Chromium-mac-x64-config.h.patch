@@ -1,0 +1,13 @@
+diff --git a/third_party/ffmpeg/chromium/config/Chromium/mac/x64/config.h b/third_party/ffmpeg/chromium/config/Chromium/mac/x64/config.h
+index af494fc..b2d7b42 100644
+--- a/third_party/ffmpeg/chromium/config/Chromium/mac/x64/config.h
++++ b/third_party/ffmpeg/chromium/config/Chromium/mac/x64/config.h
+@@ -731,7 +731,7 @@
+ #define CONFIG_PROTOCOLS 0
+ #define CONFIG_AANDCTTABLES 0
+ #define CONFIG_AC3DSP 0
+-#define CONFIG_ADTS_HEADER 0
++#define CONFIG_ADTS_HEADER 1
+ #define CONFIG_ATSC_A53 0
+ #define CONFIG_AUDIO_FRAME_QUEUE 0
+ #define CONFIG_AUDIODSP 0

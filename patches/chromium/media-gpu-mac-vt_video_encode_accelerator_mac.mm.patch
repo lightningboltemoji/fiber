@@ -1,0 +1,15 @@
+diff --git a/media/gpu/mac/vt_video_encode_accelerator_mac.mm b/media/gpu/mac/vt_video_encode_accelerator_mac.mm
+index e13faa9a78..cdf64d862f 100644
+--- a/media/gpu/mac/vt_video_encode_accelerator_mac.mm
++++ b/media/gpu/mac/vt_video_encode_accelerator_mac.mm
+@@ -266,7 +266,9 @@ static CFStringRef VideoCodecProfileToVTProfile(VideoCodecProfile profile,
+                                                 VideoPixelFormat input_format) {
+   switch (profile) {
+     case H264PROFILE_BASELINE:
+-      return kVTProfileLevel_H264_Baseline_AutoLevel;
++      // Fiber: Constrained Baseline, which is Baseline as VideoToolbox encodes
++      // it, but says so, as WebRTC's endpoints want.
++      return kVTProfileLevel_H264_ConstrainedBaseline_AutoLevel;
+     case H264PROFILE_MAIN:
+       return kVTProfileLevel_H264_Main_AutoLevel;
+     case H264PROFILE_HIGH:

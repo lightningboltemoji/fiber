@@ -1,0 +1,14 @@
+diff --git a/media/filters/BUILD.gn b/media/filters/BUILD.gn
+index 2ff7fe39bd..293be84e50 100644
+--- a/media/filters/BUILD.gn
++++ b/media/filters/BUILD.gn
+@@ -249,6 +249,9 @@ source_set("filters") {
+       "mac/audio_toolbox_audio_encoder.h",
+     ]
+     deps += [ "//media/base/mac" ]
++
++    # Fiber: Fiber's AAC decoding hooks (see audio_toolbox_audio_decoder.cc).
++    deps += [ "//fiber/media" ]
+   }
+   if (is_win && enable_platform_dts_audio) {
+     sources += [

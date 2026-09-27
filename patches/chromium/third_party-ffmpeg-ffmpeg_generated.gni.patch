@@ -1,0 +1,22 @@
+diff --git a/third_party/ffmpeg/ffmpeg_generated.gni b/third_party/ffmpeg/ffmpeg_generated.gni
+index 6dd28da..3cbd31e 100644
+--- a/third_party/ffmpeg/ffmpeg_generated.gni
++++ b/third_party/ffmpeg/ffmpeg_generated.gni
+@@ -597,3 +597,17 @@ if ((is_android && (current_cpu == "arm64" || current_cpu == "arm64e")) ||
+     (is_android && current_cpu == "x86")) {
+   ffmpeg_c_sources += [ "compat/strtod.c" ]
+ }
++
++# Fiber: for Chromium's branding on macOS, the ADTS demuxer and AAC parser that
++# Chrome's has, but not its AAC decoder: macOS decodes AAC. See
++# chromium/config/Chromium/mac/.
++if (is_mac && ffmpeg_branding == "Chromium") {
++  ffmpeg_c_sources += [
++    "libavcodec/aac_ac3_parser.c",
++    "libavcodec/aac_parser.c",
++    "libavcodec/adts_header.c",
++    "libavformat/apetag.c",
++    "libavformat/autorename_libavformat_aacdec.c",
++    "libavformat/img2.c",
++  ]
++}

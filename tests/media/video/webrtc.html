@@ -1,0 +1,108 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>webrtc tests</title>
+<style>body{font:12px ui-monospace,monospace}canvas,video{width:320px}</style>
+<pre id="log"></pre>
+<canvas id="src" width="640" height="360"></canvas>
+<video id="dst" autoplay muted playsinline></video>
+<script type="module">
+// A call between two peer connections in this page: a canvas whose frames
+// carry their number as a barcode, sent with one codec. The receiver reads the
+// barcode off each frame it shows: numbers must only go up, few may be
+// skipped, and the delay from drawing to showing stays low.
+const logEl = document.getElementById('log');
+function log(s) { logEl.textContent += s + '\n'; fetch('/log', {method: 'POST', body: s}); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const BITS = 16, BW = 40;
+
+const src = document.getElementById('src');
+const g = src.getContext('2d');
+let n = 0;
+const drawnAt = new Map();
+function draw() {
+  n++;
+  g.fillStyle = `hsl(${(n * 7) % 360} 60% 50%)`;
+  g.fillRect(0, 0, 640, 360);
+  g.fillStyle = '#fff';
+  g.font = '64px sans-serif';
+  g.fillText(String(n), 200 + 100 * Math.sin(n / 10), 220);
+  for (let b = 0; b < BITS; b++) {
+    g.fillStyle = (n >> b) & 1 ? '#fff' : '#000';
+    g.fillRect(b * BW, 0, BW, 40);
+  }
+  drawnAt.set(n, performance.now());
+}
+
+async function call(mimeType, fmtp) {
+  const pc1 = new RTCPeerConnection(), pc2 = new RTCPeerConnection();
+  pc1.onicecandidate = e => e.candidate && pc2.addIceCandidate(e.candidate);
+  pc2.onicecandidate = e => e.candidate && pc1.addIceCandidate(e.candidate);
+  const stream = src.captureStream(30);
+  const tx = pc1.addTransceiver(stream.getVideoTracks()[0], {direction: 'sendonly'});
+  const caps = RTCRtpSender.getCapabilities('video').codecs.filter(c => c.mimeType == mimeType && (!fmtp || (c.sdpFmtpLine || '').includes(fmtp)));
+  if (!caps.length) return {error: `no ${mimeType} ${fmtp || ''} in sender capabilities`};
+  tx.setCodecPreferences(caps);
+  const video = document.getElementById('dst');
+  pc2.ontrack = e => { video.srcObject = new MediaStream([e.track]); };
+  await pc1.setLocalDescription();
+  await pc2.setRemoteDescription(pc1.localDescription);
+  await pc2.setLocalDescription();
+  await pc1.setRemoteDescription(pc2.localDescription);
+
+  const c = new OffscreenCanvas(640, 360), cg = c.getContext('2d', {willReadFrequently: true});
+  const seen = [];
+  let running = true;
+  const onFrame = (now, meta) => {
+    if (!running) return;
+    cg.drawImage(video, 0, 0, 640, 360);
+    const px = cg.getImageData(0, 20, 640, 1).data;
+    let v = 0;
+    for (let b = 0; b < BITS; b++) if (px[(b * BW + BW / 2) * 4] > 128) v |= 1 << b;
+    seen.push({v, delay: performance.now() - (drawnAt.get(v) ?? NaN)});
+    video.requestVideoFrameCallback(onFrame);
+  };
+  video.requestVideoFrameCallback(onFrame);
+  const timer = setInterval(draw, 1000 / 30);
+  await sleep(8000);
+  running = false;
+  clearInterval(timer);
+  const stats = {};
+  for (const r of (await pc2.getStats()).values()) {
+    if (r.type == 'inbound-rtp' && r.kind == 'video') Object.assign(stats, {framesDecoded: r.framesDecoded, keyFramesDecoded: r.keyFramesDecoded, framesDropped: r.framesDropped, decoder: r.decoderImplementation, powerEfficientDecoder: r.powerEfficientDecoder, freezeCount: r.freezeCount, jitterBufferDelayMs: +(1000 * r.jitterBufferDelay / r.jitterBufferEmittedCount).toFixed(1), decodeMs: +(1000 * r.totalDecodeTime / r.framesDecoded).toFixed(1), codecId: r.codecId, w: r.frameWidth, h: r.frameHeight});
+  }
+  for (const r of (await pc1.getStats()).values()) {
+    if (r.type == 'outbound-rtp' && r.kind == 'video') Object.assign(stats, {encoder: r.encoderImplementation, framesEncoded: r.framesEncoded});
+  }
+  for (const r of (await pc2.getStats()).values()) if (r.id == stats.codecId) stats.codec = `${r.mimeType} ${r.sdpFmtpLine || ''}`;
+  pc1.close(); pc2.close();
+  // After the first second: numbers go up, and the barcode's always legible.
+  const steady = seen.slice(30);
+  let backwards = 0, garbled = 0;
+  for (let i = 1; i < steady.length; i++) {
+    if (steady[i].v < steady[i - 1].v) backwards++;
+    if (!(steady[i].v > 0 && steady[i].v <= n)) garbled++;
+  }
+  const delays = steady.map(s => s.delay).filter(Number.isFinite).sort((a, b) => a - b);
+  const median = delays[delays.length >> 1];
+  const r = {...stats, shown: seen.length, backwards, garbled, medianDelayMs: Math.round(median)};
+  r.ok = !!stats.framesDecoded && stats.framesDecoded > 150 && !backwards && !garbled && median < 250 && r.codec?.startsWith(mimeType);
+  return r;
+}
+
+(async () => {
+  log('receive: ' + JSON.stringify(RTCRtpReceiver.getCapabilities('video').codecs.map(c => `${c.mimeType} ${c.sdpFmtpLine || ''}`).filter(c => c.includes('H26'))));
+  log('send now: ' + JSON.stringify(RTCRtpSender.getCapabilities('video').codecs.map(c => `${c.mimeType} ${c.sdpFmtpLine || ''}`).filter(c => c.includes('H26'))));
+  // Hardware encoders' profiles arrive from the GPU process after startup.
+  await sleep(3000);
+  log('send after 3s: ' + JSON.stringify(RTCRtpSender.getCapabilities('video').codecs.map(c => `${c.mimeType} ${c.sdpFmtpLine || ''}`).filter(c => c.includes('H26'))));
+  const results = {};
+  for (const [name, mime, fmtp] of [['h264_cbp', 'video/H264', 'profile-level-id=42e0'], ['h264_baseline', 'video/H264', 'profile-level-id=4200'], ['h264_high', 'video/H264', 'profile-level-id=6400'], ['h265', 'video/H265', null], ['vp8', 'video/VP8', null]]) {
+    let r;
+    try { r = await call(mime, fmtp); } catch (e) { r = {error: 'threw: ' + e}; }
+    results[name] = r;
+    log(`${r.ok ? 'PASS' : 'FAIL'} ${name} ${JSON.stringify(r)}`);
+  }
+  const failed = Object.entries(results).filter(([, r]) => !r.ok).map(([n]) => n);
+  await fetch('/report', {method: 'POST', body: JSON.stringify({passed: Object.keys(results).length - failed.length, failed, results}, null, 1)});
+})();
+</script>

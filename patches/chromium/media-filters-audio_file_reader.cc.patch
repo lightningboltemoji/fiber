@@ -1,0 +1,28 @@
+diff --git a/media/filters/audio_file_reader.cc b/media/filters/audio_file_reader.cc
+index 4b88853014..10e1d65ae7 100644
+--- a/media/filters/audio_file_reader.cc
++++ b/media/filters/audio_file_reader.cc
+@@ -45,8 +45,9 @@ static const int kAACRemainderFrameCount = 519;
+ 
+ }  // namespace
+ 
+-AudioFileReader::AudioFileReader(FFmpegURLProtocol* protocol)
+-    : protocol_(protocol) {}
++AudioFileReader::AudioFileReader(FFmpegURLProtocol* protocol,
++                                 CreateDecoderCB create_decoder)
++    : protocol_(protocol), create_decoder_(std::move(create_decoder)) {}
+ 
+ AudioFileReader::~AudioFileReader() {
+   Close();
+@@ -90,6 +91,11 @@ bool AudioFileReader::OpenDecoder() {
+         nullptr, OpusAudioDecoder::ExecutionMode::kSynchronous);
+   }
+ 
++  // Fiber: a decoder for what ffmpeg doesn't decode.
++  if (!decoder_ && create_decoder_) {
++    decoder_ = create_decoder_.Run(config);
++  }
++
+   // By default, use the FFmpegAudioDecoder.
+   if (!decoder_) {
+     decoder_ = std::make_unique<FFmpegAudioDecoder>(

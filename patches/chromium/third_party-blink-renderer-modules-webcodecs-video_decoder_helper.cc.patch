@@ -1,0 +1,23 @@
+diff --git a/third_party/blink/renderer/modules/webcodecs/video_decoder_helper.cc b/third_party/blink/renderer/modules/webcodecs/video_decoder_helper.cc
+index 4016fa109e..cd29707800 100644
+--- a/third_party/blink/renderer/modules/webcodecs/video_decoder_helper.cc
++++ b/third_party/blink/renderer/modules/webcodecs/video_decoder_helper.cc
+@@ -83,6 +83,10 @@ VideoDecoderHelper::Status VideoDecoderHelper::Initialize(
+                                                       h264_avcc_.get());
+ 
+     // Parsing failures below are non-fatal for historical compliance.
++    //
++    // Fiber: only where there's a software decoder to route to. Without
++    // ffmpeg's, the platform's takes it all (VideoToolbox's decodes both).
++#if BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS)
+     if (initialized && !h264_avcc_->sps_list.empty()) {
+       auto sps_nalu = h264_avcc_->sps_list[0];
+       sps_nalu.insert(sps_nalu.begin(), {0u, 0u, 1u});
+@@ -113,6 +117,7 @@ VideoDecoderHelper::Status VideoDecoderHelper::Initialize(
+         }
+       }
+     }
++#endif  // BUILDFLAG(ENABLE_FFMPEG_VIDEO_DECODERS)
+   }
+ #if BUILDFLAG(ENABLE_PLATFORM_HEVC)
+   else if (h265_converter_ && h265_hvcc_) {

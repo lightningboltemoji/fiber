@@ -1,0 +1,16 @@
+diff --git a/content/renderer/BUILD.gn b/content/renderer/BUILD.gn
+index 6a40348748..fb33081455 100644
+--- a/content/renderer/BUILD.gn
++++ b/content/renderer/BUILD.gn
+@@ -355,6 +355,11 @@ target(link_target_type, "renderer") {
+     deps += [ "//components/services/font/public/cpp" ]
+   }
+ 
++  if (is_mac) {
++    # Fiber: Web Audio's AAC decoding (see media/audio_decoder.cc).
++    deps += [ "//fiber/media:web_audio" ]
++  }
++
+   if (is_fuchsia) {
+     sources += [ "renderer_main_platform_delegate_fuchsia.cc" ]
+     public_deps += [ "//third_party/fuchsia-sdk/sdk/fidl/fuchsia.mediacodec:fuchsia.mediacodec_hlcpp" ]

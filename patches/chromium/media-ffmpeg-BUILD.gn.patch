@@ -1,0 +1,14 @@
+diff --git a/media/ffmpeg/BUILD.gn b/media/ffmpeg/BUILD.gn
+index 3d3064858f..3877f458f3 100644
+--- a/media/ffmpeg/BUILD.gn
++++ b/media/ffmpeg/BUILD.gn
+@@ -31,6 +31,9 @@ source_set("ffmpeg") {
+     "//third_party/ffmpeg",
+     "//third_party/ffmpeg:ffmpeg_features",
+   ]
++
++  # Fiber: AAC's AudioSpecificConfig for ADTS (see ffmpeg_common.cc).
++  deps += [ "//fiber/media:aac" ]
+ }
+ 
+ source_set("unit_tests") {

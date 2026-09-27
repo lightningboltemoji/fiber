@@ -1,0 +1,241 @@
+diff --git a/media/filters/mac/audio_toolbox_audio_decoder.cc b/media/filters/mac/audio_toolbox_audio_decoder.cc
+index 03c8cf1b0e..f691537aed 100644
+--- a/media/filters/mac/audio_toolbox_audio_decoder.cc
++++ b/media/filters/mac/audio_toolbox_audio_decoder.cc
+@@ -6,13 +6,17 @@
+ 
+ #include <algorithm>
+ #include <optional>
++#include <utility>
+ 
+ #include "base/apple/osstatus_logging.h"
+ #include "base/auto_reset.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/numerics/safe_conversions.h"
+ #include "base/task/bind_post_task.h"
++#include "fiber/media/aac/audio_specific_config.h"
++#include "fiber/media/hooks/audio_toolbox_aac.h"
+ #include "media/base/audio_buffer.h"
+ #include "media/base/audio_bus.h"
+ #include "media/base/audio_codecs.h"
+@@ -42,7 +46,8 @@ bool CanUseAudioToolbox(const AudioDecoderConfig& config) {
+ #endif
+   // We use AudioToolbox for decoding xHE-AAC content and that's available on
+   // macOS 10.15 or higher.
+-  return config.profile() == AudioCodecProfile::kXHE_AAC;
++  // Fiber: and all other AAC, which Fiber's ffmpeg doesn't decode.
++  return config.codec() == AudioCodec::kAAC;
+ }
+ 
+ struct InputData {
+@@ -60,18 +65,32 @@ OSStatus ProvideInputCallback(AudioConverterRef decoder,
+                               AudioStreamPacketDescription** packets,
+                               void* user_data) {
+   auto* input_data = reinterpret_cast<InputData*>(user_data);
+-  if (!input_data->buffer || input_data->buffer->end_of_stream()) {
++  if (!input_data->buffer) {
+     *num_packets = 0;
+     return kNoMoreDataError;
+   }
+ 
++  // Fiber: the end of the stream, said so, which has the converter put out
++  // what its decoder has held back (HE-AAC's SBR holds back 962 frames).
++  if (input_data->buffer->end_of_stream()) {
++    *num_packets = 0;
++    buffer_list->mBuffers[0].mDataByteSize = 0;
++    buffer_list->mBuffers[0].mData = nullptr;
++    input_data->buffer = nullptr;
++    return noErr;
++  }
++
++  // Fiber: AAC without the ADTS header it may come with.
++  const auto packet =
++      fiber::AudioToolboxPacket(base::span(*input_data->buffer));
++  input_data->packet.mDataByteSize = packet.size();
++
+   *num_packets = buffer_list->mNumberBuffers = 1;
+   buffer_list->mBuffers[0].mNumberChannels = 0;
+-  buffer_list->mBuffers[0].mDataByteSize = input_data->buffer->size();
++  buffer_list->mBuffers[0].mDataByteSize = packet.size();
+ 
+   // No const version of this API unfortunately, so we need const_cast().
+-  buffer_list->mBuffers[0].mData =
+-      const_cast<uint8_t*>(base::span(*input_data->buffer).data());
++  buffer_list->mBuffers[0].mData = const_cast<uint8_t*>(packet.data());
+ 
+   if (packets)
+     *packets = &input_data->packet;
+@@ -131,6 +150,20 @@ void AudioToolboxAudioDecoder::Initialize(const AudioDecoderConfig& config,
+   decoder_.reset();
+ 
+   output_cb_ = output_cb;
++
++  // Fiber: AAC without an AudioSpecificConfig is ADTS (WebCodecs' without a
++  // description), whose frames each say what it is in their header. The
++  // converter's made for the first one (see Decode()).
++  adts_config_.reset();
++  if (config.codec() == AudioCodec::kAAC &&
++      config.profile() != AudioCodecProfile::kXHE_AAC &&
++      config.extra_data().empty()) {
++    adts_config_ = config;
++    base::BindPostTaskToCurrentDefault(std::move(init_cb))
++        .Run(DecoderStatus::Codes::kOk);
++    return;
++  }
++
+   const bool success = CreateDecoder(config);
+   if (!success) {
+     decoder_.reset();
+@@ -142,10 +175,31 @@ void AudioToolboxAudioDecoder::Initialize(const AudioDecoderConfig& config,
+ 
+ void AudioToolboxAudioDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
+                                       DecodeCB decode_cb) {
+-  CHECK(decoder_);
+   DecodeCB decode_cb_bound =
+       base::BindPostTaskToCurrentDefault(std::move(decode_cb));
+ 
++  // Fiber: see Initialize().
++  if (adts_config_ && !buffer->end_of_stream()) {
++    AudioDecoderConfig config = *std::exchange(adts_config_, std::nullopt);
++    config.Initialize(config.codec(), config.sample_format(),
++                      {config.channel_layout(), config.channels()},
++                      config.samples_per_second(),
++                      fiber::AdtsHeaderAudioSpecificConfig(*buffer),
++                      config.encryption_scheme(), config.seek_preroll(),
++                      config.codec_delay());
++    if (!CreateDecoder(config)) {
++      decoder_.reset();
++      std::move(decode_cb_bound)
++          .Run(DecoderStatus::Codes::kFailedToCreateDecoder);
++      return;
++    }
++  }
++  if (!decoder_) {
++    // The end of a stream that had no frames.
++    std::move(decode_cb_bound).Run(OkStatus());
++    return;
++  }
++
+   // Make sure we are notified if https://crbug.com/49709 returns. Issue also
+   // occurs with some damaged files.
+   if (!buffer->end_of_stream() && buffer->timestamp() == kNoTimestamp) {
+@@ -161,6 +215,15 @@ void AudioToolboxAudioDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
+     return;
+   }
+ 
++  // Fiber: nothing to drain (see ProvideInputCallback) if the converter has
++  // put nothing out since it started. Asked to, it puts out its decoder's
++  // delay with no stream behind it.
++  if (buffer->end_of_stream() && first_output_) {
++    limiter_queue_->Flush();
++    std::move(decode_cb_bound).Run(OkStatus());
++    return;
++  }
++
+   InputData input_data;
+   input_data.buffer = buffer.get();
+ 
+@@ -211,9 +274,13 @@ void AudioToolboxAudioDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
+       decoder_.get(), ProvideInputCallback, &input_data, &num_frames,
+       output_buffer_list_.get(), nullptr);
+ 
+-  if (result == kNoMoreDataError && !num_frames) {
++  // Fiber: or the end of the stream, with nothing held back.
++  if ((result == kNoMoreDataError || buffer->end_of_stream()) && !num_frames) {
+     if (buffer->end_of_stream()) {
+       limiter_queue_->Flush();
++      // Fiber: ready for more; AudioToolbox's stream has ended.
++      AudioConverterReset(decoder_.get());
++      first_output_ = true;
+     }
+ 
+     std::move(decode_cb_bound).Run(OkStatus());
+@@ -240,15 +307,49 @@ void AudioToolboxAudioDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
+     time_info = AudioDiscardHelper::TimeInfo::FromBuffer(*buffer);
+   }
+ 
++  // Fiber: AudioToolbox leaves its decoder's delay (HE-AAC's SBR delays
++  // output by 962 frames) out of the converter's first output, where each
++  // packet's trims assume it's there. Put it back, as silence, and have the
++  // discard helper drop it and trim past it, as it does for decoders that put
++  // their delay out (MP3's, for one).
++  if (first_output_ && !buffer->end_of_stream()) {
++    first_output_ = false;
++    const int delay =
++        output_bus_->frames() - base::checked_cast<int>(num_frames);
++    if (delay) {
++      for (int ch = 0; ch < output_bus_->channels(); ++ch) {
++        AudioBus::Channel channel = output_bus_->channel(ch);
++        std::copy_backward(channel.begin(), channel.begin() + num_frames,
++                           channel.end());
++      }
++      output_bus_->ZeroFramesPartial(0, delay);
++      num_frames = output_bus_->frames();
++    }
++    discard_helper_ = std::make_unique<AudioDiscardHelper>(
++        sample_rate_, codec_delay_ + delay, false);
++    discard_helper_->Reset(codec_delay_ + delay);
++  }
++
+   limiter_queue_->Push(*output_bus_, num_frames, timestamp,
+                        base::BindOnce(&AudioToolboxAudioDecoder::OnOutputReady,
+                                       base::Unretained(this), time_info));
+ 
++  // Fiber: what was held back is the end of the stream.
++  if (buffer->end_of_stream()) {
++    limiter_queue_->Flush();
++    AudioConverterReset(decoder_.get());
++    first_output_ = true;
++  }
++
+   std::move(decode_cb_bound).Run(OkStatus());
+ }
+ 
+ void AudioToolboxAudioDecoder::Reset(base::OnceClosure reset_cb) {
+-  CHECK(decoder_);
++  // Fiber: or no converter yet (see Initialize()).
++  if (!decoder_) {
++    base::BindPostTaskToCurrentDefault(std::move(reset_cb)).Run();
++    return;
++  }
+   // This could fail, but ResetCB has no error reporting mechanism, so just let
+   // a subsequent decode call fail.
+   const auto result = AudioConverterReset(decoder_.get());
+@@ -257,6 +358,7 @@ void AudioToolboxAudioDecoder::Reset(base::OnceClosure reset_cb) {
+   discard_helper_->Reset(discard_helper_->decoder_delay());
+   limiter_queue_->Clear();
+   last_input_timestamp_ = kNoTimestamp;
++  first_output_ = true;
+   base::BindPostTaskToCurrentDefault(std::move(reset_cb)).Run();
+ }
+ 
+@@ -272,6 +374,17 @@ bool AudioToolboxAudioDecoder::CreateDecoder(const AudioDecoderConfig& config) {
+ 
+   switch (config.codec()) {
+     case AudioCodec::kAAC: {
++      // Fiber: AAC other than xHE-AAC.
++      if (config.profile() != AudioCodecProfile::kXHE_AAC) {
++        magic_cookie = mp4::ESDescriptor::CreateEsds(
++            fiber::AudioToolboxAudioSpecificConfig(config.extra_data()));
++        if (!fiber::AudioToolboxAacFormat(magic_cookie, &input_format)) {
++          MEDIA_LOG(ERROR, media_log_) << "AudioToolbox can't decode this AAC";
++          return false;
++        }
++        break;
++      }
++
+       // Input is xHE-AAC / USAC.
+       CHECK_EQ(config.profile(), AudioCodecProfile::kXHE_AAC);
+       input_format.mFormatID = kAudioFormatMPEGD_USAC;
+@@ -455,6 +568,9 @@ bool AudioToolboxAudioDecoder::CreateDecoder(const AudioDecoderConfig& config) {
+   discard_helper_ = std::make_unique<AudioDiscardHelper>(
+       input_format.mSampleRate, config.codec_delay(), false);
+   discard_helper_->Reset(config.codec_delay());
++  sample_rate_ = input_format.mSampleRate;
++  codec_delay_ = config.codec_delay();
++  first_output_ = true;
+ 
+   // Create staging structures we'll give to macOS for writing data into.
+   output_bus_ = AudioBus::Create(input_format.mChannelsPerFrame,

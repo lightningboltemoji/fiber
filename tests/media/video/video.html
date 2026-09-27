@@ -1,0 +1,407 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>video tests</title>
+<style>body{font:12px ui-monospace,monospace;background:#fff;color:#000}video{width:320px}</style>
+<pre id="log"></pre>
+<div id="stage"></div>
+<script type="module">
+// Checks H.264/HEVC decoding frame by frame against ffmpeg's decode (index.py):
+// every frame that comes out must be one ffmpeg made (luma hash), or where
+// they differ VideoToolbox's own decode, for its timestamp, in presentation
+// order.
+const params = new URLSearchParams(location.search);
+const only = params.get('only');
+const logEl = document.getElementById('log');
+function log(s) {
+  logEl.textContent += s + '\n';
+  fetch('/log', {method: 'POST', body: s});
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+
+const cache = {};
+async function load(name) {
+  if (!cache[name]) {
+    const idx = await (await fetch(`${name}.json`)).json();
+    idx.data = new Uint8Array(await (await fetch(idx.file)).arrayBuffer());
+    // Reference hash by presentation rank: the i-th smallest cts is ffmpeg's i-th frame.
+    const cts = idx.samples.map(s => s.cts).sort((a, b) => a - b);
+    idx.refByCts = new Map(cts.map((t, i) => [t, idx.ref.frames[i]]));
+    cache[name] = idx;
+  }
+  return cache[name];
+}
+
+// The luma plane of `frame`, tightly packed, as ffmpeg's gray/gray10le.
+async function lumaHash(frame, bitDepth) {
+  const buf = new Uint8Array(frame.allocationSize());
+  const layout = await frame.copyTo(buf);
+  const w = frame.visibleRect.width, h = frame.visibleRect.height;
+  const bpp = bitDepth > 8 ? 2 : 1;
+  const out = new Uint8Array(w * h * bpp);
+  for (let y = 0; y < h; y++)
+    out.set(buf.subarray(layout[0].offset + y * layout[0].stride, layout[0].offset + y * layout[0].stride + w * bpp), y * w * bpp);
+  if (bpp == 2) {
+    // VideoToolbox's 10-bit is MSB-aligned (P010); ffmpeg's gray10le isn't.
+    const v = new Uint16Array(out.buffer);
+    let msb = true;
+    for (let i = 0; i < v.length && msb; i += 97) msb = (v[i] & 0x3f) == 0;
+    if (msb) for (let i = 0; i < v.length; i++) v[i] >>= 6;
+  }
+  return hex(await crypto.subtle.digest('SHA-256', out));
+}
+
+// Parameter sets from avcC/hvcC, as Annex B.
+function parameterSets(idx) {
+  const d = Uint8Array.from(idx.description.match(/../g).map(x => parseInt(x, 16)));
+  const nalus = [];
+  if (idx.codec.startsWith('avc1')) {
+    let p = 5;
+    let n = d[p++] & 0x1f;
+    for (let i = 0; i < n; i++) { const l = (d[p] << 8) | d[p + 1]; nalus.push(d.subarray(p + 2, p + 2 + l)); p += 2 + l; }
+    n = d[p++];
+    for (let i = 0; i < n; i++) { const l = (d[p] << 8) | d[p + 1]; nalus.push(d.subarray(p + 2, p + 2 + l)); p += 2 + l; }
+  } else {
+    let p = 22;
+    const arrays = d[p++];
+    for (let a = 0; a < arrays; a++) {
+      p++;
+      const n = (d[p] << 8) | d[p + 1]; p += 2;
+      for (let i = 0; i < n; i++) { const l = (d[p] << 8) | d[p + 1]; nalus.push(d.subarray(p + 2, p + 2 + l)); p += 2 + l; }
+    }
+  }
+  return nalus;
+}
+
+// `trailing`: the parameter sets again after every frame's slices, where they
+// belong to the next frame (and replace the ones the parser has).
+function annexB(idx, s, trailing = false) {
+  const src = idx.data.subarray(s.off, s.off + s.size);
+  const parts = s.key ? parameterSets(idx) : [];
+  for (let p = 0; p < src.length;) {
+    let n = 0;
+    for (let k = 0; k < idx.lengthSize; k++) n = n * 256 + src[p + k];
+    parts.push(src.subarray(p + idx.lengthSize, p + idx.lengthSize + n));
+    p += idx.lengthSize + n;
+  }
+  if (trailing) parts.push(...parameterSets(idx));
+  const out = new Uint8Array(parts.reduce((a, x) => a + 4 + x.length, 0));
+  let o = 0;
+  for (const x of parts) { out.set([0, 0, 0, 1], o); out.set(x, o + 4); o += 4 + x.length; }
+  return out;
+}
+
+// Decodes `plan`: a list of segments {name, from, to, offset (us), annexb}.
+// Each segment's samples [from, to) are decoded in order; `configure` segments
+// reconfigure first. Returns the frames that came out and what was expected.
+async function webcodecs(plan, {flushBetween = false} = {}) {
+  const out = [], expected = new Map();
+  let error = null, chain = Promise.resolve();
+  const refs = new Map();
+  const decoder = new VideoDecoder({
+    output: f => {
+      chain = chain.then(async () => {
+        const ref = refs.get(f.timestamp);
+        // WebCodecs has no format for VideoToolbox's 10-bit or alpha frames,
+        // so those are only checked for order and completeness.
+        const h = !ref ? null : f.format ? await lumaHash(f, ref.bitDepth) : 'uncopyable';
+        out.push({t: f.timestamp, h, format: f.format, w: f.visibleRect.width, hgt: f.visibleRect.height});
+        f.close();
+      });
+    },
+    error: e => { error = String(e); },
+  });
+  let configured = null;
+  for (const seg of plan) {
+    const idx = await load(seg.name);
+    const annexb = !!seg.annexb;
+    // AVCC takes a new description with each stream; Annex B carries its
+    // parameter sets in-band.
+    if (!configured || (!annexb && configured != seg.name)) {
+      const config = {codec: idx.codec};
+      if (!annexb) config.description = Uint8Array.from(idx.description.match(/../g).map(x => parseInt(x, 16)));
+      const support = await VideoDecoder.isConfigSupported(config);
+      if (!support.supported) return {error: `unsupported ${JSON.stringify({codec: idx.codec})}`};
+      if (configured) await decoder.flush();
+      decoder.configure(config);
+      configured = seg.name;
+    } else if (flushBetween) {
+      await decoder.flush();
+    }
+    const offset = seg.offset || 0;
+    const from = seg.from ?? 0, to = seg.to ?? idx.samples.length;
+    // Frames decoding starts at, and the ones that should come out: from the
+    // first sample on, all but those before it in presentation order (leading
+    // frames that refer to frames before it), unless `expectAll`.
+    const startCts = idx.samples[from].cts;
+    for (let i = from; i < to; i++) {
+      const s = idx.samples[i];
+      const t = s.cts + offset;
+      const ref = idx.refByCts.get(s.cts);
+      refs.set(t, {h: ref.h, bitDepth: idx.ref.bitDepth});
+      if (seg.expectAll || s.cts >= startCts) expected.set(t, ref);
+      const data = annexb ? annexB(idx, s, seg.trailing) : idx.data.subarray(s.off, s.off + s.size);
+      decoder.decode(new EncodedVideoChunk({type: (i == from || s.key) ? 'key' : 'delta', timestamp: t, data}));
+      if (error) break;
+    }
+    if (error) break;
+  }
+  try { await decoder.flush(); } catch (e) { error = error || String(e); }
+  await chain;
+  if (decoder.state != 'closed') decoder.close();
+  return {error, ...judge(out, expected)};
+}
+
+// Out of order, wrong content, missing, extra.
+function judge(out, expected) {
+  let outOfOrder = 0, wrong = 0, extra = 0, last = -Infinity;
+  for (const f of out) {
+    if (f.t <= last) outOfOrder++;
+    last = f.t;
+    if (!expected.has(f.t)) { extra++; continue; }
+    const ref = expected.get(f.t);
+    if (f.h != 'uncopyable' && f.h != ref.h && f.h != ref.alt) wrong++;
+  }
+  const got = new Set(out.map(f => f.t));
+  const missing = [...expected.keys()].filter(t => !got.has(t));
+  const formats = [...new Set(out.map(f => `${f.format} ${f.w}x${f.hgt}`))];
+  return {frames: out.length, expected: expected.size, outOfOrder, wrong, extra,
+          missing: missing.length, missingFirst: missing.slice(0, 5), formats,
+          ok: !outOfOrder && !wrong && !extra && !missing.length && out.length > 0};
+}
+
+// Plays `video` until it ends (or `secs`), hashing every presented frame.
+// Each must be one of ffmpeg's frames for the stream(s), at its time, with
+// presentation order increasing.
+async function watch(video, streams, {secs = 8, seekTo = null, playFor = null} = {}) {
+  document.getElementById('stage').append(video);
+  video.muted = true;
+  // The streams' frames in presentation order: each one's time, and its
+  // index by hash (ffmpeg's, or VideoToolbox's where they differ).
+  const refTimes = [], byHash = new Map();
+  let bitDepth = 8;
+  for (const {name, offset = 0} of streams) {
+    const idx = await load(name);
+    bitDepth = idx.ref.bitDepth;
+    for (const f of idx.ref.frames) {
+      for (const h of [f.h, f.alt]) if (h) byHash.set(h, refTimes.length);
+      refTimes.push(f.t + offset);
+    }
+  }
+  const seen = [];
+  let error = null, chain = Promise.resolve();
+  video.addEventListener('error', () => { error = video.error ? `${video.error.code}: ${video.error.message}` : 'error'; });
+  const onFrame = (now, meta) => {
+    try {
+      const f = new VideoFrame(video, {timestamp: Math.round(meta.mediaTime * 1e6)});
+      chain = chain.then(async () => {
+        seen.push({t: f.timestamp, h: f.format ? await lumaHash(f, bitDepth) : 'uncopyable', w: f.visibleRect.width});
+        f.close();
+      });
+    } catch (e) { error = error || 'VideoFrame: ' + e; }
+    video.requestVideoFrameCallback(onFrame);
+  };
+  video.requestVideoFrameCallback(onFrame);
+  const end = performance.now() + secs * 1000;
+  try { await video.play(); } catch (e) { error = error || 'play(): ' + e.message; }
+  if (seekTo != null && !error) {
+    await sleep(500);
+    seen.length = 0;
+    await chain;
+    seen.length = 0;
+    video.currentTime = seekTo;
+    // An element that fails never seeks.
+    await Promise.race([new Promise(r => video.addEventListener('seeked', r, {once: true})),
+                        new Promise(r => video.addEventListener('error', r, {once: true})), sleep(secs * 1000)]);
+  }
+  const stopAt = playFor ? performance.now() + playFor * 1000 : end;
+  while (performance.now() < Math.min(end, stopAt) && !error && !video.ended) await sleep(50);
+  video.pause();
+  await chain;
+  const q = video.getVideoPlaybackQuality();
+  video.remove();
+  // Every frame must be one of ffmpeg's (by luma hash), in increasing order,
+  // at a constant offset from ffmpeg's time (remuxing to fragmented MP4 can
+  // drop the edit list, which shifts every frame by the same amount).
+  let wrong = 0, outOfOrder = 0, last = -1, lastT = -Infinity, uncopyable = 0;
+  const offsets = new Set();
+  const detail = [];
+  for (const s of seen) {
+    if (s.t <= lastT) outOfOrder++;
+    lastT = s.t;
+    if (s.h == 'uncopyable') { uncopyable++; continue; }
+    const i = byHash.get(s.h);
+    if (i == null) { wrong++; continue; }
+    if (i <= last) outOfOrder++;
+    last = i;
+    offsets.add(Math.round((s.t - refTimes[i]) / 2000) * 2);
+    if (params.get('detail')) detail.push(`${(s.t / 1000).toFixed(0)}:${i}`);
+  }
+  return {error, presented: seen.length, wrong, outOfOrder, uncopyable, offsetsMs: [...offsets], dropped: q.droppedVideoFrames,
+          decoded: q.totalVideoFrames, end: +video.currentTime.toFixed(2), widths: [...new Set(seen.map(s => s.w))],
+          ok: !error && seen.length > 10 && !wrong && !outOfOrder && offsets.size <= 1, ...(detail.length ? {detail: detail.join(' ')} : {})};
+}
+
+function boxesOf(data) {
+  const out = [];
+  for (let p = 0; p < data.length;) {
+    const size = new DataView(data.buffer, data.byteOffset + p).getUint32(0);
+    out.push({type: String.fromCharCode(...data.subarray(p + 4, p + 8)), start: p, end: p + size});
+    p += size;
+  }
+  return out;
+}
+
+// Init segment and media segments (moof+mdat) of a fragmented MP4.
+async function segments(file) {
+  const data = new Uint8Array(await (await fetch(file)).arrayBuffer());
+  const b = boxesOf(data);
+  const moof = b.findIndex(x => x.type == 'moof');
+  const init = data.subarray(0, b[moof].start);
+  const media = [];
+  for (let i = moof; i < b.length; i++)
+    if (b[i].type == 'moof') media.push(data.subarray(b[i].start, b[i + 1].end));
+  return {init, media};
+}
+
+async function mse(type, appends, opts = {}) {
+  const video = document.createElement('video');
+  const ms = new MediaSource();
+  video.src = URL.createObjectURL(ms);
+  await new Promise(r => ms.addEventListener('sourceopen', r, {once: true}));
+  if (!MediaSource.isTypeSupported(type)) return {error: `isTypeSupported(${type}) false`};
+  const sb = ms.addSourceBuffer(type);
+  if (opts.sequence) sb.mode = 'sequence';
+  for (const a of appends) {
+    if (a.timestampOffset != null) sb.timestampOffset = a.timestampOffset;
+    await new Promise((res, rej) => {
+      sb.addEventListener('updateend', res, {once: true});
+      sb.addEventListener('error', () => rej(new Error('append error')), {once: true});
+      sb.appendBuffer(a.data);
+    });
+  }
+  ms.endOfStream();
+  return watch(video, opts.streams, opts);
+}
+
+const H264 = ['h264_bpyr', 'h264_b5', 'h264_base', 'h264_open', 'h264_gdr', 'h264_1080', 'h264_vt', 'h264_mbaff', 'h264_hi10', 'h264_422', 'h264_444', 'h264_small'];
+const HEVC = ['hevc_closed', 'hevc_open', 'hevc_main10', 'hevc_pq', 'hevc_hlg', 'hevc_alpha', 'hevc_vt'];
+const tests = {};
+for (const n of [...H264, ...HEVC]) {
+  tests[`wc_avcc_${n}`] = () => webcodecs([{name: n}]);
+  tests[`wc_annexb_${n}`] = () => webcodecs([{name: n, annexb: true}]);
+}
+// Starting at the second keyframe: an IDR, an open-GOP I frame (recovery
+// point), an intra-refresh recovery point, or a CRA with RASL frames after it.
+for (const n of ['h264_bpyr', 'h264_open', 'h264_vt', 'hevc_open', 'hevc_closed', 'hevc_vt', 'hevc_alpha', 'hevc_main10']) {
+  tests[`wc_midstart_${n}`] = async () => {
+    const idx = await load(n);
+    const k = idx.samples.findIndex((s, i) => i > 0 && s.key);
+    return webcodecs([{name: n, from: k}]);
+  };
+}
+// Parameter sets after the slices, as apps may pack them.
+tests.wc_trailing_ps_h264_bpyr = () => webcodecs([{name: 'h264_bpyr', annexb: true, trailing: true}]);
+tests.wc_trailing_ps_hevc_open = () => webcodecs([{name: 'hevc_open', annexb: true, trailing: true}]);
+tests.wc_trailing_ps_hevc_alpha = () => webcodecs([{name: 'hevc_alpha', annexb: true, trailing: true}]);
+// Decode, flush, then go on from the next keyframe (a seek, as WebCodecs sees it).
+tests.wc_flush_h264_bpyr = () => webcodecs([{name: 'h264_bpyr', from: 0, to: 45}, {name: 'h264_bpyr', from: 60}], {flushBetween: true});
+tests.wc_flush_hevc_open = () => webcodecs([{name: 'hevc_open', from: 0, to: 40}, {name: 'hevc_open', from: 58}], {flushBetween: true});
+// In-band resolution change (Annex B carries the new SPS at the keyframe).
+tests.wc_res_inband_h264 = () => webcodecs([
+  {name: 'h264_res_a', annexb: true}, {name: 'h264_res_b', annexb: true, offset: 2e6}, {name: 'h264_res_c', annexb: true, offset: 4e6}]);
+tests.wc_res_inband_hevc = () => webcodecs([{name: 'hevc_res_a', annexb: true}, {name: 'hevc_res_b', annexb: true, offset: 2e6}]);
+// Resolution change by reconfiguring (AVCC, new description).
+tests.wc_res_reconfig_h264 = () => webcodecs([{name: 'h264_res_a'}, {name: 'h264_res_b', offset: 2e6}, {name: 'h264_res_c', offset: 4e6}]);
+
+for (const n of [...H264, ...HEVC]) {
+  tests[`src_${n}`] = () => { const v = document.createElement('video'); v.src = `${n}.mp4`; return watch(v, [{name: n}]); };
+}
+for (const n of ['h264_bpyr', 'h264_b5', 'h264_open', 'h264_gdr', 'h264_vt', 'h264_mbaff', 'h264_hi10', 'h264_small', 'hevc_closed', 'hevc_open', 'hevc_main10', 'hevc_pq', 'hevc_alpha', 'hevc_vt']) {
+  const type = async () => `video/mp4; codecs="${(await load(n)).codec}"`;
+  tests[`mse_${n}`] = async () => mse(await type(), [{data: new Uint8Array(await (await fetch(`${n}.frag.mp4`)).arrayBuffer())}], {streams: [{name: n}]});
+  tests[`mse_seek_${n}`] = async () => mse(await type(), [{data: new Uint8Array(await (await fetch(`${n}.frag.mp4`)).arrayBuffer())}],
+      {streams: [{name: n}], seekTo: 1.55, playFor: 1.2});
+  // Appending out of order only works whole for closed GOPs: an open GOP's
+  // leading frames overlap the GOP before, and MSE's coded frame removal drops
+  // the GOP when that one's appended after it.
+  if (['h264_bpyr', 'h264_b5', 'h264_vt', 'hevc_closed', 'hevc_alpha'].includes(n)) tests[`mse_reversed_${n}`] = async () => {
+    const {init, media} = await segments(`${n}.frag.mp4`);
+    return mse(await type(), [{data: init}, ...media.reverse().map(data => ({data}))], {streams: [{name: n}]});
+  };
+}
+tests.mse_res_h264 = async () => mse('video/mp4; codecs="avc1.64001E"', [
+  {data: new Uint8Array(await (await fetch('h264_res_a.frag.mp4')).arrayBuffer())},
+  {data: new Uint8Array(await (await fetch('h264_res_b.frag.mp4')).arrayBuffer())},
+  {data: new Uint8Array(await (await fetch('h264_res_c.frag.mp4')).arrayBuffer())},
+], {streams: [{name: 'h264_res_a'}, {name: 'h264_res_b'}, {name: 'h264_res_c'}], sequence: true});
+tests.mse_res_hevc = async () => mse('video/mp4; codecs="hvc1.1.6.L63.B0"', [
+  {data: new Uint8Array(await (await fetch('hevc_res_a.frag.mp4')).arrayBuffer())},
+  {data: new Uint8Array(await (await fetch('hevc_res_b.frag.mp4')).arrayBuffer())},
+], {streams: [{name: 'hevc_res_a'}, {name: 'hevc_res_b'}], sequence: true});
+
+// HLS: MPEG-2 TS (Chromium's H.264 elementary stream parser) and fMP4.
+tests.hls_ts_h264 = () => { const v = document.createElement('video'); v.src = 'hls_h264/index.m3u8'; return watch(v, [{name: 'h264_bpyr'}]); };
+tests.hls_fmp4_hevc = () => { const v = document.createElement('video'); v.src = 'hls_hevc2/index.m3u8'; return watch(v, [{name: 'hevc_open'}]); };
+
+tests.mse_hlssegments_hevc = async () => {
+  const parts = await Promise.all(['init.mp4', 'index0.m4s', 'index1.m4s', 'index2.m4s'].map(async f => ({data: new Uint8Array(await (await fetch('hls_hevc/' + f)).arrayBuffer())})));
+  return mse(`video/mp4; codecs="${(await load('hevc_open')).codec}"`, parts, {streams: [{name: 'hevc_open'}]});
+};
+
+// HEVC with alpha: drawn over green, the transparent circle in the middle
+// shows green and the corners don't.
+async function alphaCheck(video) {
+  document.getElementById('stage').append(video);
+  video.muted = true;
+  let error = null;
+  video.addEventListener('error', () => { error = video.error?.message || 'error'; });
+  await video.play().catch(e => { error = 'play(): ' + e.message; });
+  const c = new OffscreenCanvas(640, 360);
+  const g = c.getContext('2d', {willReadFrequently: true});
+  let checked = 0, transparentCenter = 0, opaqueCorner = 0;
+  for (let i = 0; i < 20 && !error && !video.ended; i++) {
+    await new Promise(r => video.requestVideoFrameCallback(r));
+    g.fillStyle = '#00ff00';
+    g.fillRect(0, 0, 640, 360);
+    g.drawImage(video, 0, 0, 640, 360);
+    const center = g.getImageData(320, 180, 1, 1).data, corner = g.getImageData(20, 20, 1, 1).data;
+    checked++;
+    if (center[1] > 240 && center[0] < 15 && center[2] < 15) transparentCenter++;
+    if (!(corner[1] > 240 && corner[0] < 15 && corner[2] < 15)) opaqueCorner++;
+  }
+  video.pause();
+  video.remove();
+  return {error, checked, transparentCenter, opaqueCorner, ok: !error && checked >= 10 && transparentCenter == checked && opaqueCorner == checked};
+}
+tests.alpha_src_hevc_alpha = () => { const v = document.createElement('video'); v.src = 'hevc_alpha.mp4'; return alphaCheck(v); };
+tests.alpha_mse_hevc_alpha = async () => {
+  const v = document.createElement('video');
+  const ms = new MediaSource();
+  v.src = URL.createObjectURL(ms);
+  await new Promise(r => ms.addEventListener('sourceopen', r, {once: true}));
+  const sb = ms.addSourceBuffer(`video/mp4; codecs="${(await load('hevc_alpha')).codec}"`);
+  await new Promise(r => { sb.addEventListener('updateend', r, {once: true}); fetch('hevc_alpha.frag.mp4').then(x => x.arrayBuffer()).then(b => sb.appendBuffer(b)); });
+  ms.endOfStream();
+  return alphaCheck(v);
+};
+
+// Known limitations (.agents/MEDIA.md): these run, and don't fail the page.
+const known = {
+  mse_hlssegments_hevc: "ffmpeg's HLS muxer gives the RASL frames wrong timestamps, which order them",
+};
+
+(async () => {
+  const results = {};
+  for (const [name, fn] of Object.entries(tests)) {
+    if (only && !name.match(only)) continue;
+    let r;
+    try { r = await fn(); } catch (e) { r = {error: 'threw: ' + e, ok: false}; }
+    results[name] = r;
+    log(`${r.ok ? 'PASS' : known[name] ? 'KNOWN' : 'FAIL'} ${name} ${JSON.stringify(r)}`);
+  }
+  const failed = Object.entries(results).filter(([n, r]) => !r.ok && !known[n]).map(([n]) => n);
+  const fixed = Object.entries(results).filter(([n, r]) => r.ok && known[n]).map(([n]) => n);
+  await fetch('/report', {method: 'POST', body: JSON.stringify({passed: Object.keys(results).length - failed.length, failed, fixed, results}, null, 1)});
+})();
+</script>

@@ -43,6 +43,17 @@ core, so it depends on nothing Blink couldn't (`//ui/gfx`), and it can't talk
 to the UI; what it shares with the UI is a constant or two, each noting where
 the other side is.
 
+`media/` is the same kind of exception, for Chromium's media stack: each of its
+targets is linked into the part of Chromium it hooks (`//media`, the GPU
+process's VideoToolbox decoder, the renderer's Web Audio), and depends on
+nothing that part couldn't. Fiber plays H.264, HEVC and AAC, but macOS does all
+of their decoding and encoding; Fiber's code only parses and passes data
+through, as Firefox does on macOS. `args.gni` builds Chromium's MP4 and HLS
+parsing (`proprietary_codecs`) without ffmpeg's H.264 and AAC decoders or
+OpenH264, and `media/video/` takes the place of Chromium's H.264 and HEVC
+decoders, which run each standard's decoded picture buffer before handing
+VideoToolbox the frames. See [MEDIA.md](MEDIA.md).
+
 `browser/` is only there because Chrome's extension points are C++ classes with
 virtual methods, and Swift can't subclass C++ classes. It translates between
 Chrome and the bridge and nothing else. Expect every feature to need three
@@ -72,7 +83,9 @@ parts: a C++ adapter, bridge types, and Swift UI.
 
 ## Hooking Chromium
 
-- Edits to Chromium files live in `patches/chromium/`, one patch per file.
+- Edits to Chromium files live in `patches/chromium/`, one patch per file,
+  named for its path in `chromium/src`. That includes the few in repositories
+  nested there (`third_party/ffmpeg`), which the patch scripts list.
 - A patch either calls a `fiber::` function in `browser/hooks/`, relaxes a
   views assumption (for example, a `CHECK` that a views-only controller exists),
   or points the build at Fiber's pieces (the Swift tool, the app icon). Each
@@ -205,7 +218,6 @@ core/                → //fiber
   branding/          product name, bundle ID; BUILD.gn compiles the app icon
     icon/            the icon's generator, AppIcon.icon, Assets.xcassets, renders
   browser/           C++ Chrome integration
-  renderer/          hooks in Blink (hooks/)
     hooks/           the functions patches call
     window/          BrowserWindow implementation and its stubs
     context_menu/    pages' context menus
@@ -214,6 +226,12 @@ core/                → //fiber
     swipe/           swiping between pages, and the snapshots it shows
     new_tab/         chrome://newtab, Fiber's New Tab page
     …                one directory per feature (tabs, omnibox, downloads, extensions…)
+  renderer/          hooks in Blink (hooks/)
+  media/             Chromium's media stack, with macOS's codecs (MEDIA.md)
+    hooks/           the functions media patches call
+    video/           H.264 and HEVC for Chromium's VideoToolbox decoder
+    aac/             AAC's AudioSpecificConfig, as AudioToolbox is given it
+    web_audio/       Web Audio's AAC, decoded in the GPU process
   bridge/            include/FiberBridge/*.h + include/module.modulemap
   ui/
     BUILD.gn         built by GN into the app

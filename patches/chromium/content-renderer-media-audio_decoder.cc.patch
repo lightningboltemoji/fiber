@@ -1,0 +1,30 @@
+diff --git a/content/renderer/media/audio_decoder.cc b/content/renderer/media/audio_decoder.cc
+index bf0c1c3895..eff30fb819 100644
+--- a/content/renderer/media/audio_decoder.cc
++++ b/content/renderer/media/audio_decoder.cc
+@@ -10,12 +10,14 @@
+ 
+ #include "base/compiler_specific.h"
+ #include "base/containers/span_writer.h"
++#include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/to_string.h"
+ #include "base/time/time.h"
++#include "fiber/media/hooks/web_audio_decoder.h"
+ #include "media/base/audio_bus.h"
+ #include "media/base/audio_timestamp_helper.h"
+ #include "media/base/limits.h"
+@@ -39,7 +41,9 @@ std::unique_ptr<blink::WebAudioBus> DecodeAudioFileData(
+   const base::TimeTicks start_time = base::TimeTicks::Now();
+ 
+   InMemoryUrlProtocol url_protocol(base::as_byte_span(data), false);
+-  auto reader = std::make_unique<AudioFileReader>(&url_protocol);
++  // Fiber: AAC, which Fiber's ffmpeg doesn't decode, goes to the GPU process.
++  auto reader = std::make_unique<AudioFileReader>(
++      &url_protocol, base::BindRepeating(&fiber::CreateWebAudioDecoder));
+   bool open_success = reader->Open();
+   base::UmaHistogramBoolean("Media.ContentAudioDecoder.CreateReaderSuccess",
+                             open_success);

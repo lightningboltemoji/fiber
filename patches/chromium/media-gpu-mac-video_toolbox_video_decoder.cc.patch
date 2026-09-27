@@ -1,0 +1,87 @@
+diff --git a/media/gpu/mac/video_toolbox_video_decoder.cc b/media/gpu/mac/video_toolbox_video_decoder.cc
+index afb7cf6b34..db618bef6a 100644
+--- a/media/gpu/mac/video_toolbox_video_decoder.cc
++++ b/media/gpu/mac/video_toolbox_video_decoder.cc
+@@ -17,6 +17,7 @@
+ #include "base/logging.h"
+ #include "base/memory/scoped_policy.h"
+ #include "base/task/bind_post_task.h"
++#include "fiber/media/hooks/video_toolbox_decoder.h"
+ #include "media/base/decoder_status.h"
+ #include "media/base/media_log.h"
+ #include "media/base/media_switches.h"
+@@ -24,19 +25,12 @@
+ #include "media/base/video_frame.h"
+ #include "media/gpu/accelerated_video_decoder.h"
+ #include "media/gpu/av1_decoder.h"
+-#include "media/gpu/h264_decoder.h"
+ #include "media/gpu/mac/video_toolbox_av1_accelerator.h"
+ #include "media/gpu/mac/video_toolbox_decompression_metadata.h"
+-#include "media/gpu/mac/video_toolbox_h264_accelerator.h"
+ #include "media/gpu/mac/video_toolbox_vp9_accelerator.h"
+ #include "media/gpu/vp9_decoder.h"
+ #include "ui/gfx/geometry/size.h"
+ 
+-#if BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+-#include "media/gpu/h265_decoder.h"
+-#include "media/gpu/mac/video_toolbox_h265_accelerator.h"
+-#endif  // BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+-
+ namespace media {
+ 
+ namespace {
+@@ -177,12 +171,14 @@ void VideoToolboxVideoDecoder::Initialize(const VideoDecoderConfig& config,
+       &VideoToolboxVideoDecoder::OnAcceleratorOutput, base::Unretained(this));
+ 
+   switch (VideoCodecProfileToVideoCodec(config.profile())) {
++    // Fiber: H.264 and HEVC leave all of decoding to VideoToolbox, without
++    // H264Decoder and H265Decoder (see fiber/media/video/).
+     case VideoCodec::kH264:
+-      accelerator_ = std::make_unique<H264Decoder>(
+-          std::make_unique<VideoToolboxH264Accelerator>(
+-              media_log_->Clone(), std::move(accelerator_decode_cb),
+-              std::move(accelerator_output_cb)),
+-          config.profile(), config.color_space_info());
++    case VideoCodec::kHEVC:
++      accelerator_ = fiber::CreateVideoToolboxDecoder(
++          VideoCodecProfileToVideoCodec(config.profile()), media_log_->Clone(),
++          std::move(accelerator_decode_cb), std::move(accelerator_output_cb),
++          config.color_space_info());
+       break;
+ 
+     case VideoCodec::kVP9:
+@@ -201,16 +197,6 @@ void VideoToolboxVideoDecoder::Initialize(const VideoDecoderConfig& config,
+           config.profile(), config.color_space_info());
+       break;
+ 
+-#if BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+-    case VideoCodec::kHEVC:
+-      accelerator_ = std::make_unique<H265Decoder>(
+-          std::make_unique<VideoToolboxH265Accelerator>(
+-              media_log_->Clone(), std::move(accelerator_decode_cb),
+-              std::move(accelerator_output_cb)),
+-          config.profile(), config.color_space_info());
+-      break;
+-#endif  // BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+-
+     default:
+       task_runner_->PostTask(
+           FROM_HERE, base::BindOnce(std::move(init_cb),
+@@ -479,10 +465,15 @@ VideoToolboxVideoDecoder::GetSupportedVideoDecoderConfigs(
+   // TODO(crbug.com/40227557): Exclude resolutions that are not accelerated.
+   // TODO(crbug.com/40227557): Check if higher resolutions are supported.
+   if (!gpu_workarounds.disable_accelerated_h264_decode && SupportsH264()) {
++    // Fiber: as HEVC below. Without H264Decoder or ffmpeg's decoder, what the
++    // hardware doesn't take (small frames, interlacing) goes to the OS
++    // software decoder, and VideoToolbox decodes the High 10, 4:2:2 and
++    // 4:4:4 profiles.
++    constexpr gfx::Size kH264MinSize(16, 16);
+     supported.emplace_back(
+         /*profile_min=*/H264PROFILE_BASELINE,
+-        /*profile_max=*/H264PROFILE_HIGH,
+-        /*coded_size_min=*/kMinSize,
++        /*profile_max=*/H264PROFILE_HIGH444PREDICTIVEPROFILE,
++        /*coded_size_min=*/kH264MinSize,
+         /*coded_size_max=*/kLegacyMaxSize,
+         /*allow_encrypted=*/false,
+         /*require_encrypted=*/false);

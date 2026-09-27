@@ -1,0 +1,10 @@
+diff --git a/third_party/ffmpeg/chromium/config/Chromium/mac/arm64/libavformat/demuxer_list.c b/third_party/ffmpeg/chromium/config/Chromium/mac/arm64/libavformat/demuxer_list.c
+index 570a644..29f1f59 100644
+--- a/third_party/ffmpeg/chromium/config/Chromium/mac/arm64/libavformat/demuxer_list.c
++++ b/third_party/ffmpeg/chromium/config/Chromium/mac/arm64/libavformat/demuxer_list.c
+@@ -1,4 +1,5 @@
+ static const FFInputFormat * const demuxer_list[] = {
++    &ff_aac_demuxer,
+     &ff_flac_demuxer,
+     &ff_matroska_demuxer,
+     &ff_mov_demuxer,

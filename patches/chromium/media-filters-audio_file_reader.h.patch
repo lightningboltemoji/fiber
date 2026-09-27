@@ -1,0 +1,40 @@
+diff --git a/media/filters/audio_file_reader.h b/media/filters/audio_file_reader.h
+index 99e6f506cf..cd6bd795a5 100644
+--- a/media/filters/audio_file_reader.h
++++ b/media/filters/audio_file_reader.h
+@@ -9,6 +9,7 @@
+ #include <memory>
+ #include <vector>
+ 
++#include "base/functional/callback.h"
+ #include "base/memory/raw_ptr.h"
+ #include "media/base/media_export.h"
+ #include "media/base/media_util.h"
+@@ -33,10 +34,16 @@ class ScopedAVPacket;
+ 
+ class MEDIA_EXPORT AudioFileReader {
+  public:
++  // Fiber: supplies a decoder ahead of the default ones, for codecs ffmpeg
++  // doesn't decode. Null for none.
++  using CreateDecoderCB = base::RepeatingCallback<std::unique_ptr<AudioDecoder>(
++      const AudioDecoderConfig& config)>;
++
+   // Audio file data will be read using the given protocol.
+   // The AudioFileReader does not take ownership of `protocol` and
+   // simply maintains a weak reference to it.
+-  explicit AudioFileReader(FFmpegURLProtocol* protocol);
++  explicit AudioFileReader(FFmpegURLProtocol* protocol,
++                           CreateDecoderCB create_decoder = {});
+ 
+   AudioFileReader(const AudioFileReader&) = delete;
+   AudioFileReader& operator=(const AudioFileReader&) = delete;
+@@ -113,6 +120,9 @@ class MEDIA_EXPORT AudioFileReader {
+ 
+   raw_ptr<FFmpegURLProtocol, DanglingUntriaged> protocol_;
+ 
++  // Fiber: see CreateDecoderCB.
++  CreateDecoderCB create_decoder_;
++
+   // Set once the demuxer is opened.
+   std::optional<int> stream_index_;
+ 
