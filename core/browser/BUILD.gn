@@ -6,15 +6,18 @@ assert(is_mac)
 # //chrome/browser:browser (see patches/chromium/chrome-browser-BUILD.gn.patch)
 # and uses //chrome/browser headers through browser_public_dependencies.
 #
-#   hooks/      the functions Fiber's Chromium patches call
-#   window/     BrowserWindow and the stubs it needs
-#   dialogs/    dialogs Chrome shows for a tab, and app-modally
-#   downloads/  waiting for downloads before quitting or closing
-#   new_tab/    chrome://newtab, Fiber's New Tab page
-#   omnibox/    Chrome's omnibox, with the command palette as its view
-#   swipe/      swiping between pages
+#   hooks/         the functions Fiber's Chromium patches call
+#   window/        BrowserWindow and the stubs it needs
+#   context_menu/  pages' context menus
+#   dialogs/       dialogs Chrome shows for a tab, and app-modally
+#   downloads/     waiting for downloads before quitting or closing
+#   new_tab/       chrome://newtab, Fiber's New Tab page
+#   omnibox/       Chrome's omnibox, with the command palette as its view
+#   swipe/         swiping between pages
 source_set("browser") {
   sources = [
+    "context_menu/fiber_render_view_context_menu.h",
+    "context_menu/fiber_render_view_context_menu.mm",
     "dialogs/fiber_app_modal_dialog_view.h",
     "dialogs/fiber_app_modal_dialog_view.mm",
     "dialogs/fiber_javascript_dialog_view.h",
@@ -25,6 +28,8 @@ source_set("browser") {
     "hooks/browser_window_factory.mm",
     "hooks/confirm_quit.h",
     "hooks/confirm_quit.mm",
+    "hooks/context_menu_factory.h",
+    "hooks/context_menu_factory.mm",
     "hooks/feature_overrides.cc",
     "hooks/feature_overrides.h",
     "hooks/javascript_dialog_factory.h",
@@ -64,11 +69,13 @@ source_set("browser") {
     "//chrome/browser:chrome_browser_application_mac",
     "//chrome/browser:global_keyboard_shortcuts_mac",
     "//chrome/browser/profiles:profile",
+    "//chrome/browser/renderer_context_menu",
     "//chrome/browser/themes",
     "//chrome/browser/ui/blocked_content",
     "//chrome/browser/ui:browser_window_state",
     "//chrome/browser/ui/browser_active_state_manager",
     "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/cocoa",
     "//chrome/browser/ui/exclusive_access",
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/location_bar",
@@ -82,6 +89,7 @@ source_set("browser") {
     "//components/javascript_dialogs",
     "//components/omnibox/browser",
     "//components/pref_registry",
+    "//components/renderer_context_menu",
     "//components/search_engines",
     "//components/strings",
     "//components/tabs:public",
@@ -98,6 +106,7 @@ source_set("browser") {
     "//ui/events",
     "//ui/events/blink",
     "//ui/gfx",
+    "//ui/menus",
     "//ui/native_theme",
     "//ui/strings",
     "//url",

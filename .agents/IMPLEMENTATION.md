@@ -95,8 +95,9 @@ parts: a C++ adapter, bridge types, and Swift UI.
 - Reference for non-views UI: upstream's experimental `WebUIBrowserWindow`
   (`chrome/browser/ui/webui_browser/`). Its `IsWebUIBrowserEnabled()` checks
   mark code in Chrome that assumes views.
-- Chrome's native Cocoa pieces (app delegate, main menu, context menus) stay
-  Chrome's. We hook them rather than replace them.
+- Chrome's native Cocoa pieces (app delegate, main menu) stay Chrome's. We
+  hook them rather than replace them. Pages' context menus keep Chrome's model
+  and commands but not its menu (see Status).
 
 ## Tabs and spaces
 
@@ -200,6 +201,7 @@ core/                → //fiber
   browser/           C++ Chrome integration
     hooks/           the functions patches call
     window/          BrowserWindow implementation and its stubs
+    context_menu/    pages' context menus
     dialogs/         JavaScript dialogs, tab-modal and app-modal (beforeunload)
     downloads/       waiting for downloads before quitting or closing
     swipe/           swiping between pages, and the snapshots it shows
@@ -285,6 +287,16 @@ controls float over it in Liquid Glass, mostly out of sight:
     resume each; the quit goes ahead once they're done, or at once with Quit
     Now, and Continue Browsing (Escape) calls it off. Chrome's alert is cut.
     Closing the last Incognito window with downloads waits the same way.
+- **Context menus** (`context_menu/fiber_render_view_context_menu.mm`,
+  `ui/ContextMenu.swift`): right-clicking a page shows a native menu built
+  from Chrome's (`RenderViewContextMenu`, which decides what's in it and runs
+  each command, extensions' items included), with only the items Fiber lists:
+  what's particular to what was clicked (a link, an image, video, selected or
+  edited text) and View Page Source and Inspect. Back, Reload, Print and
+  Google's services (Cast, Translate, Lens, Send to Your Devices…) are left
+  out, and so is anything a new Chromium release adds until it's listed.
+  AppKit adds its own (Services, Speech, AutoFill) as it does to any text
+  view's menu. DevTools windows keep Chrome's Cocoa menu.
 - **Swiping between pages** (`swipe/fiber_history_swiper.mm`,
   `ui/HistorySwipe.swift`): as in Safari, the page follows the fingers like a
   sheet of paper, over (going back) or under (forward) the page it's going to,
@@ -305,7 +317,7 @@ own windows do (`BrowserWindowFrame`); check it still works on each macOS
 release. Tabs cross the bridge as `FiberTabState` snapshots keyed by Chrome's
 tab handle; there's no close button, so Command-W (Chrome's Close Tab) closes
 them. The load progress bar (shown only once a load has taken half a second),
-status bubble, and JavaScript dialogs are Swift behind the bridge too. `make harness` runs all of it against the mock browser;
+status bubble, JavaScript dialogs and context menus are Swift behind the bridge too. `make harness` runs all of it against the mock browser (right-click a page or a link for a context menu);
 `swift run --package-path core/ui FiberUIHarness --tabs 20` starts with 20
 tabs, `--ask-before-leaving` makes its pages ask before they're left, and
 `--downloads 4` gives a quit downloads to wait for. Its pages swipe too, and

@@ -1,7 +1,8 @@
 import AppKit
 
 /// Stands in for a tab's web contents: shows the URL, links to other fake
-/// pages, and buttons that open JavaScript dialogs.
+/// pages, and buttons that open JavaScript dialogs. Right-clicking it, or a
+/// link, shows a context menu.
 @MainActor
 final class MockPageView: NSView {
   private static let links = [
@@ -26,6 +27,10 @@ final class MockPageView: NSView {
     if browser?.swipe(with: event) != true {
       super.scrollWheel(with: event)
     }
+  }
+
+  override func rightMouseDown(with event: NSEvent) {
+    showContextMenu(for: nil, event: event)
   }
 
   /// What it looks like now, as Chrome's page snapshots would be.
@@ -55,6 +60,9 @@ final class MockPageView: NSView {
       link.onHover = { [weak self] url in self?.browser?.linkHovered(url) }
       link.onClick = { [weak self] url in
         self?.browser?.linkClicked(url, event: NSApp.currentEvent)
+      }
+      link.onContextMenu = { [weak self] url, event in
+        self?.showContextMenu(for: url, event: event)
       }
       return link
     }
@@ -141,6 +149,13 @@ final class MockPageView: NSView {
     ) { [weak self] result in self?.show(result, of: "prompt()") }
   }
 
+  private func showContextMenu(for link: String?, event: NSEvent) {
+    MockContextMenu.show(for: link, event: event, in: self) {
+      [weak self] title in
+      self?.resultLabel.stringValue = "Chose “\(title)” from the context menu"
+    }
+  }
+
   private func show(_ result: MockDialogResult, of call: String) {
     resultLabel.stringValue =
       switch result {
@@ -158,6 +173,7 @@ private final class LinkButton: NSButton {
   let url: String
   var onHover: (String?) -> Void = { _ in }
   var onClick: (String) -> Void = { _ in }
+  var onContextMenu: (String, NSEvent) -> Void = { _, _ in }
 
   init(url: String) {
     self.url = url
@@ -189,6 +205,10 @@ private final class LinkButton: NSButton {
 
   override func mouseExited(with event: NSEvent) {
     onHover(nil)
+  }
+
+  override func rightMouseDown(with event: NSEvent) {
+    onContextMenu(url, event)
   }
 
   @objc private func clicked(_ sender: Any?) {

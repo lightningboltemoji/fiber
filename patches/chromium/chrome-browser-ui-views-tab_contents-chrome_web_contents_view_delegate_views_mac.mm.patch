@@ -1,0 +1,31 @@
+diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
+index 564c8c000c..f07a406eb5 100644
+--- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
++++ b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_delegate_views_mac.mm
+@@ -26,6 +26,7 @@
+ #include "content/public/browser/render_widget_host_view.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/drop_data.h"
++#include "fiber/browser/hooks/context_menu_factory.h"
+ #include "ui/base/base_window.h"
+ #include "ui/base/clipboard/clipboard.h"
+ #include "ui/base/data_transfer_policy/data_transfer_endpoint.h"
+@@ -174,12 +175,15 @@ std::unique_ptr<RenderViewContextMenuBase>
+ ChromeWebContentsViewDelegateViewsMac::BuildMenu(
+     content::RenderFrameHost& render_frame_host,
+     const content::ContextMenuParams& params) {
+-  std::unique_ptr<RenderViewContextMenuMac> menu;
+-  if (remote_cocoa::IsWindowRemote(GetNativeWindow())) {
++  // Fiber: Fiber's menu in Fiber windows; null in others.
++  std::unique_ptr<RenderViewContextMenuMac> menu = fiber::CreateContextMenu(
++      web_contents_, render_frame_host, params, is_paste_enabled_,
++      is_paste_and_match_style_enabled_);
++  if (!menu && remote_cocoa::IsWindowRemote(GetNativeWindow())) {
+     menu = std::make_unique<RenderViewContextMenuMacRemoteCocoa>(
+         render_frame_host, params, is_paste_enabled_,
+         is_paste_and_match_style_enabled_, GetActiveRenderWidgetHostView());
+-  } else {
++  } else if (!menu) {
+     gfx::NativeView parent_view =
+         GetActiveRenderWidgetHostView()->GetNativeView();
+     menu = std::make_unique<RenderViewContextMenuMacCocoa>(

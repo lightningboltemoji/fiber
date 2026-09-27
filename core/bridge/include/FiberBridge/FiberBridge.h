@@ -12,6 +12,7 @@
 //   @objc @implementation.
 // - Everything is main thread only.
 
+#import "FiberContextMenu.h"
 #import "FiberDownloadsWait.h"
 #import "FiberJavaScriptDialog.h"
 #import "FiberOmnibox.h"
