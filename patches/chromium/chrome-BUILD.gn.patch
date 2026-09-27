@@ -1,5 +1,5 @@
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index 8a60d7061b..11bbac4bf1 100644
+index 8a60d7061b..38df09456b 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
 @@ -661,14 +661,17 @@ if (is_win) {
@@ -22,3 +22,63 @@ index 8a60d7061b..11bbac4bf1 100644
    }
  
    bundle_data("chrome_resources") {
+@@ -1156,20 +1159,23 @@ if (is_win) {
+     }
+   }
+ 
+-  # Add the SwiftShader .dylibs in the MODULE_DIR of Chromium.app
+-  bundle_data("swiftshader_binaries") {
+-    sources = [
+-      "$root_out_dir/vk_intermediates/libvk_swiftshader.dylib",
+-      "$root_out_dir/vk_intermediates/vk_swiftshader_icd.json",
+-    ]
+-    outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
+-    public_deps = [ "//ui/gl:swiftshader_vk_library_copy" ]
+-  }
++  # Fiber: only with SwiftShader, the one user of Vulkan on macOS.
++  if (enable_swiftshader) {
++    # Add the SwiftShader .dylibs in the MODULE_DIR of Chromium.app
++    bundle_data("swiftshader_binaries") {
++      sources = [
++        "$root_out_dir/vk_intermediates/libvk_swiftshader.dylib",
++        "$root_out_dir/vk_intermediates/vk_swiftshader_icd.json",
++      ]
++      outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
++      public_deps = [ "//ui/gl:swiftshader_vk_library_copy" ]
++    }
+ 
+-  bundle_data("vulkan_loader_binaries") {
+-    sources = [ "$root_out_dir/vulkan_intermediates/libvulkan.dylib" ]
+-    outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
+-    public_deps = [ "//ui/gl:vulkan_loader_library_copy" ]
++    bundle_data("vulkan_loader_binaries") {
++      sources = [ "$root_out_dir/vulkan_intermediates/libvulkan.dylib" ]
++      outputs = [ "{{bundle_contents_dir}}/Libraries/{{source_file_part}}" ]
++      public_deps = [ "//ui/gl:vulkan_loader_library_copy" ]
++    }
+   }
+ 
+   if (bundle_widevine_cdm) {
+@@ -1385,7 +1391,6 @@ if (is_win) {
+       ":chrome_framework_helpers",
+       ":chrome_framework_resources",
+       ":optimization_guide_library",
+-      ":swiftshader_binaries",
+       ":widevine_cdm_library",
+       "//chrome/browser/resources/media/mei_preload:component_bundle",
+       "//chrome/browser/web_applications/isolated_web_apps/key_distribution/preload:component_bundle",
+@@ -1399,7 +1404,13 @@ if (is_win) {
+       bundle_deps += [ ":angle_binaries" ]
+     }
+ 
+-    bundle_deps += [ ":vulkan_loader_binaries" ]
++    # Fiber: only with SwiftShader.
++    if (enable_swiftshader) {
++      bundle_deps += [
++        ":swiftshader_binaries",
++        ":vulkan_loader_binaries",
++      ]
++    }
+ 
+     if (enable_separate_renderer_binary) {
+       bundle_deps += [ ":chrome_renderer_library" ]

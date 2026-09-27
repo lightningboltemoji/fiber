@@ -28,14 +28,16 @@ cd "$ROOT/chromium/src"
 # release codegen and no debug symbols. The dev config is a component build:
 # many small dylibs for quick incremental links, and DCHECKs on (the default in
 # non-official builds). out/Release puts everything in the one framework, so
-# the app runs outside the out dir, and turns DCHECKs off, since a failed one
-# crashes the browser. Edit $OUT/args.gn afterwards and re-run to change the
-# local part.
+# the app runs outside the out dir, turns DCHECKs off, since a failed one
+# crashes the browser, and strips symbols, which are over 40% of an unstripped
+# binary (the linker keeps an unstripped copy beside it, <name>.unstripped).
+# Edit $OUT/args.gn afterwards and re-run to change the local part.
 if [[ ! -f "$OUT/args.gn" ]]; then
   if [[ "$OUT" == out/Release ]]; then
     config='
     is_component_build = false
-    dcheck_always_on = false'
+    dcheck_always_on = false
+    enable_stripping = true'
   else
     config='
     is_component_build = true'
