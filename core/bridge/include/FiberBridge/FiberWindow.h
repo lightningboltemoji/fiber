@@ -2,6 +2,7 @@
 
 @class FiberPageState;
 @class FiberTabState;
+@protocol FiberOmnibox;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -21,8 +22,6 @@ NS_SWIFT_UI_ACTOR
 - (void)goForwardWithEvent:(nullable NSEvent*)event;
 - (void)reloadWithEvent:(nullable NSEvent*)event;
 - (void)stopLoading;
-// Opens what the user entered in the location field: a URL, or a search.
-- (void)navigateToInput:(NSString*)input event:(nullable NSEvent*)event;
 // Moves keyboard focus to the page.
 - (void)focusPage;
 // Makes the tab with this ID the active one. Does nothing if it's gone.
@@ -46,6 +45,8 @@ NS_SWIFT_UI_ACTOR
 @protocol FiberWindow <NSObject>
 
 @property(readonly) NSWindow* window;
+// The command palette, where the user enters an address or search.
+@property(readonly) id<FiberOmnibox> omnibox;
 
 // Shows `view` (the active tab's page) in the content area in place of the
 // previous one. Nil leaves the content area empty.
@@ -64,10 +65,6 @@ NS_SWIFT_UI_ACTOR
 // The toolbar and tab picker are hidden while a page is fullscreen, for
 // example a video.
 - (void)setControlsVisible:(BOOL)visible;
-// Opens the command palette, where the user enters an address or search, with
-// the page's URL in it (Command-L, and new tabs).
-- (void)showCommandPalette;
-
 @end
 
 NS_SWIFT_UI_ACTOR

@@ -51,13 +51,15 @@ class FiberBrowserWindow : public BrowserWindow,
   // Called by FiberBrowserWindowActions for what the user does in the window.
   void ExecuteCommand(int command, WindowOpenDisposition disposition);
   bool IsCommandEnabled(int command) const;
-  void NavigateToInput(const std::u16string& input,
-                       WindowOpenDisposition disposition);
   void FocusWebContents();
   void SelectTab(int32_t tab_id);
   void OnWindowCloseRequested();
   void OnWindowActivationChanged(bool active);
   void OnWindowFullscreenChanged();
+
+  // Sends the UI what it shows of the active tab's page (the toolbar, the
+  // window title).
+  void UpdatePageState();
 
   // BrowserWindow:
   gfx::NativeWindow GetNativeWindow() const override;

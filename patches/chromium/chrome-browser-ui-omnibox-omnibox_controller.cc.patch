@@ -1,0 +1,23 @@
+diff --git a/chrome/browser/ui/omnibox/omnibox_controller.cc b/chrome/browser/ui/omnibox/omnibox_controller.cc
+index 9387a024ce..7324eed3c6 100644
+--- a/chrome/browser/ui/omnibox/omnibox_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_controller.cc
+@@ -30,6 +30,7 @@
+ #include "components/omnibox/browser/page_classification_functions.h"
+ #include "components/omnibox/browser/prewarm_trigger.h"
+ #include "components/search_engines/template_url_starter_pack_data.h"
++#include "fiber/browser/hooks/omnibox_providers.h"
+ #include "ui/gfx/geometry/rect.h"
+ 
+ OmniboxController::OmniboxController(
+@@ -40,7 +41,9 @@ OmniboxController::OmniboxController(
+           /*omnibox_controller=*/this)),
+       popup_state_manager_(std::make_unique<OmniboxPopupStateManager>()) {
+   AutocompleteControllerConfig autocomplete_controller_config{
+-      .provider_types = AutocompleteClassifier::DefaultOmniboxProviders()};
++      // Fiber: without the providers Fiber leaves out.
++      .provider_types = fiber::OmniboxProviderTypes(
++          AutocompleteClassifier::DefaultOmniboxProviders())};
+   if (omnibox::IsWebUIOmniboxPopupEnabled()) {
+     autocomplete_controller_config.show_iph_matches = false;
+   }

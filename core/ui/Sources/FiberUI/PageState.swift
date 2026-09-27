@@ -2,7 +2,6 @@ import FiberBridge
 import Foundation
 
 @objc @implementation extension FiberPageState {
-  @objc(URL) let url: String
   let displayURL: String
   let title: String
   let canGoBack: Bool
@@ -10,12 +9,11 @@ import Foundation
   let isLoading: Bool
   let isNewTabPage: Bool
 
-  @objc(initWithURL:displayURL:title:canGoBack:canGoForward:loading:newTabPage:)
+  @objc(initWithDisplayURL:title:canGoBack:canGoForward:loading:newTabPage:)
   init(
-    url: String, displayURL: String, title: String, canGoBack: Bool,
-    canGoForward: Bool, loading: Bool, newTabPage: Bool
+    displayURL: String, title: String, canGoBack: Bool, canGoForward: Bool,
+    loading: Bool, newTabPage: Bool
   ) {
-    self.url = url
     self.displayURL = displayURL
     self.title = title
     self.canGoBack = canGoBack

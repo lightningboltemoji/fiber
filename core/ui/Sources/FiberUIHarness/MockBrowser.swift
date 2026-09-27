@@ -35,11 +35,24 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var activeTab: MockTab!
   private var dialog: (any FiberJavaScriptDialog)?
   private var controlsVisible = true
+  private var omnibox: MockOmnibox!
 
   init(urls: [String], app: HarnessAppDelegate) {
     self.app = app
     super.init()
     ui = FiberWindowFactory.window(withFrame: .zero, actions: self)
+    omnibox = MockOmnibox(
+      ui: ui.omnibox,
+      currentURL: { [weak self] in
+        guard let self, self.activeTab.url != Self.newTabURL else {
+          return ""
+        }
+        return self.activeTab.url
+      },
+      open: { [weak self] input, event in
+        self?.navigate(toInput: input, event: event)
+      })
+    ui.omnibox.actions = omnibox
     for url in urls {
       openTab(url, activate: true)
     }
@@ -65,29 +78,6 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   func stopLoading() {
     finishLoading(activeTab)
-  }
-
-  func navigate(toInput input: String, event: NSEvent?) {
-    let input = input.trimmingCharacters(in: .whitespaces)
-    guard !input.isEmpty else {
-      return
-    }
-    let url: String
-    if input.contains("://") {
-      url = input
-    } else if input.contains("."), !input.contains(" ") {
-      url = "https://\(input)/"
-    } else {
-      let query =
-        input.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
-      url = "https://search.example/?q=\(query ?? "")"
-    }
-    if opensElsewhere(event) {
-      openTab(url, activate: true)
-    } else {
-      open(url, in: activeTab)
-      focusPage()
-    }
   }
 
   func focusPage() {
@@ -119,7 +109,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   @objc func newTab(_ sender: Any?) {
     openTab(Self.newTabURL, activate: true)
-    ui.showCommandPalette()
+    ui.omnibox.focus()
   }
 
   @objc func closeTab(_ sender: Any?) {
@@ -141,7 +131,33 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   @objc func openLocation(_ sender: Any?) {
-    ui.showCommandPalette()
+    ui.omnibox.focus()
+  }
+
+  // MARK: Omnibox
+
+  /// Opens what the user picked in the command palette: a URL, or a search.
+  func navigate(toInput input: String, event: NSEvent?) {
+    let input = input.trimmingCharacters(in: .whitespaces)
+    guard !input.isEmpty else {
+      return
+    }
+    let url: String
+    if input.contains("://") {
+      url = input
+    } else if input.contains("."), !input.contains(" ") {
+      url = "https://\(input)/"
+    } else {
+      let query =
+        input.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+      url = "https://search.example/?q=\(query ?? "")"
+    }
+    if opensElsewhere(event) {
+      openTab(url, activate: true)
+    } else {
+      open(url, in: activeTab)
+      focusPage()
+    }
   }
 
   // MARK: The page's requests
@@ -309,7 +325,6 @@ final class MockBrowser: NSObject, FiberWindowActions {
     let host = URL(string: tab.url)?.host() ?? tab.url
     ui.setPageState(
       FiberPageState(
-        url: isNewTabPage ? "" : tab.url,
         displayURL: isNewTabPage ? "" : host, title: tab.page.title,
         canGoBack: tab.index > 0,
         canGoForward: tab.index < tab.history.count - 1,

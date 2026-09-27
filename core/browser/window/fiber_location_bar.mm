@@ -3,49 +3,71 @@
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/omnibox/chrome_omnibox_client.h"
+#include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
+#include "fiber/browser/omnibox/fiber_omnibox_popup_view.h"
+#include "fiber/browser/omnibox/fiber_omnibox_view.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace fiber {
 
-FiberLocationBar::FiberLocationBar(FiberBrowserWindow* window)
+FiberLocationBar::FiberLocationBar(FiberBrowserWindow* window,
+                                   id<FiberOmnibox> omnibox)
     : LocationBar(chrome::BrowserCommandController::From(window->browser())),
-      window_(window) {}
+      window_(window) {
+  omnibox_controller_ =
+      std::make_unique<OmniboxController>(std::make_unique<ChromeOmniboxClient>(
+          /*location_bar=*/this, window->browser(),
+          window->browser()->GetProfile()));
+  omnibox_view_ =
+      std::make_unique<FiberOmniboxView>(omnibox_controller_.get(), omnibox);
+  omnibox_popup_view_ = std::make_unique<FiberOmniboxPopupView>(
+      omnibox_controller_.get(), omnibox);
+}
 
-FiberLocationBar::~FiberLocationBar() = default;
+FiberLocationBar::~FiberLocationBar() {
+  // The views first: they refer to the controller.
+  omnibox_popup_view_.reset();
+  omnibox_view_.reset();
+  omnibox_controller_.reset();
+}
 
 void FiberLocationBar::FocusLocation(bool is_user_initiated,
                                      bool clear_focus_if_failed) {
-  window_->SetFocusToLocationBar(is_user_initiated);
+  omnibox_view_->SetFocus(is_user_initiated);
 }
 
 void FiberLocationBar::FocusSearch() {
-  window_->SetFocusToLocationBar(/*is_user_initiated=*/true);
+  omnibox_view_->SetFocus(/*is_user_initiated=*/true);
 }
 
 void FiberLocationBar::UpdateFocusBehavior(bool toolbar_visible) {}
 
 void FiberLocationBar::UpdateContentSettingsIcons() {}
 
-void FiberLocationBar::SaveStateToContents(content::WebContents* contents) {}
+void FiberLocationBar::SaveStateToContents(content::WebContents* contents) {
+  // Nothing to save: the palette closes when the tab changes, and closing it
+  // discards the edit.
+}
 
 void FiberLocationBar::Revert() {
-  window_->UpdateToolbar(nullptr);
+  omnibox_view_->RevertAll();
 }
 
 OmniboxView* FiberLocationBar::GetOmniboxView() {
-  return nullptr;
+  return omnibox_view_.get();
 }
 
 OmniboxPopupView* FiberLocationBar::GetOmniboxPopupView() {
-  return nullptr;
+  return omnibox_popup_view_.get();
 }
 
 OmniboxController* FiberLocationBar::GetOmniboxController() {
-  return nullptr;
+  return omnibox_controller_.get();
 }
 
 bool FiberLocationBar::ShouldCloseOmniboxPopup(ui::MouseEvent* event) {
@@ -71,10 +93,16 @@ ChipController* FiberLocationBar::GetChipController() {
 
 void FiberLocationBar::AnnounceAlert(const std::u16string& announcement) {}
 
-void FiberLocationBar::OnChanged() {}
+void FiberLocationBar::OnChanged() {
+  // The omnibox's state changed, e.g. into keyword mode. (Not while it's
+  // being torn down.)
+  if (omnibox_view_) {
+    omnibox_view_->UpdateUI();
+  }
+}
 
 void FiberLocationBar::UpdateWithoutTabRestore() {
-  window_->UpdateToolbar(nullptr);
+  Update(nullptr);
 }
 
 ui::TrackedElement* FiberLocationBar::GetAnchorOrNull() {
@@ -106,7 +134,7 @@ bool FiberLocationBar::IsFullscreen() const {
 }
 
 bool FiberLocationBar::IsEditingOrEmpty() const {
-  return false;
+  return omnibox_view_->IsEditingOrEmpty();
 }
 
 bool FiberLocationBar::IsMouseHovered() const {
@@ -114,7 +142,7 @@ bool FiberLocationBar::IsMouseHovered() const {
 }
 
 bool FiberLocationBar::IsFocusWithin() const {
-  return false;
+  return omnibox_controller_->edit_model()->has_focus();
 }
 
 void FiberLocationBar::InvalidateLayout() {}
@@ -136,7 +164,16 @@ gfx::Size FiberLocationBar::PreferredSize() const {
 }
 
 void FiberLocationBar::Update(content::WebContents* contents) {
-  window_->UpdateToolbar(contents);
+  if (!omnibox_view_) {
+    return;
+  }
+  // A new tab to show (`contents`), or the current one changed.
+  if (contents) {
+    omnibox_view_->OnTabChanged();
+  } else {
+    omnibox_view_->Update();
+  }
+  window_->UpdatePageState();
 }
 
 void FiberLocationBar::ResetTabState(content::WebContents* contents) {}

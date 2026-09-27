@@ -8,7 +8,6 @@
 #include "base/notimplemented.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -20,8 +19,6 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
-#include "chrome/browser/ui/navigator/browser_navigator.h"
-#include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/status_bubble.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
@@ -29,8 +26,6 @@
 #include "chrome/common/webui_url_constants.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/input/native_web_keyboard_event.h"
-#include "components/omnibox/browser/autocomplete_classifier.h"
-#include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/location_bar_model.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/url_formatter/elide_url.h"
@@ -44,7 +39,6 @@
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
-#include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/color/color_provider_utils.h"
@@ -161,7 +155,7 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
       windowWithFrame:bounds.IsEmpty() ? NSZeroRect
                                        : gfx::ScreenRectToNSRect(bounds)
               actions:actions_];
-  location_bar_ = std::make_unique<FiberLocationBar>(this);
+  location_bar_ = std::make_unique<FiberLocationBar>(this, ui_.omnibox);
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
   browser_->GetTabStripModel()->AddObserver(this);
 }
@@ -188,30 +182,6 @@ void FiberBrowserWindow::ExecuteCommand(int command,
 bool FiberBrowserWindow::IsCommandEnabled(int command) const {
   return IsCommandSupported(command) &&
          chrome::IsCommandEnabled(browser_, command);
-}
-
-void FiberBrowserWindow::NavigateToInput(const std::u16string& input,
-                                         WindowOpenDisposition disposition) {
-  // Classify like the omnibox does, so searches go to the profile's default
-  // search engine.
-  AutocompleteMatch match;
-  AutocompleteClassifierFactory::GetForProfile(browser_->GetProfile())
-      ->Classify(input, /*in_keyword_mode=*/false,
-                 /*allow_exact_keyword_match=*/true,
-                 metrics::OmniboxEventProto::OTHER, &match,
-                 /*alternate_nav_url=*/nullptr);
-  if (!match.destination_url.is_valid()) {
-    return;
-  }
-  NavigateParams params(
-      browser_, match.destination_url,
-      ui::PageTransitionFromInt(match.transition |
-                                ui::PAGE_TRANSITION_FROM_ADDRESS_BAR));
-  params.disposition = disposition;
-  Navigate(&params);
-  if (disposition == WindowOpenDisposition::CURRENT_TAB) {
-    FocusWebContents();
-  }
 }
 
 void FiberBrowserWindow::FocusWebContents() {
@@ -340,7 +310,7 @@ std::vector<StatusBubble*> FiberBrowserWindow::GetStatusBubbles() {
 }
 
 void FiberBrowserWindow::UpdateTitleBar() {
-  UpdateToolbar(nullptr);
+  UpdatePageState();
 }
 
 void FiberBrowserWindow::UpdateLoadingAnimations(bool is_visible) {}
@@ -402,38 +372,42 @@ ui::AcceleratorProvider* FiberBrowserWindow::GetAcceleratorProvider() {
 }
 
 void FiberBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
-  [ui_ showCommandPalette];
+  location_bar_->FocusLocation(is_user_initiated,
+                               /*clear_focus_if_failed=*/false);
 }
 
 void FiberBrowserWindow::UpdateReloadStopState(bool is_loading, bool force) {
-  UpdateToolbar(nullptr);
+  UpdatePageState();
 }
 
 void FiberBrowserWindow::UpdateToolbar(content::WebContents* contents) {
+  // Like BrowserView's toolbar, via the location bar, which also updates the
+  // page state.
+  location_bar_->Update(contents);
+}
+
+void FiberBrowserWindow::UpdatePageState() {
   content::WebContents* active = GetActiveWebContents();
   if (!active) {
     return;
   }
   // Chrome's model decides what to show, e.g. nothing on the New Tab page.
   LocationBarModel* model = browser_->GetFeatures().location_bar_model();
-  NSString* url = @"";
   NSString* display_url = @"";
   if (model->ShouldDisplayURL()) {
-    url = base::SysUTF16ToNSString(model->GetFormattedFullURL());
     display_url = base::SysUTF16ToNSString(
         url_formatter::FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
             model->GetURL()));
   }
   content::NavigationController& navigation = active->GetController();
-  [ui_
-      setPageState:[[FiberPageState alloc]
-                        initWithURL:url
-                         displayURL:display_url
-                              title:base::SysUTF16ToNSString(active->GetTitle())
-                          canGoBack:navigation.CanGoBack()
-                       canGoForward:navigation.CanGoForward()
-                            loading:active->IsLoading()
-                         newTabPage:IsNewTabPage(active)]];
+  [ui_ setPageState:[[FiberPageState alloc]
+                        initWithDisplayURL:display_url
+                                     title:base::SysUTF16ToNSString(
+                                               active->GetTitle())
+                                 canGoBack:navigation.CanGoBack()
+                              canGoForward:navigation.CanGoForward()
+                                   loading:active->IsLoading()
+                                newTabPage:IsNewTabPage(active)]];
 }
 
 bool FiberBrowserWindow::UpdateToolbarSecurityState() {
@@ -444,7 +418,8 @@ void FiberBrowserWindow::UpdateCustomTabBarVisibility(bool visible,
                                                       bool animate) {}
 
 void FiberBrowserWindow::ResetToolbarTabState(content::WebContents* contents) {
-  UpdateToolbar(contents);
+  location_bar_->ResetTabState(contents);
+  UpdatePageState();
 }
 
 void FiberBrowserWindow::FocusToolbar() {}

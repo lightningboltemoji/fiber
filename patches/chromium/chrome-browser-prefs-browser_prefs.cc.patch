@@ -1,0 +1,22 @@
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+index 2653e37bec..af5ad73bf3 100644
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -223,6 +223,7 @@
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/common/buildflags.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "fiber/browser/hooks/profile_pref_defaults.h"
+ #include "net/http/http_server_properties_manager.h"
+ #include "pdf/buildflags.h"
+ #include "printing/buildflags/buildflags.h"
+@@ -2279,6 +2280,9 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
+   registry->RegisterBooleanPref(prefs::kStaticStorageQuotaEnabled, false);
++
++  // Fiber: its own defaults for prefs registered above.
++  fiber::SetProfilePrefDefaults(registry);
+ }
+ 
+ void RegisterUserProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {

@@ -13,6 +13,7 @@
 // - Everything is main thread only.
 
 #import "FiberJavaScriptDialog.h"
+#import "FiberOmnibox.h"
 #import "FiberPageState.h"
 #import "FiberTabState.h"
 #import "FiberWindow.h"

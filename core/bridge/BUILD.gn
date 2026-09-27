@@ -13,6 +13,7 @@ source_set("bridge") {
   public = [
     "include/FiberBridge/FiberBridge.h",
     "include/FiberBridge/FiberJavaScriptDialog.h",
+    "include/FiberBridge/FiberOmnibox.h",
     "include/FiberBridge/FiberPageState.h",
     "include/FiberBridge/FiberTabState.h",
     "include/FiberBridge/FiberWindow.h",

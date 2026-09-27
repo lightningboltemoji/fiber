@@ -7,19 +7,16 @@ NS_ASSUME_NONNULL_BEGIN
 NS_SWIFT_SENDABLE
 @interface FiberPageState : NSObject
 
-- (instancetype)initWithURL:(NSString*)URL
-                 displayURL:(NSString*)displayURL
-                      title:(NSString*)title
-                  canGoBack:(BOOL)canGoBack
-               canGoForward:(BOOL)canGoForward
-                    loading:(BOOL)loading
-                 newTabPage:(BOOL)newTabPage NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithDisplayURL:(NSString*)displayURL
+                             title:(NSString*)title
+                         canGoBack:(BOOL)canGoBack
+                      canGoForward:(BOOL)canGoForward
+                           loading:(BOOL)loading
+                        newTabPage:(BOOL)newTabPage NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
-// The full URL, which the command palette opens with. Empty for pages that
-// don't show their URL, like the New Tab page.
-@property(readonly, copy) NSString* URL;
-// A short form of the URL (usually just the host), shown in the toolbar.
+// A short form of the URL (usually just the host), shown in the toolbar. Empty
+// for pages that don't show their URL, like the New Tab page.
 @property(readonly, copy) NSString* displayURL;
 @property(readonly, copy) NSString* title;
 @property(readonly) BOOL canGoBack;

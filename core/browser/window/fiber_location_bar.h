@@ -1,19 +1,27 @@
 #ifndef FIBER_BROWSER_WINDOW_FIBER_LOCATION_BAR_H_
 #define FIBER_BROWSER_WINDOW_FIBER_LOCATION_BAR_H_
 
+#include <memory>
+
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
+
+@protocol FiberOmnibox;
+class OmniboxController;
 
 namespace fiber {
 
 class FiberBrowserWindow;
+class FiberOmniboxPopupView;
+class FiberOmniboxView;
 
-// Chrome's code expects every browser window to have a LocationBar. Fiber's
-// address field is in its own UI (//fiber/ui), so this forwards the calls that
-// matter to the window and stubs the omnibox- and views-specific rest.
+// The window's LocationBar: Chrome's omnibox (OmniboxController, with its
+// ChromeOmniboxClient), drawn by Fiber's command palette. It stubs the
+// views-specific rest (chips, bubble anchors, layout).
 class FiberLocationBar : public LocationBar {
  public:
-  explicit FiberLocationBar(FiberBrowserWindow* window);
+  // `omnibox` is the window's command palette.
+  FiberLocationBar(FiberBrowserWindow* window, id<FiberOmnibox> omnibox);
   FiberLocationBar(const FiberLocationBar&) = delete;
   FiberLocationBar& operator=(const FiberLocationBar&) = delete;
   ~FiberLocationBar() override;
@@ -60,6 +68,10 @@ class FiberLocationBar : public LocationBar {
 
  private:
   const raw_ptr<FiberBrowserWindow> window_;
+  // Outlives the view and popup view, which refer to it.
+  std::unique_ptr<OmniboxController> omnibox_controller_;
+  std::unique_ptr<FiberOmniboxView> omnibox_view_;
+  std::unique_ptr<FiberOmniboxPopupView> omnibox_popup_view_;
 };
 
 }  // namespace fiber

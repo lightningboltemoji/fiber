@@ -83,6 +83,15 @@ parts: a C++ adapter, bridge types, and Swift UI.
   `make size` (`scripts/size.py`) relinks the //chrome library with a linker
   map and reports its size by source directory, what dead-stripping removed,
   and what moved since the last run.
+- Where Fiber's defaults differ from Chrome's: feature overrides in
+  `hooks/feature_overrides.cc` (below command-line flags, above field trials)
+  and profile pref defaults in `hooks/profile_pref_defaults.cc` (the user can
+  still change them in `chrome://settings`). `args.gni` turns off the field
+  trial testing config, which unbranded builds otherwise apply, so features
+  start from Chromium's shipped defaults. The goal is no requests to Google the
+  user didn't ask for; so far that holds for the omnibox (see those files and
+  `hooks/omnibox_providers.cc`), while the component updater, push messaging
+  (GCM), autofill crowdsourcing, and Google account checks still call home.
 - Reference for non-views UI: upstream's experimental `WebUIBrowserWindow`
   (`chrome/browser/ui/webui_browser/`). Its `IsWebUIBrowserEnabled()` checks
   mark code in Chrome that assumes views.
@@ -224,10 +233,21 @@ controls float over it in Liquid Glass, mostly out of sight:
 - **Command palette** (`ui/CommandPalette.swift`): Command-L (Chrome's Focus
   Location, so new tabs open it too) or clicking the toolbar's address opens a
   glass panel over the dimmed page, with the page's full URL selected. Nothing
-  else edits the address. For now Return opens what was typed through
-  `navigateToInput:`, with modifiers picking where as in Chrome's omnibox
-  (Option-Return for a new tab, Command-Return for one in the background);
-  it's meant to grow into a Raycast-like home for Fiber's commands.
+  else edits the address. It's Chrome's omnibox with the palette as its view
+  (`browser/omnibox/`, `bridge/FiberOmnibox.h`): the window's `LocationBar`
+  owns an `OmniboxController` with Chrome's `ChromeOmniboxClient`, the way
+  upstream's `WebUILocationBar` does, so autocomplete, inline autocompletion,
+  keyword mode (extensions' `chrome.omnibox` included), Switch to Tab, and
+  opening a match (Option-Return for a new tab, Command-Return for one in the
+  background) are all Chrome's. `FiberOmniboxView` mirrors the edit model's
+  text and selection to the field and reports the user's edits back;
+  `FiberOmniboxPopupView` sends the results as `FiberSuggestion`s, listed by
+  `ui/SuggestionList.swift`. Closing the palette discards the edit.
+  Suggestions are the user's own (history, bookmarks, open tabs, keywords):
+  Fiber leaves out the providers that only work with Google
+  (`hooks/omnibox_providers.cc`), and search suggestions from the search
+  engine are off by default. It's meant
+  to grow into a Raycast-like home for Fiber's commands.
 - **New Tab page** (`ui/NewTabView.swift`): a plain page with Fiber's mark
   (`ui/FiberMark.swift`, generated from the icon's geometry by `make icon`).
   `chrome://newtab` is Fiber's own WebUI (`browser/new_tab/`): Chrome no longer

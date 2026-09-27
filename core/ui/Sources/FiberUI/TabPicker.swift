@@ -20,8 +20,9 @@ final class TabPicker: NSView {
   var onSelect: (Int) -> Void = { _ in }
 
   private enum Metrics {
-    /// How far into the page the pointer opens the panel from.
-    static let hotZoneWidth: CGFloat = 14
+    /// How far in from the window's edge the pointer opens the panel from:
+    /// the gutter the page stops short of, so the page keeps all of itself.
+    static let hotZoneWidth = PageGutter.width
     /// How far the pointer can stray from the open panel before it closes.
     static let panelSlop: CGFloat = 24
     /// How long the pointer rests on the edge before the panel opens, so it
@@ -156,6 +157,11 @@ final class TabPicker: NSView {
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     if isHidden {
+      return nil
+    }
+    // While the panel is closed, scrolling over the bump is for the page (the
+    // gutter under it passes it on).
+    if !model.isExpanded, NSApp.currentEvent?.type == .scrollWheel {
       return nil
     }
     let point = convert(point, from: superview)

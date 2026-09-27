@@ -14,3 +14,9 @@ mac_min_system_version = "26.0"
 # Keep swiftc's module cache between builds, so an incremental build of
 # //fiber/ui doesn't rebuild the SDK's modules (AppKit, SwiftUI…) every time.
 swift_keep_intermediate_files = true
+
+# Chromium's default features, as it ships them. Without this, builds that
+# aren't Chrome-branded turn on the experiments in
+# testing/variations/fieldtrial_testing_config.json: dozens of in-progress
+# Google features (Lens, AI Mode, Gemini, omnibox experiments).
+disable_fieldtrial_testing_config = true

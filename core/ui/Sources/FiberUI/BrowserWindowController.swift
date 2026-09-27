@@ -12,8 +12,9 @@ import FiberBridge
 /// A browser window and its native chrome, all floating over the page: the
 /// toolbar (shown with Command-S), the tab picker on the right edge, the
 /// command palette (Command-L), the load
-/// progress bar, and the link status bubble. Reports what the user does to its
-/// actions.
+/// progress bar, and the link status bubble. The page stops short of the
+/// window's right edge, leaving a gutter for the tab picker (see PageGutter).
+/// Reports what the user does to its actions.
 @MainActor
 final class BrowserWindowController: NSObject, FiberWindow {
   private static let defaultWindowSize = NSSize(width: 1280, height: 820)
@@ -36,6 +37,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private static let statusBubbleInset: CGFloat = 10
 
   var window: NSWindow { browserWindow }
+  var omnibox: any FiberOmnibox { commandPalette }
 
   private let browserWindow: BrowserWindow
   private let actions: any FiberWindowActions
@@ -43,11 +45,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let tabPicker = TabPicker()
   private let commandPalette = CommandPalette()
   private let newTabView = NewTabView()
+  /// The page and the New Tab page over it. It stops short of the window's
+  /// right edge, where the gutter continues it.
+  private let pageView = NSView()
+  private let gutter = PageGutter()
   /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
   /// draws over the (empty) page.
   private var isNewTabPage = false
-  /// The page's full URL, which the command palette opens with.
-  private var pageURL = ""
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
   private let windowControlsBackground = RimmedGlassView(
@@ -95,12 +99,25 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.tabbingMode = .disallowed
 
     let content = window.contentView!
-    // Just above the page (see setContentsView(_:)).
-    newTabView.frame = content.bounds
+    pageView.frame = NSRect(
+      x: 0, y: 0, width: content.bounds.width - PageGutter.width,
+      height: content.bounds.height)
+    pageView.autoresizingMask = [.width, .height]
+    pageView.wantsLayer = true
+    content.addSubview(pageView)
+
+    gutter.frame = NSRect(
+      x: content.bounds.width - PageGutter.width, y: 0,
+      width: PageGutter.width, height: content.bounds.height)
+    gutter.autoresizingMask = [.height, .minXMargin]
+    content.addSubview(gutter)
+
+    // Over the page (see setContentsView(_:)).
+    newTabView.frame = pageView.bounds
     newTabView.autoresizingMask = [.width, .height]
     newTabView.isHidden = true
     newTabView.onClick = { [weak self] in self?.showCommandPalette() }
-    content.addSubview(newTabView)
+    pageView.addSubview(newTabView)
 
     progressBar.frame = NSRect(
       x: 0, y: content.bounds.height - Self.progressBarHeight,
@@ -139,10 +156,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // Over everything.
     commandPalette.frame = content.bounds
     commandPalette.autoresizingMask = [.width, .height]
-    commandPalette.onSubmit = { [weak self] input, event in
-      self?.actions.navigate(toInput: input, event: event)
-      self?.closeCommandPalette()
-    }
+    commandPalette.onOpen = { [weak self] in self?.tabPicker.close() }
     commandPalette.onDismiss = { [weak self] in self?.closeCommandPalette() }
     content.addSubview(commandPalette)
 
@@ -265,19 +279,22 @@ final class BrowserWindowController: NSObject, FiberWindow {
     commandPalette.close()
     contentsView?.removeFromSuperview()
     contentsView = view
-    guard let view, let content = window.contentView else {
+    guard let view else {
+      gutter.contentsView = nil
       return
     }
-    // The page fills the window; the toolbar and tab picker float over it.
-    view.frame = content.bounds
+    // The toolbar and tab picker float over the page.
+    view.frame = pageView.bounds
     view.autoresizingMask = [.width, .height]
-    // Below everything else.
-    content.addSubview(view, positioned: .below, relativeTo: nil)
+    pageView.addSubview(view, positioned: .below, relativeTo: newTabView)
+    // Its layer now rather than at the next display, for the gutter to find
+    // the page's in it.
+    view.wantsLayer = true
+    gutter.contentsView = view
   }
 
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
-    pageURL = state.url
     isNewTabPage = state.isNewTabPage
     newTabView.isHidden = !isNewTabPage
     toolbar.setAddress(state.displayURL)
@@ -311,12 +328,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
       closeCommandPalette()
     }
     tabPicker.isHidden = !visible
+    // A fullscreen page gets the whole window.
+    gutter.isHidden = !visible
+    pageView.frame = window.contentView!.bounds.divided(
+      atDistance: visible ? PageGutter.width : 0, from: .maxXEdge
+    ).remainder
     updateToolbar(animated: false)
   }
 
-  func showCommandPalette() {
-    tabPicker.close()
-    commandPalette.open(text: pageURL)
+  /// Opens the command palette, where the browser puts the page's URL.
+  private func showCommandPalette() {
+    commandPalette.focus()
   }
 
   /// Closes the command palette, returning focus to the page.
