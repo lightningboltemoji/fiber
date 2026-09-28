@@ -9,19 +9,9 @@
 
 namespace fiber {
 
-// An audio decoder in the GPU process (AudioToolbox's, for AAC), for
-// media::AudioFileReader, which decodes Web Audio's decodeAudioData on a
-// thread pool thread and expects each call's callbacks before it returns.
-//
-// The GPU process's decoder (a MojoAudioDecoder) runs on a sequence of its
-// own, and this waits on it: Initialize() until it's ready, and the flush at
-// the end of the stream until everything's decoded. Other Decode() calls
-// queue their buffer and return, so the round trips to the GPU process
-// overlap with demuxing; the output reaches the reader over later calls, and
-// an error at the latest by the flush.
-//
-// Waiting needs a thread that can block (a thread pool task that may block
-// and wait on sync primitives), never the main thread.
+// Decodes in the GPU process for Web Audio's media::AudioFileReader, which
+// wants each call's callbacks before it returns. Initialize() and the final
+// flush block, so never use it on the main thread; other buffers queue.
 class GpuAudioDecoder final : public media::AudioDecoder {
  public:
   GpuAudioDecoder();

@@ -9,10 +9,9 @@
 # ///
 """Regenerate the Fiber app icon and its preview renders.
 
-Writes AppIcon.icon (the icon), Assets.xcassets (the badge Chrome's Info.plist
-puts on document icons), and renders/. //fiber/branding:app_icon compiles the
-first two into the app. Also writes the icon's glyph, as the SVG source of
-//fiber/ui's FiberMark.swift.
+Writes AppIcon.icon, Assets.xcassets (the badge Chrome's Info.plist puts on
+document icons), renders/, and core/ui's FiberMark.swift from the icon's glyph.
+//fiber/branding:app_icon compiles the first two into the app.
 
     uv run core/branding/icon/build.py
 """

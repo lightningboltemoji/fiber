@@ -7,7 +7,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Which way a history swipe goes.
 typedef NS_ENUM(NSInteger, FiberHistorySwipeDirection) {
   // To the previous page: the page moves right, uncovering it.
   FiberHistorySwipeDirectionBack,
@@ -15,15 +14,9 @@ typedef NS_ENUM(NSInteger, FiberHistorySwipeDirection) {
   FiberHistorySwipeDirectionForward,
 };
 
-// What happens in a browser window that the browser acts on.
-//
-// Calls that open a page take the event that triggered them, if any. Its
-// modifier keys decide where the page opens; for example, Command-clicking
-// Back opens the previous page in a new tab.
-//
-// The window also forwards menu actions that nothing in its responder chain
-// handles to this object (when it responds to them), so the main menu acts on
-// the key window's browser.
+// Calls that open a page take the event behind them, if any, whose modifiers
+// decide where it opens. Menu actions nothing in the window's responder chain
+// handles come here too, so the main menu acts on the key window's browser.
 NS_SWIFT_UI_ACTOR
 @protocol FiberWindowActions <NSObject>
 
@@ -31,9 +24,8 @@ NS_SWIFT_UI_ACTOR
 - (void)goForwardWithEvent:(nullable NSEvent*)event;
 - (void)reloadWithEvent:(nullable NSEvent*)event;
 - (void)stopLoading;
-// Moves keyboard focus to the page.
 - (void)focusPage;
-// Makes the tab with this ID the active one. Does nothing if it's gone.
+// Does nothing if the tab is gone.
 - (void)selectTabWithID:(NSInteger)tabID;
 
 // The user asked to close the window. The browser closes it when it's ready,
@@ -45,18 +37,14 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
-// A browser window. Its owner in //fiber/browser shows and positions
-// `window`, and tells it what to display.
-//
-// `window` handles -toggleToolbarShown: (Show Toolbar in the View menu), which
-// shows or hides its toolbar.
+// //fiber/browser shows and positions `window`, which handles
+// -toggleToolbarShown: (Show Toolbar in the View menu) itself.
 NS_SWIFT_UI_ACTOR
 @protocol FiberWindow <NSObject>
 
 @property(readonly) NSWindow* window;
 // The command palette, where the user enters an address or search.
 @property(readonly) id<FiberOmnibox> omnibox;
-// The extensions menu, and the extensions pinned beside it in the toolbar.
 @property(readonly) id<FiberExtensions> extensions;
 
 // Shows `view` (the active tab's page) in the content area in place of the

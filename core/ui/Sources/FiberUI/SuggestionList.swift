@@ -1,13 +1,9 @@
 import AppKit
 import FiberBridge
 
-/// The command palette's suggestions: a row for each, grouped under headers
-/// when the browser gives them (like "Recent searches"). One row is selected,
-/// and the arrow keys move it (the browser decides where; see
-/// `setSelection(index:part:actionIndex:)`). Rows open on click.
-///
-/// Indexes are the browser's: hidden suggestions have none of their own row
-/// but keep their place.
+/// The command palette's suggestions. The browser moves the selection (see
+/// `setSelection(index:part:actionIndex:)`). Indexes are the browser's too:
+/// hidden suggestions keep their index but get no row.
 @MainActor
 final class SuggestionList: NSView {
   static let rowHeight: CGFloat = 38
@@ -17,8 +13,7 @@ final class SuggestionList: NSView {
   /// The rows' inset from the panel's sides.
   static let horizontalInset: CGFloat = 6
 
-  /// A click on suggestion `index`, or one of its parts, with the event (its
-  /// modifier keys decide where the page opens).
+  /// The event's modifier keys decide where the page opens.
   var onOpen: (_ index: Int, _ part: FiberSuggestionPart, _ actionIndex: Int,
     _ event: NSEvent?) -> Void = { _, _, _, _ in }
   var onRemove: (_ index: Int) -> Void = { _ in }
@@ -28,7 +23,6 @@ final class SuggestionList: NSView {
   private(set) var contentHeight: CGFloat = 0
 
   var isEmpty: Bool { rows.isEmpty }
-  /// The selected suggestion, if the user can remove it.
   var selectedRemovableIndex: Int? {
     rows.first { $0.index == selectedIndex && $0.isRemovable }?.index
   }
@@ -128,8 +122,8 @@ final class SuggestionList: NSView {
   }
 }
 
-/// One suggestion: its icon, its text, and buttons for its parts (keyword
-/// search, actions like Switch to Tab, and removing it).
+/// One suggestion, with a button for each of its parts: keyword search,
+/// actions like Switch to Tab, and removing it.
 @MainActor
 private final class SuggestionRow: NSView {
   static let leadingPadding: CGFloat = 12
@@ -154,7 +148,6 @@ private final class SuggestionRow: NSView {
   private var keywordPill: SuggestionPill?
   private var actionPills: [SuggestionPill] = []
   private let removeButton = NSButton()
-  /// The selected part, if this row is selected.
   private var selectedPart: FiberSuggestionPart?
   private var selectedActionIndex = 0
   private var isSelectable: Bool { suggestion.kind != .message }
@@ -309,7 +302,6 @@ private final class SuggestionRow: NSView {
     updateAppearance()
   }
 
-  /// The highlight, and the text and icon colors that go with it.
   private func updateAppearance() {
     // Resolves the layers' dynamic colors for light or dark.
     effectiveAppearance.performAsCurrentDrawingAppearance {

@@ -1,16 +1,13 @@
 import AppKit
 import FiberBridge
 
-/// Stands in for Chrome's downloads, which a quit waits for: `--downloads N`
-/// starts N made-up downloads that creep along, one of them paused and one of
-/// unknown size.
+/// Stands in for Chrome's downloads, which a quit waits for.
 @MainActor
 final class MockDownloads: NSObject, FiberDownloadsWaitActions {
   private struct Download {
     let id: String
     let name: String
     var received: Double
-    /// Nil while unknown.
     let total: Double?
     var paused: Bool
   }

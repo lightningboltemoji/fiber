@@ -1,9 +1,7 @@
 import AppKit
 import FiberBridge
 
-/// Plays the part of //fiber/browser for one window: keeps tabs of fake pages,
-/// each with its own history, "loads" them with simulated progress, and shows
-/// JavaScript dialogs, all through the bridge.
+/// Plays the part of //fiber/browser for one window.
 @MainActor
 final class MockBrowser: NSObject, FiberWindowActions {
   static let homeURL = "https://fiber.example/"
@@ -294,10 +292,9 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var isSwiping = false
   private var swipeTimer: Timer?
 
-  /// Swipes between pages as Fiber's FiberHistorySwiper does: once a trackpad
-  /// scroll turns out horizontal, AppKit tracks it and the page follows. (The
-  /// mock page doesn't scroll, so there's no renderer to ask first.) Returns
-  /// whether the swipe has the event.
+  /// Swipes between pages as FiberHistorySwiper does, minus asking the renderer
+  /// first (the mock page doesn't scroll). Returns whether the swipe has the
+  /// event.
   func swipe(with event: NSEvent) -> Bool {
     if event.phase == .began {
       swipeScroll = .zero
@@ -489,7 +486,6 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 }
 
-/// A tab: its page and history, and its load in progress.
 @MainActor
 private final class MockTab: Equatable {
   private static let loadDuration: TimeInterval = 0.8
@@ -532,7 +528,6 @@ enum MockDialogResult {
   case dismissed
 }
 
-/// Reports how a dialog ended to a closure.
 private final class MockDialogActions: NSObject, FiberJavaScriptDialogActions {
   private let completion: (MockDialogResult) -> Void
 

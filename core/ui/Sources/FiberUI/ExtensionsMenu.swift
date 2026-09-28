@@ -3,8 +3,7 @@ import FiberBridge
 
 /// The extensions menu, in a popover from the toolbar's puzzle piece: every
 /// extension, with a pin to keep its button in the toolbar, and a way to the
-/// Extensions page. Clicking an extension runs it; right-clicking shows its
-/// menu. It closes when the user clicks away from it.
+/// Extensions page.
 @MainActor
 final class ExtensionsMenu: NSObject, NSPopoverDelegate {
   var onRun: (String) -> Void = { _ in }
@@ -53,7 +52,6 @@ final class ExtensionsMenu: NSObject, NSPopoverDelegate {
   }
 }
 
-/// The menu's list: a heading, a row per extension, and Manage Extensions.
 @MainActor
 private final class ExtensionsMenuView: NSView {
   private static let width: CGFloat = 300
@@ -170,9 +168,8 @@ private final class ExtensionsMenuView: NSView {
   }
 }
 
-/// A row in the extensions menu: an extension's icon and name, and its pin;
-/// or, with a symbol for the icon, a command. It highlights under the
-/// pointer, like a menu item.
+/// A row in the extensions menu, for an extension or a command, highlighting
+/// under the pointer like a menu item.
 @MainActor
 private final class ExtensionsMenuRow: NSView {
   static let inset: CGFloat = 8
@@ -192,14 +189,12 @@ private final class ExtensionsMenuRow: NSView {
     didSet { needsDisplay = true }
   }
 
-  /// An extension's row.
   init(extensionID: String) {
     self.extensionID = extensionID
     super.init(frame: .zero)
     configure()
   }
 
-  /// A command's row.
   init(title: String, symbol: String) {
     extensionID = nil
     super.init(frame: .zero)

@@ -5,26 +5,23 @@
 # are named after PRODUCT_FULLNAME.
 branding_file_path = "//fiber/branding/BRANDING"
 
-# Fiber runs on macOS 26 and later. This is the app's LSMinimumSystemVersion
-# and the target of Fiber's Swift code (see //fiber/build:swift). Chromium's
-# C++ still compiles against its own mac_deployment_target, since raising that
-# would turn up deprecations all over Chromium.
+# The app's LSMinimumSystemVersion and Fiber's Swift target (see
+# //fiber/build:swift). Chromium's C++ keeps its own mac_deployment_target,
+# since raising that would turn up deprecations all over Chromium.
 mac_min_system_version = "26.0"
 
 # Keep swiftc's module cache between builds, so an incremental build of
 # //fiber/ui doesn't rebuild the SDK's modules (AppKit, SwiftUI…) every time.
 swift_keep_intermediate_files = true
 
-# Chromium's default features, as it ships them. Without this, builds that
-# aren't Chrome-branded turn on the experiments in
-# testing/variations/fieldtrial_testing_config.json: dozens of in-progress
-# Google features (Lens, AI Mode, Gemini, omnibox experiments).
+# Chromium's default features, as it ships them. Otherwise builds that aren't
+# Chrome-branded turn on testing/variations/fieldtrial_testing_config.json's
+# experiments: dozens of in-progress Google features (Lens, AI Mode, Gemini).
 disable_fieldtrial_testing_config = true
 
-# H.264, AAC and MP4, decoded by macOS. Much of the web's video is only served
-# as H.264 and AAC in MP4 (Reddit's, for one), and a player that finds nothing
-# it can play just spins. Chromium's build of ffmpeg has no H.264 or AAC
-# decoder, and nothing else here brings one (see .agents/MEDIA.md).
+# H.264, AAC and MP4, decoded by macOS: much of the web's video is only served
+# as those. Chromium's build of ffmpeg has no H.264 or AAC decoder, and nothing
+# else here brings one (see .agents/MEDIA.md).
 proprietary_codecs = true
 ffmpeg_branding = "Chromium"
 media_use_openh264 = false

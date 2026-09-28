@@ -27,16 +27,13 @@ fi
 
 cd "$ROOT/chromium/src"
 
-# Fiber's own args (core/build/args.gni), then the local config. Both use
-# release codegen and no debug symbols. The dev config is a component build:
-# many small dylibs for quick incremental links, and DCHECKs on (the default in
-# non-official builds). out/Release puts everything in the one framework, so
-# the app runs outside the out dir, turns DCHECKs off, since a failed one
-# crashes the browser, and strips symbols, which are over 40% of an unstripped
-# binary (the linker keeps an unstripped copy beside it, <name>.unstripped).
-# Edit $OUT/args.gn afterwards and re-run to change the local part.
+# Fiber's args (core/build/args.gni), then the local config; edit $OUT/args.gn
+# and re-run to change the latter. Dev builds are component builds, for quick
+# incremental links; out/Release is one framework, so the app runs anywhere.
 if [[ ! -f "$OUT/args.gn" ]]; then
   if [[ "$OUT" == out/Release ]]; then
+    # A failed DCHECK crashes the browser. Symbols are over 40% of the binary;
+    # the linker keeps an unstripped copy beside it, <name>.unstripped.
     config='
     is_component_build = false
     dcheck_always_on = false
@@ -55,16 +52,15 @@ if [[ ! -f "$OUT/args.gn" ]]; then
 fi
 
 # Each Blink generate_bindings action spawns a cpu_count() multiprocessing pool
-# (~230 MB per worker) and all 11 become ready at once; at full -j that's 20+ GB
-# and it panicked the machine. Run them two at a time first (no-op when current).
+# (~230 MB per worker), and all 11 become ready at once: 20+ GB at full -j,
+# enough to panic the machine. Run them two at a time first (no-op if current).
 autoninja -C "$OUT" -j 2 third_party/blink/renderer/bindings:generate_bindings_all
 
 autoninja -C "$OUT" -j "$JOBS" "$TARGET"
 
-# Bump the bundle's mtime, as Xcode does after every build. Ninja only rewrites
-# files inside Fiber.app, so the bundle keeps the mtime of its first build, and
-# LaunchServices and the Dock treat that as the key for their cached app icon:
-# without this, a changed icon never reaches the Dock.
+# Bump the bundle's mtime, as Xcode does: LaunchServices and the Dock key their
+# cached app icon on it, and ninja only rewrites files inside the bundle, so
+# without this a changed icon never reaches the Dock.
 if [[ -d "$OUT/Fiber.app" ]]; then
   touch "$OUT/Fiber.app"
 fi

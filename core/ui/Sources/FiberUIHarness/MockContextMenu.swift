@@ -1,9 +1,7 @@
 import AppKit
 import FiberBridge
 
-/// Plays the part of Chrome's context menu for a right-click on a mock page:
-/// the items Fiber shows for a link or the page (with an extension's submenu),
-/// through the bridge. Reports the title of the item chosen.
+/// Plays the part of Chrome's context menu for a right-click on a mock page.
 @MainActor
 final class MockContextMenu: NSObject, FiberContextMenuActions {
   private var titles: [Int: String] = [:]

@@ -8,7 +8,6 @@ typedef NS_ENUM(NSInteger, FiberSuggestionKind) {
   FiberSuggestionKindPage,
   FiberSuggestionKindBookmark,
   FiberSuggestionKindSearch,
-  // A search the user made before.
   FiberSuggestionKindSearchHistory,
   FiberSuggestionKindTrendingSearch,
   FiberSuggestionKindCalculator,
@@ -23,7 +22,6 @@ typedef NS_ENUM(NSInteger, FiberSuggestionKind) {
 // How to draw a stretch of a suggestion's text.
 typedef NS_OPTIONS(NSUInteger, FiberTextStyle) {
   FiberTextStyleNone = 0,
-  // Part of a URL.
   FiberTextStyleURL = 1 << 0,
   // Matches what the user typed.
   FiberTextStyleMatch = 1 << 1,
@@ -55,7 +53,6 @@ typedef NS_ENUM(NSInteger, FiberSuggestionMove) {
   FiberSuggestionMovePrevious,
 };
 
-// A stretch of text drawn in one style.
 NS_SWIFT_SENDABLE
 @interface FiberTextRun : NSObject
 
@@ -95,7 +92,6 @@ NS_SWIFT_SENDABLE
 // Secondary text, like a page's URL beside its title. May be empty.
 @property(readonly, copy) NSString* detail;
 @property(readonly, copy) NSArray<FiberTextRun*>* detailRuns;
-// The page's favicon, for pages the browser has one for.
 @property(readonly, nullable) NSImage* favicon;
 // A heading to show above this suggestion, which starts a group (like
 // "Recent searches"). Usually empty.

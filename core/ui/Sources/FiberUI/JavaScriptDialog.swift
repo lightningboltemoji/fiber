@@ -42,9 +42,8 @@ import FiberBridge
   }
 }
 
-/// A page asking before it's left or reloaded (its beforeunload handler), asked
-/// over the veiled page: "Leave site?", which site, and Leave (Return) or
-/// Cancel (Escape). Chrome's text; pages can't give their own.
+/// A page's beforeunload prompt, over the veiled page. The text is Chrome's;
+/// pages can't give their own.
 @MainActor
 final class LeavePrompt: NSObject, FiberJavaScriptDialog {
   private let actions: any FiberJavaScriptDialogActions

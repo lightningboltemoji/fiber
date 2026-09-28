@@ -28,7 +28,7 @@ void FiberExtensionActionDelegate::DetachFromModel() {
 }
 
 void FiberExtensionActionDelegate::RegisterCommand() {
-  // Not yet: Fiber has no registry for extensions' keyboard shortcuts.
+  // Fiber has no registry for extensions' keyboard shortcuts.
 }
 
 void FiberExtensionActionDelegate::UnregisterCommand() {}

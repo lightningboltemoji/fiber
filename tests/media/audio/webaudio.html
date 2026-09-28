@@ -201,10 +201,9 @@ tests.sbr_mse_fmp4 = () => play(async a => {
   await new Promise(r => { sb.addEventListener('updateend', r, {once: true}); fetch('hf_he.frag.mp4').then(x => x.arrayBuffer()).then(b => sb.appendBuffer(b)); });
   ms.endOfStream();
 }, 2.5, 15000);
-// The GPU process's AAC decoder, given AAC-LC as ADTS describes HE-AAC: it
-// decodes SBR (the 15 kHz tone) at twice the rate. (Through an <audio>
-// routed to Web Audio, the renderer resamples to the stream's rate, 22.05 kHz,
-// which drops that band; Chrome's does too.)
+// The GPU process's AAC decoder, given AAC-LC as ADTS describes HE-AAC, decodes
+// SBR (the 15 kHz tone) at twice the rate. An <audio> routed to Web Audio
+// doesn't: it resamples to the stream's 22.05 kHz, as Chrome's does.
 tests.sbr_webcodecs_adts = async () => {
   const idx = await (await fetch('hf_adts.json')).json();
   const data = new Uint8Array(await (await fetch(idx.file)).arrayBuffer());
@@ -275,10 +274,8 @@ tests.sbr_decode_adts = async () => {
 };
 
 // A seek, as WebCodecs sees it: decode, reset, and go on from a later packet.
-// After a packet or two of warm-up, the samples are Apple's, at the packet's
-// place in the stream.
-// HE-AAC's SBR adds noise from a pseudo-random sequence that depends on where
-// decoding started, so after a seek it matches only to about -80 dB.
+// After a packet or two of warm-up the samples are Apple's; HE-AAC's only to
+// about -80 dB, since SBR's noise depends on where decoding started.
 async function webcodecsSeek(name, codec, fpp, priming, from, warmup = 2, tolerance = 1e-4) {
   const idx = aindex[name], ref = refs[name];
   const data = new Uint8Array(await (await fetch(idx.file)).arrayBuffer());
@@ -298,7 +295,7 @@ async function webcodecsSeek(name, codec, fpp, priming, from, warmup = 2, tolera
   const out = new Float32Array(chunks.reduce((a, c) => a + c.length, 0)); let k = 0; for (const c of chunks) { out.set(c, k); k += c.length; }
   const refData = new Float32Array(await (await fetch(`ref_${name}.f32`)).arrayBuffer());
   // Output frame i is stream frame from * fpp + i, which is reference frame
-  // from * fpp + i - priming. Skip two packets of warm-up.
+  // from * fpp + i - priming. Skip the warm-up packets.
   let maxErr = 0;
   for (let i = warmup * fpp; i < out.length; i++) {
     const r = from * fpp + i - priming;

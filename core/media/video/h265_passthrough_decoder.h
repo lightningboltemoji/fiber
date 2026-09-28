@@ -21,8 +21,7 @@ class H265PassthroughDecoder : public PassthroughDecoder {
   ~H265PassthroughDecoder() override;
 
  private:
-  // The first slice segment's picture: its parameter sets, and its slice
-  // header.
+  // What the buffer's first slice segment says about its frame.
   struct Picture {
     Picture();
     ~Picture();
@@ -65,10 +64,9 @@ class H265PassthroughDecoder : public PassthroughDecoder {
   // After an end of sequence NAL unit, which ends the buffer's frame.
   bool end_of_sequence_ = false;
 
-  // NoRaslOutputFlag (8.1.3) of the last IRAP frame: the RASL frames that
-  // follow it refer to frames from before it, which the decoder doesn't have
-  // when that's where decoding started. VideoToolbox fails on them, so
-  // they're skipped.
+  // NoRaslOutputFlag (8.1.3) of the last IRAP frame: its RASL frames refer to
+  // frames from before it, which VideoToolbox doesn't have where decoding
+  // started there and fails on, so they're skipped.
   bool skip_rasl_ = true;
 
   // The auxiliary alpha layer the latest VPS describes (0 for none), and the

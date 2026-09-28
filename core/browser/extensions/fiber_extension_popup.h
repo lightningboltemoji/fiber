@@ -20,11 +20,9 @@ class ExtensionViewHost;
 
 namespace fiber {
 
-// An extension's popup in a Fiber window: its page (`host`), in the popup the
-// window's extensions UI shows from its button once the page has loaded,
-// sized as the page asks. When it closes (the page calls window.close(), or
-// the user presses Escape or clicks away) it runs `closed`, soon after, for
-// its owner to delete it; deleting it closes it.
+// An extension's popup page (`host`), shown from its toolbar button once
+// loaded and sized as the page asks. When it closes, it runs `closed` soon
+// after, for its owner to delete it; deleting it closes it.
 class FiberExtensionPopup : public extensions::ExtensionView,
                             public content::WebContentsObserver {
  public:

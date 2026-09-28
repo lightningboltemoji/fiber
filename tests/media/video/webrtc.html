@@ -6,10 +6,9 @@
 <canvas id="src" width="640" height="360"></canvas>
 <video id="dst" autoplay muted playsinline></video>
 <script type="module">
-// A call between two peer connections in this page: a canvas whose frames
-// carry their number as a barcode, sent with one codec. The receiver reads the
-// barcode off each frame it shows: numbers must only go up, few may be
-// skipped, and the delay from drawing to showing stays low.
+// Calls between two peer connections in this page, one codec each: a canvas
+// stamps each frame's number as a barcode, which the receiver reads off each
+// frame it shows. Numbers must only go up, and the delay stay low.
 const logEl = document.getElementById('log');
 function log(s) { logEl.textContent += s + '\n'; fetch('/log', {method: 'POST', body: s}); }
 const sleep = ms => new Promise(r => setTimeout(r, ms));

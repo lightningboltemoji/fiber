@@ -82,7 +82,6 @@ std::optional<int> ReadSampleRate(BitReader& reader) {
                                      : std::nullopt;
 }
 
-// The index of `rate`, if it has one.
 std::optional<uint32_t> SampleRateIndex(int rate) {
   const auto it = std::ranges::find(kSampleRates, rate);
   if (it == kSampleRates.end()) {

@@ -1,5 +1,5 @@
 diff --git a/media/filters/mac/audio_toolbox_audio_decoder.cc b/media/filters/mac/audio_toolbox_audio_decoder.cc
-index 03c8cf1b0e..f691537aed 100644
+index 03c8cf1b0e..c01e99fe28 100644
 --- a/media/filters/mac/audio_toolbox_audio_decoder.cc
 +++ b/media/filters/mac/audio_toolbox_audio_decoder.cc
 @@ -6,13 +6,17 @@
@@ -152,15 +152,13 @@ index 03c8cf1b0e..f691537aed 100644
      }
  
      std::move(decode_cb_bound).Run(OkStatus());
-@@ -240,15 +307,49 @@ void AudioToolboxAudioDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
+@@ -240,15 +307,47 @@ void AudioToolboxAudioDecoder::Decode(scoped_refptr<DecoderBuffer> buffer,
      time_info = AudioDiscardHelper::TimeInfo::FromBuffer(*buffer);
    }
  
-+  // Fiber: AudioToolbox leaves its decoder's delay (HE-AAC's SBR delays
-+  // output by 962 frames) out of the converter's first output, where each
-+  // packet's trims assume it's there. Put it back, as silence, and have the
-+  // discard helper drop it and trim past it, as it does for decoders that put
-+  // their delay out (MP3's, for one).
++  // Fiber: AudioToolbox leaves its decoder's delay (962 frames for HE-AAC's
++  // SBR) out of the converter's first output, but each packet's trims assume
++  // it's there. Put it back as silence, for the discard helper to drop.
 +  if (first_output_ && !buffer->end_of_stream()) {
 +    first_output_ = false;
 +    const int delay =
@@ -203,7 +201,7 @@ index 03c8cf1b0e..f691537aed 100644
    // This could fail, but ResetCB has no error reporting mechanism, so just let
    // a subsequent decode call fail.
    const auto result = AudioConverterReset(decoder_.get());
-@@ -257,6 +358,7 @@ void AudioToolboxAudioDecoder::Reset(base::OnceClosure reset_cb) {
+@@ -257,6 +356,7 @@ void AudioToolboxAudioDecoder::Reset(base::OnceClosure reset_cb) {
    discard_helper_->Reset(discard_helper_->decoder_delay());
    limiter_queue_->Clear();
    last_input_timestamp_ = kNoTimestamp;
@@ -211,7 +209,7 @@ index 03c8cf1b0e..f691537aed 100644
    base::BindPostTaskToCurrentDefault(std::move(reset_cb)).Run();
  }
  
-@@ -272,6 +374,17 @@ bool AudioToolboxAudioDecoder::CreateDecoder(const AudioDecoderConfig& config) {
+@@ -272,6 +372,17 @@ bool AudioToolboxAudioDecoder::CreateDecoder(const AudioDecoderConfig& config) {
  
    switch (config.codec()) {
      case AudioCodec::kAAC: {
@@ -229,7 +227,7 @@ index 03c8cf1b0e..f691537aed 100644
        // Input is xHE-AAC / USAC.
        CHECK_EQ(config.profile(), AudioCodecProfile::kXHE_AAC);
        input_format.mFormatID = kAudioFormatMPEGD_USAC;
-@@ -455,6 +568,9 @@ bool AudioToolboxAudioDecoder::CreateDecoder(const AudioDecoderConfig& config) {
+@@ -455,6 +566,9 @@ bool AudioToolboxAudioDecoder::CreateDecoder(const AudioDecoderConfig& config) {
    discard_helper_ = std::make_unique<AudioDiscardHelper>(
        input_format.mSampleRate, config.codec_delay(), false);
    discard_helper_->Reset(config.codec_delay());

@@ -78,8 +78,7 @@ FiberJavaScriptDialogKind DialogKind(content::JavaScriptDialogType type) {
   NOTREACHED();
 }
 
-// The site the user knows the page by, "en.wikipedia.org": its main frame's
-// origin, without http(s).
+// The site the user knows the page by, "en.wikipedia.org".
 NSString* SiteForDisplay(content::WebContents* web_contents) {
   return base::SysUTF16ToNSString(url_formatter::FormatOriginForSecurityDisplay(
       web_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin(),

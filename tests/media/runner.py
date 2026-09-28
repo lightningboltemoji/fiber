@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Serves this directory, opens a page in Fiber with a fresh profile, and waits
-for the page to POST its results to /report (prints them, and exits 1 if they
-list failures). POST /log lines are printed as they come.
-
-    runner.py video/video.html [--timeout 120] [--out Default] [--keep-profile] [-- flags...]
-"""
+"""Serves this directory and opens a page from it in Fiber, printing what the
+page POSTs to /log as it comes and to /report at the end. Exits 1 if the report
+lists failures or never comes."""
 import argparse, http.server, json, os, re, shutil, signal, subprocess, sys, tempfile, threading, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))

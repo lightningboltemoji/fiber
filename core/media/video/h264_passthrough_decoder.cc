@@ -87,8 +87,8 @@ H264PassthroughDecoder::ParseResult H264PassthroughDecoder::Parse(
   }
   frame.session_metadata = {
       // VideoToolbox's software decoder takes what the hardware doesn't:
-      // interlaced video, and small frames on Intel. Chromium has ffmpeg's
-      // decoder for those; with none, H.264 is as Chromium has HEVC.
+      // interlaced video, and small frames on Apple silicon. Chromium has
+      // ffmpeg's decoder for those; with none, H.264 is as Chromium has HEVC.
       .allow_software_decoding = true,
       .bit_depth = frame.config.bit_depth,
       .chroma_sampling = frame.config.chroma_sampling,

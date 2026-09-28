@@ -22,10 +22,9 @@ class Prompt {
   // answer (its window closed, or another prompt took its place).
   using Callback = base::OnceCallback<void(std::optional<int> button_id)>;
 
-  // Shows `content` in `window`, which comes forward, and runs `callback`
-  // once the prompt ends, but not if this is destroyed first. The callback
-  // may destroy this. If `window` isn't a Fiber window, the prompt ends at
-  // once without an answer (after this returns).
+  // Shows `content` in `window`, bringing it forward. Runs `callback`, which
+  // may destroy this, when the prompt ends, unless this is destroyed first.
+  // Outside a Fiber window, it ends without an answer after this returns.
   static std::unique_ptr<Prompt> Show(gfx::NativeWindow window,
                                       FiberPromptContent* content,
                                       Callback callback);

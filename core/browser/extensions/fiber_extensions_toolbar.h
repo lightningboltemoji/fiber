@@ -28,12 +28,9 @@ namespace fiber {
 
 class FiberExtensionPopup;
 
-// A Fiber window's extensions, in its toolbar and extensions menu
-// (FiberExtensions). Chrome's toolbar view model decides what's there, runs
-// what the user clicks, and is the window's ExtensionsContainer, which
-// chrome.action.openPopup() and the like find; each extension's button is
-// Chrome's ExtensionActionViewModel, with a FiberExtensionActionDelegate
-// showing its popup here. As Android's ExtensionsToolbarAndroid does.
+// A Fiber window's extensions toolbar and menu (FiberExtensions), over
+// Chrome's ExtensionsToolbarViewModel, which decides what's there and runs
+// what the user clicks. Modeled on Android's ExtensionsToolbarAndroid.
 class FiberExtensionsToolbar
     : public ExtensionsToolbarViewModel::Delegate,
       public ExtensionsToolbarViewModel::Observer,
@@ -102,7 +99,8 @@ class FiberExtensionsToolbar
   id<FiberExtensions> __strong ui_;
   FiberExtensionsActionsBridge* __strong actions_;
   std::unique_ptr<ExtensionsToolbarViewModel> view_model_;
-  // Makes the view model the window's ExtensionsContainer.
+  // Makes the view model the window's ExtensionsContainer, which
+  // chrome.action.openPopup() and the like find.
   ui::ScopedUnownedUserData<ExtensionsContainer> container_user_data_;
   base::ScopedObservation<ExtensionsToolbarViewModel,
                           ExtensionsToolbarViewModel::Observer>

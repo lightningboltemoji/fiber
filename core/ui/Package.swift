@@ -1,9 +1,8 @@
 // swift-tools-version: 6.2
 
-// Builds //fiber/ui's sources with SwiftPM, so Xcode can open them (previews,
-// editor tooling) and FiberUIHarness can run the UI against a mock browser
-// without building Chromium. GN builds the same sources into the app (see
-// BUILD.gn). If this builds, FiberUI doesn't depend on Chromium.
+// Builds //fiber/ui's sources with SwiftPM, for Xcode (previews, editor
+// tooling), for FiberUIHarness to run the UI against a mock browser, and to
+// prove the UI doesn't depend on Chromium. GN builds them into the app.
 //
 //   swift run --package-path core/ui FiberUIHarness
 

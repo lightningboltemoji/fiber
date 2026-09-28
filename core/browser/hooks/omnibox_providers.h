@@ -3,10 +3,9 @@
 
 namespace fiber {
 
-// The omnibox's autocomplete providers (AutocompleteProvider::Type bits):
-// Chrome's `chrome_providers`, less the ones Fiber leaves out. Called from
-// OmniboxController's constructor (see patches/chromium/
-// chrome-browser-ui-omnibox-omnibox_controller.cc.patch).
+// The omnibox's providers (AutocompleteProvider::Type bits): `chrome_providers`
+// less those Fiber leaves out. Called from OmniboxController's constructor (see
+// patches/chromium/chrome-browser-ui-omnibox-omnibox_controller.cc.patch).
 int OmniboxProviderTypes(int chrome_providers);
 
 }  // namespace fiber

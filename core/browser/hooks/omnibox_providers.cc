@@ -5,11 +5,9 @@
 namespace fiber {
 
 int OmniboxProviderTypes(int chrome_providers) {
-  // Suggestions that only come from Google: they send it the page or what's
-  // typed (zero-suggest sends the current URL; contextual search is Lens's
-  // "Ask Google about this page"), need a Google account (Drive documents,
-  // other devices' tabs), or a Google-hosted service or model (enterprise
-  // search, the on-device suggestion model, history embeddings).
+  // Suggestions only Google provides: they send it the page or what's typed
+  // (zero-suggest, Lens's contextual search), or need a Google account (Drive
+  // documents, other devices' tabs) or a Google-hosted service or model.
   constexpr int kLeftOut =
       AutocompleteProvider::TYPE_ZERO_SUGGEST |
       AutocompleteProvider::TYPE_CONTEXTUAL_SEARCH |

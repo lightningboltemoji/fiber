@@ -52,7 +52,7 @@ OmniboxPopupSelection::LineState LineStateFromPart(FiberSuggestionPart part) {
   return OmniboxPopupSelection::NORMAL;
 }
 
-// A range in `text` from the palette's field, clamped to it.
+// A range from the palette's field, clamped to its `length`.
 gfx::Range RangeFromNSRange(NSRange range, size_t length) {
   size_t start = std::min<size_t>(range.location, length);
   size_t end = std::min<size_t>(start + range.length, length);
@@ -319,7 +319,7 @@ void FiberOmniboxView::SetCaretPos(size_t caret_pos) {
 
 void FiberOmniboxView::SetAdditionalText(const std::u16string& text) {
   // Chrome shows this beside the field, e.g. the URL of a suggestion
-  // autocompleted from its title. The palette doesn't, yet.
+  // autocompleted from its title. The palette doesn't.
 }
 
 void FiberOmniboxView::EnterKeywordModeForDefaultSearchProvider() {

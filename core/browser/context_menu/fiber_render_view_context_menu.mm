@@ -67,17 +67,10 @@ namespace fiber {
 
 namespace {
 
-// The items Fiber shows, of those Chrome puts in the menu, and the symbol
-// beside each (empty for none). Chrome's menu for a page is mostly things the
-// window's controls already do (Back, Reload, Print…) and Google's services
-// (Cast, Translate, Lens, Send to Your Devices…); Fiber's shows what's
-// particular to what was clicked, and developer tools. Items Chrome adds that
-// aren't listed here are left out, so new ones don't appear with each
-// Chromium release until they're added here. (macOS 27 doesn't draw images in
-// context menus, so the symbols only show on 26.)
-//
-// Not yet: autofill and passwords (Chrome's are views popups), and opening a
-// link in another profile or an installed web app.
+// The items Fiber shows of Chrome's, and each one's symbol (empty for none).
+// Chrome's others duplicate the window's controls or are Google services; new
+// ones stay out until listed. macOS 27 doesn't draw images in context menus.
+// TODO: autofill, passwords, and opening links in other profiles or web apps.
 constexpr auto kShownCommands = base::MakeFixedFlatMap<int, std::string_view>({
     // A link.
     {IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, "plus.square.on.square"},
@@ -209,10 +202,9 @@ void FiberRenderViewContextMenu::Show() {
   NSEvent* event = ui::EventForPositioningContextMenuRelativeToWindow(
       position, parent_view.window);
 
-  // The menu is shown on request from the renderer, not from a user event, so
-  // this sets up what AppKit's event tracking otherwise would: Chrome's tasks
-  // keep running while the menu is open, and a window closing meanwhile waits
-  // until the event is done.
+  // Shown at the renderer's request, not from a user event, so this sets up
+  // what AppKit's event tracking otherwise would: Chrome's tasks keep running,
+  // and a window closing meanwhile waits until the event is done.
   base::CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
   base::mac::ScopedSendingEvent sending_event;
   // The menu can outlive this (see OnItemSelected()), so it's held here.

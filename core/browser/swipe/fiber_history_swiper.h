@@ -13,21 +13,9 @@ namespace ui {
 struct DidOverscrollParams;
 }
 
-// Swiping between pages in a Fiber window: two fingers on a trackpad, or one
-// on a Magic Mouse. The page follows the fingers like a sheet of paper, as in
-// Safari (see FiberWindow's -beginHistorySwipeInDirection:snapshot:), in
-// place of Chrome's HistorySwiper and its arrows. Its interface is
-// HistorySwiper's, for ChromeRenderWidgetHostViewMacDelegate (see
-// patches/chromium/chrome-browser-renderer_host-chrome_render_widget_host_view_mac_delegate.mm.patch).
-//
-// Like Chrome's, a scroll only becomes a swipe once the page has passed it up
-// (it didn't scroll, and its overscroll-behavior lets it through) and it's
-// mostly horizontal. From then on AppKit tracks it
-// (-[NSEvent trackSwipeEventWithOptions:…]) while the fingers are down; when
-// they let go, the UI decides whether it lands and carries it on from the
-// fingers' speed. Chrome only uses AppKit's tracking for the Magic Mouse; it
-// tracks trackpad touches itself, for a progress bar that doesn't need the
-// physics.
+// Swipes between pages, the page following the fingers, in place of Chrome's
+// HistorySwiper and its arrows. Swapped in by
+// patches/chromium/chrome-browser-renderer_host-chrome_render_widget_host_view_mac_delegate.mm.patch.
 @interface FiberHistorySwiper : NSObject
 
 - (instancetype)initWithDelegate:(id<HistorySwiperDelegate>)delegate;
@@ -41,7 +29,8 @@ struct DidOverscrollParams;
                                  consumed:(BOOL)consumed;
 - (void)onOverscrolled:(const ui::DidOverscrollParams&)params;
 
-// Unused: AppKit's swipe tracking follows the gesture.
+// Unused: AppKit's swipe tracking follows the gesture, where Chrome tracks
+// trackpad touches itself.
 - (void)touchesBeganWithEvent:(NSEvent*)event;
 - (void)touchesMovedWithEvent:(NSEvent*)event;
 - (void)touchesCancelledWithEvent:(NSEvent*)event;

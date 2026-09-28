@@ -13,7 +13,7 @@ std::unique_ptr<BrowserWindow, BrowserWindowDeleter> CreateBrowserWindow(
       return std::unique_ptr<BrowserWindow, BrowserWindowDeleter>(
           new FiberBrowserWindow(browser));
     default:
-      // DevTools, app, and picture-in-picture windows keep Chrome's UI for now.
+      // DevTools, app, and picture-in-picture windows keep Chrome's UI.
       return nullptr;
   }
 }

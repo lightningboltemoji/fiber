@@ -1,6 +1,4 @@
-# A Swift module built with Fiber's Swift settings (see //fiber/build:swift).
-# Takes the same arguments as source_set(), plus the required `module_name`.
-#
+# A Swift source_set() with Fiber's Swift settings (see //fiber/build:swift).
 # Chromium's Apple toolchain only defines its Swift tool for iOS; Fiber enables
 # it on macOS (patches/chromium/build-toolchain-apple-toolchain.gni.patch).
 template("fiber_swift_source_set") {

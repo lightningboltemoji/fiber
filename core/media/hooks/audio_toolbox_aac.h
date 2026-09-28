@@ -12,10 +12,8 @@
 namespace fiber {
 
 // The format AudioToolbox decodes an AAC stream in, given its `esds`: the
-// richest layer the stream carries. Asked for the format an esds describes,
-// AudioToolbox answers with an HE-AAC stream's AAC-LC core, at half the sample
-// rate, and decoding that drops what the SBR layer adds (and HE-AAC v2's
-// stereo). False if AudioToolbox can't decode the stream.
+// richest layer it carries, not the AAC-LC core AudioToolbox reports for an
+// esds, which drops SBR and PS. False if AudioToolbox can't decode the stream.
 bool AudioToolboxAacFormat(base::span<const uint8_t> esds,
                            AudioStreamBasicDescription* format);
 

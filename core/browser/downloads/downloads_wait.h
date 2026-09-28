@@ -16,10 +16,8 @@ class Profile;
 
 namespace fiber {
 
-// A quit, or a window's close, waiting for downloads to finish. Fiber's UI
-// (FiberDownloadsWaitFactory) lists them over the page in a window, where the
-// user can cancel or resume each, go ahead now, or stop waiting. Owns itself
-// until it's done.
+// A quit, or a window's close, waiting for downloads to finish, listed over
+// the page by FiberDownloadsWaitFactory. Owns itself until it's done.
 class DownloadsWait : public download::AllDownloadItemNotifier::Observer {
  public:
   enum class Reason {
@@ -27,10 +25,9 @@ class DownloadsWait : public download::AllDownloadItemNotifier::Observer {
     kCloseWindow,
   };
 
-  // Waits for the downloads in `profiles` that would block shutdown, shown in
-  // `window`. Runs `done` with true once there are none left (finished,
-  // cancelled, or cancelled all at once because the user went ahead), or with
-  // false if the user stops waiting or the wait is closed.
+  // Waits for the downloads in `profiles` that would block shutdown. Runs
+  // `done` with true once none are left (ProceedNow() cancels the rest), or
+  // with false if the user stops waiting or the wait is closed.
   static base::WeakPtr<DownloadsWait> Start(
       Reason reason,
       const std::vector<Profile*>& profiles,

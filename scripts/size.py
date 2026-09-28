@@ -2,23 +2,11 @@
 """Reports what Chrome's layer of Fiber costs, by source directory, and how
 much of it the linker leaves out.
 
-Relinks the //chrome library (the framework binary in out/Release, or
-libchrome_dll.dylib in a component build) into a scratch directory with a
-linker map, then attributes the map's symbols to the directories their objects
-were compiled from: what's linked, and what -dead_strip removed. Also
-attributes the resource packs to the .grd files they come from.
+Relinks //chrome's library with a linker map, and attributes its symbols
+(linked and dead-stripped) and resource packs to source directories: only
+Chrome's layer in a component build, everything in out/Release.
 
-In a component build (out/Default), Content, Blink, V8 and //ui/views are
-libraries of their own, which keep everything, so only Chrome's layer is
-measured; out/Release links everything into the one framework.
-
-Each run is saved, and the next run reports what moved since. So: run it,
-make a change, rebuild, run it again.
-
-    scripts/size.py [--out Default] [path ...]
-
-Paths (source directories, like chrome/browser/ui/views) are reported along
-with the watched ones below.
+    scripts/size.py [--out Default] [source dir ...]
 """
 
 import argparse
@@ -84,7 +72,7 @@ def find_link(out):
 
 def relink_with_map(out, scratch):
     """Links //chrome's library again, into `scratch`, writing a linker map.
-    Returns the map's path."""
+    Returns the library's name and the map's path."""
     output, inputs, variables = find_link(out)
     if not os.path.exists(os.path.join(out, output)):
         sys.exit(f"{output} isn't built; run `make build` first")

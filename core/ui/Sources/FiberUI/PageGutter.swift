@@ -1,15 +1,8 @@
 import AppKit
 
-/// The strip along the window's right edge that the page stops short of.
-/// Hovering anywhere along it opens the tab picker, and dragging it moves the
-/// window (TabPicker, over it, does both), and the page's scrollbar and
-/// anything else on its edge stay clear of it. It shows the page as the top
-/// of a stack: the edges of two more pages peek out from behind it, in steps
-/// from the page's color to the frame's (see TabStackColors). Scrolling over
-/// it scrolls the page.
-///
-/// It sits behind the page and reaches under it, so the stack also shows
-/// around the page's rounded corners.
+/// The strip along the window's right edge that the page stops short of,
+/// where TabPicker opens. It draws the page as the top of a stack (see
+/// TabStackColors), reaching under the page to show around its corners.
 final class PageGutter: NSView {
   /// How much of the window's width the gutter takes from the page.
   nonisolated static let width: CGFloat = 8
@@ -121,27 +114,17 @@ final class PageGutter: NSView {
   }
 }
 
-/// The tab stack's colors for a page: its near and far slivers, and the frame
-/// behind them.
-///
-/// They step from the page to a grey 50 away from it in apparent contrast:
-/// lighter behind a dark page, darker behind a light one. So every page gets a
-/// staircase with the range a white page has down to a dark frame, which is
-/// what makes it read. The slivers' lightness is the page's and the grey's
-/// mixed in sRGB, and they keep a hint of the page's hue, turning a little
-/// with each step back.
-///
-/// Apparent contrast is APCA's: lightness J = 114·Y^0.56, where Y is
-/// luminance, raised near black to model flare off the display. Differences in
-/// J say how different two colors look, which in the dark is much less than
-/// OKLab says.
+/// The tab stack's colors for a page: near and far slivers stepping from the
+/// page to a frame, a grey 50 away in apparent contrast (lighter behind a dark
+/// page), with lightness mixed in sRGB and a hint of the page's hue.
 struct TabStackColors {
   let near: CGColor
   let far: CGColor
   let frame: CGColor
 
   private enum Tone {
-    /// How far the frame is from the page, in apparent contrast.
+    /// How far the frame is from the page, in apparent contrast: every page
+    /// gets the range a white page has down to a dark frame.
     static let frameDistance = 50.0
     /// Where each sliver's color is mixed between the page's (0) and the
     /// frame's (1).
@@ -189,7 +172,9 @@ struct TabStackColors {
 
 // MARK: Color science
 
-/// APCA's lightness for an sRGB color (components 0–1).
+/// APCA's lightness for an sRGB color (components 0–1), with luminance raised
+/// near black for flare off the display. Its differences track how different
+/// colors look, which in the dark is much less than OKLab says.
 private func apparentLightness(_ rgb: SIMD3<Double>) -> Double {
   let c = SIMD3(pow(rgb.x, 2.4), pow(rgb.y, 2.4), pow(rgb.z, 2.4))
   var y = 0.2126729 * c.x + 0.7151522 * c.y + 0.072175 * c.z
@@ -239,7 +224,6 @@ private struct OKLab {
       Self.encoded(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s))
   }
 
-  /// The grey with this apparent lightness.
   static func grey(apparentLightness target: Double) -> SIMD3<Double> {
     color(apparentLightness: target, ab: .zero)
   }

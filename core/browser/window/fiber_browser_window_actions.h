@@ -10,12 +10,8 @@ class FiberBrowserWindow;
 }
 
 // Carries out what the user does in a Fiber window's UI on its
-// FiberBrowserWindow.
-//
-// Also handles the commands Chrome's main menu sends (-commandDispatch: and
-// -commandDispatchUsingKeyModifiers:, with the command ID as the sender's
-// tag). The window forwards them here while it's key, ahead of Chrome's
-// AppController, so menu items act on this window's browser.
+// FiberBrowserWindow. The window also forwards Chrome's main menu commands here
+// while it's key, ahead of AppController, so they act on this window's browser.
 @interface FiberBrowserWindowActions
     : NSObject <FiberWindowActions, NSUserInterfaceValidations>
 

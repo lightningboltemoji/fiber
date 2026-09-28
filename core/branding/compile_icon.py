@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Compiles Fiber's app icon for the app bundle.
 
-Runs actool on the Icon Composer document and the asset catalog, and writes
-Assets.car and app.icns to --output-dir: the names Chrome's Info.plist expects
+Writes Assets.car and app.icns, the names Chrome's Info.plist expects
 (CFBundleIconName is AppIcon, from AppIcon.icon; CFBundleIconFile is app.icns).
 """
 
@@ -16,7 +15,6 @@ import tempfile
 
 
 def package_files(paths):
-    """Every file inside the given packages (.icon and .xcassets directories)."""
     for path in paths:
         for root, _, names in os.walk(path):
             for name in sorted(names):

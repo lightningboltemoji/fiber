@@ -3,7 +3,7 @@
 
 namespace fiber {
 
-// Adds Fiber's items to Chrome's main menu, the first time it's called:
+// Adds Fiber's items to Chrome's main menu, once:
 // View > Show Toolbar (Command-S), which the key Fiber window handles (see
 // FiberWindow.h). Save Page As… moves to Shift-Command-S to make room.
 void InstallMainMenuItems();

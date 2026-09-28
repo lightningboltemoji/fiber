@@ -38,8 +38,8 @@ harness:
 	swift run --package-path core/ui FiberUIHarness
 
 # --- The app icon --------------------------------------------------------------------------------
-# Regenerates core/branding/icon/AppIcon.icon and its renders. The build compiles the icon into the app
-# (//fiber/branding:app_icon); this only regenerates the source. uv installs the generator's
+# Regenerates the icon's sources in core/branding/icon, and core/ui's FiberMark.swift. The build
+# compiles the icon into the app (//fiber/branding:app_icon). uv installs the generator's
 # dependencies from its inline script metadata.
 icon:
 	uv run core/branding/icon/build.py
@@ -59,21 +59,16 @@ print-version:
 	@echo $(FIBER_VERSION)
 
 # --- Fiber.app -----------------------------------------------------------------------------------
-# The dev build's app can't leave out/$(OUT), so the bundle comes from its own build in out/Release:
-# not a component build (everything in the one framework, so the app runs from anywhere) and without
-# DCHECKs, which are fatal (see scripts/build_chromium.sh). The first build of out/Release compiles
-# all of Chromium again, which takes hours; after that it's incremental, but every change relinks
-# the whole framework.
-#
-# Chromium's build already assembles the bundle, so this only copies it. `ditto` keeps the
-# framework's symlinks intact. The binaries carry the linker's ad-hoc signatures, which is enough to
-# run locally. Signing for distribution needs a Developer ID and Chromium's own signer
-# (chrome/installer/mac/sign_chrome.py, which sets up the hardened runtime and entitlements); it
-# isn't wired up yet.
+# The dev build's app can't leave out/$(OUT), so the bundle comes from out/Release: one framework,
+# so the app runs anywhere, with DCHECKs off (scripts/build_chromium.sh). Its first build compiles
+# all of Chromium again (hours); after that, every change relinks the whole framework.
 DIST     := dist
 BUNDLE   := $(DIST)/$(APP_NAME).app
 RELEASE  := $(SRC)/out/Release
 
+# Chromium's build assembles the bundle; `ditto` copies it with the framework's symlinks intact.
+# The linker's ad-hoc signatures are enough to run locally.
+# TODO: sign for distribution (Developer ID, chrome/installer/mac/sign_chrome.py).
 app:
 	scripts/build_chromium.sh Release
 	rm -rf $(BUNDLE)

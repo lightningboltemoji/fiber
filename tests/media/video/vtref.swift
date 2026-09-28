@@ -2,11 +2,9 @@ import AVFoundation
 import CryptoKit
 import VideoToolbox
 
-// VideoToolbox's decode of an 8-bit H.264 or HEVC file, as index.py's second
-// reference: prints each frame's luma SHA-256 (packed, as the test page
-// hashes it), in presentation order. Software decoding is allowed, as Fiber
-// allows it.
-//   vtref file.mp4
+// VideoToolbox's decode of an 8-bit H.264 or HEVC file, index.py's second
+// reference: each frame's packed luma SHA-256, as the test page hashes it, in
+// presentation order. Software decoding is allowed, as Fiber allows it.
 let url = URL(fileURLWithPath: CommandLine.arguments[1])
 let asset = AVURLAsset(url: url)
 let sema = DispatchSemaphore(value: 0)

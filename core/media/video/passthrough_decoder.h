@@ -33,17 +33,9 @@ class MediaLog;
 
 namespace fiber {
 
-// Drives Chromium's VideoToolbox decoder for H.264 and HEVC in place of
-// H264Decoder and H265Decoder, which run each standard's decoded picture
-// buffer process (reference marking, reference lists, picture order counts).
-// VideoToolbox does all of that itself; this only parses parameter sets,
-// hands VideoToolbox each frame, and puts the frames in presentation order
-// by their timestamps, as Firefox does on macOS.
-//
-// Each input buffer is one frame (Chromium's demuxers, WebCodecs and WebRTC
-// all deliver whole frames), in Annex B, since VideoToolboxVideoDecoder asks
-// for bitstream conversion. Subclasses parse a codec's buffers; this does
-// the rest.
+// In place of H264Decoder and H265Decoder: VideoToolbox runs the decoded
+// picture buffer, and this puts frames in timestamp order (.agents/MEDIA.md).
+// Each input buffer is one whole frame in Annex B; subclasses parse it.
 class PassthroughDecoder : public media::AcceleratedVideoDecoder {
  public:
   ~PassthroughDecoder() override;
@@ -154,7 +146,7 @@ class PassthroughDecoder : public media::AcceleratedVideoDecoder {
     scoped_refptr<media::CodecPicture> picture;
   };
 
-  // Hands `frame_` to VideoToolbox. False on failure.
+  // Hands `frame_` to VideoToolbox.
   bool Submit();
 
   // Schedules pending frames, earliest first, until no more than `keep` are

@@ -1,11 +1,8 @@
 import AppKit
 import FiberBridge
 
-/// Plays the part of Chrome's extensions for one window: a few made-up
-/// extensions in the toolbar and extensions menu (a content blocker whose
-/// count climbs, one that can't run on any page, one pinned), popups that
-/// load and resize like a page's, each extension's menu, and installing one,
-/// all through the bridge.
+/// Plays the part of Chrome's extensions for one window, with a few made-up
+/// ones.
 @MainActor
 final class MockExtensions: NSObject, FiberExtensionsActions {
   private struct Mock {
@@ -220,7 +217,6 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
   }
 }
 
-/// A popup's actions, forwarding its closing.
 @MainActor
 private final class PopupActions: NSObject, FiberExtensionPopupActions {
   private let onClose: () -> Void
@@ -234,7 +230,7 @@ private final class PopupActions: NSObject, FiberExtensionPopupActions {
   }
 }
 
-/// A prompt's actions, forwarding the button pressed, or nil if dismissed.
+/// Forwards the button pressed, or nil if the prompt was dismissed.
 @MainActor
 private final class PromptActions: NSObject, FiberPromptActions {
   private let onEnd: (Int?) -> Void
@@ -252,8 +248,7 @@ private final class PromptActions: NSObject, FiberPromptActions {
   }
 }
 
-/// An extension's menu, as Chrome's would have it: Options, Pin or Unpin,
-/// Remove.
+/// An extension's menu, as Chrome's would have it.
 @MainActor
 private final class ExtensionMenu: NSObject, FiberContextMenuActions {
   enum Choice: Int {
@@ -298,8 +293,7 @@ private final class ExtensionMenu: NSObject, FiberContextMenuActions {
   }
 }
 
-/// Stands in for an extension's popup page: its name, some settings, and a
-/// button that closes it, as a page calling window.close() would.
+/// Stands in for an extension's popup page.
 @MainActor
 private final class MockPopupPage: NSView {
   private let onClose: () -> Void

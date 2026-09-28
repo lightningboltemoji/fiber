@@ -7,10 +7,9 @@ namespace content {
 class WebContents;
 }
 
-// Snapshots of the pages the user leaves, so a history swipe shows the page
-// it's going to before that page draws: what it looked like as it was left,
-// at the display's resolution, keyed by its navigation entry. Only the most
-// recently taken are kept, within a memory budget.
+// Snapshots of pages as the user left them, so a history swipe can show the
+// page it's going to before that page draws. Keyed by navigation entry; only
+// the most recent are kept, within a memory budget.
 namespace fiber {
 
 // Snapshots `web_contents`' page as it is now, for its current entry. Called

@@ -29,12 +29,7 @@ class FiberStatusBubble;
 
 // Chrome's BrowserWindow for Fiber's native windows (//fiber/ui, created
 // through FiberWindowFactory), in place of Chrome's views-based BrowserView.
-// Chrome's Browser and TabStripModel stay the model, so everything that opens
-// or manages browser windows (menus, links from other apps, session restore,
-// extensions) ends up in Fiber windows.
-//
-// Owned by the Browser, which deletes it via DeleteBrowserWindow() after the
-// window has closed.
+// Owned by the Browser, which deletes it via DeleteBrowserWindow() once closed.
 class FiberBrowserWindow : public BrowserWindow,
                            public ExclusiveAccessContext,
                            public ui::AcceleratorProvider,
@@ -46,12 +41,9 @@ class FiberBrowserWindow : public BrowserWindow,
   FiberBrowserWindow(const FiberBrowserWindow&) = delete;
   FiberBrowserWindow& operator=(const FiberBrowserWindow&) = delete;
 
-  // Returns the Fiber window showing the tab `web_contents`, if any.
   static FiberBrowserWindow* FromWebContents(
       content::WebContents* web_contents);
-  // Returns the Fiber window that is `window`, if any.
   static FiberBrowserWindow* FromNativeWindow(gfx::NativeWindow window);
-  // Returns `browser`'s window, if it's a Fiber window.
   static FiberBrowserWindow* FromBrowser(BrowserWindowInterface* browser);
 
   BrowserWindowInterface* browser() const { return browser_; }
@@ -72,11 +64,8 @@ class FiberBrowserWindow : public BrowserWindow,
   // window title).
   void UpdatePageState();
 
-  // Swiping between the active tab's pages, for FiberHistorySwiper: see
-  // FiberWindow's -beginHistorySwipeInDirection:snapshot:. `settled` is
-  // called once the swipe, let go, has carried itself on, with whether it
-  // landed. `navigating`: the swipe landed, and the page is about to go back
-  // or forward; the UI covers it until the page it's going to shows.
+  // Swiping between the active tab's pages, for FiberHistorySwiper. Each
+  // mirrors a FiberWindow history swipe method (see FiberWindow.h).
   void BeginHistorySwipe(bool back);
   void UpdateHistorySwipe(double progress);
   void ReleaseHistorySwipe(void (^settled)(BOOL landed));
@@ -271,7 +260,7 @@ class FiberBrowserWindow : public BrowserWindow,
   std::unique_ptr<FiberLocationBar> location_bar_;
   std::unique_ptr<FiberStatusBubble> status_bubble_;
   std::unique_ptr<FiberExtensionsToolbar> extensions_toolbar_;
-  // Closing waiting for the window's downloads, if it is.
+  // Set while closing the window waits for its downloads.
   base::WeakPtr<DownloadsWait> downloads_wait_;
   // After a history swipe lands, until the page it went to shows.
   std::unique_ptr<HistorySwipeNavigation> history_swipe_navigation_;

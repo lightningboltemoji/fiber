@@ -4,10 +4,9 @@ import("//fiber/branding/version.gni")
 
 assert(is_mac)
 
-# Fiber's app icon, compiled from icon/AppIcon.icon (and the document badge in
-# icon/Assets.xcassets) into the Assets.car and app.icns that the app and its
-# alert helpers bundle in place of Chromium's (see
-# patches/chromium/chrome-BUILD.gn.patch). icon/build.py generates both.
+# Fiber's app icon and document badge, as the Assets.car and app.icns the app
+# and its alert helpers bundle in place of Chromium's (see
+# patches/chromium/chrome-BUILD.gn.patch). icon/build.py generates the inputs.
 action("app_icon") {
   script = "compile_icon.py"
   inputs = [
@@ -33,8 +32,8 @@ action("app_icon") {
   ]
 }
 
-# Fiber's version for C++: BUILDFLAG(FIBER_VERSION_FULL), the version the app
-# shows (see version.gni), as a UTF-16 literal for Chrome's UI strings.
+# The version the app shows (see version.gni), as a UTF-16 literal for
+# Chrome's About pages.
 buildflag_header("version_buildflags") {
   header = "version_buildflags.h"
   flags = [ "FIBER_VERSION_FULL=u\"$fiber_version_full\"" ]

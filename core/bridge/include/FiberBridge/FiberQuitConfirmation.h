@@ -8,10 +8,9 @@ NS_ASSUME_NONNULL_BEGIN
 NS_SWIFT_UI_ACTOR
 @interface FiberQuitConfirmation : NSObject
 
-// Called as the quit shortcut goes down, with its key-down `event`. Returns
-// once the user lets go: YES if they held it long enough, or pressed it again
-// soon after letting go early, with the windows faded out; NO otherwise.
-// VoiceOver reads `announcement`, which says what to do.
+// Takes the quit shortcut's key-down `event`, and returns once the user lets
+// go: YES, with the windows faded out, if they held it long enough or pressed
+// it again soon after; NO otherwise. VoiceOver reads `announcement`.
 + (BOOL)runWithEvent:(NSEvent*)event announcement:(NSString*)announcement;
 
 // The quit didn't happen after all (a page kept its window open, say): brings

@@ -14,10 +14,9 @@ import FiberBridge
   }
 }
 
-/// Holding Command-Q to quit. The veil falls over every browser window's page
-/// as the user holds the shortcut, and drains back off it when they let go,
-/// like a bucket: another press fills it from wherever it had drained to. Once
-/// it's full the windows fade out.
+/// Holding Command-Q to quit, in place of Chrome's ConfirmQuitPanelController.
+/// The veil fills every window's page while the key is held and drains when
+/// it's let go; another press fills it from wherever it had drained to.
 @MainActor
 enum QuitHold {
   /// How long the user holds the shortcut to fill the veil from empty.
@@ -82,7 +81,7 @@ enum QuitHold {
       controller.setVeil(
         0, duration: releasedLevel * drainDuration, timing: .linear)
     }
-    // Any a quit had faded out, too.
+    // Brings back any windows a quit had already faded out.
     setWindowsAlpha(1, duration: fadeDuration)
     return false
   }
@@ -97,10 +96,9 @@ enum QuitHold {
     setWindowsAlpha(1, duration: fadeDuration)
   }
 
-  /// Pumps key-ups until the key `keyCode` is up, fading the windows out if it
-  /// stays down past `deadline`. Returns whether it did. The key's repeats
-  /// and anything else that came in meanwhile are thrown away: held, it would
-  /// repeat Command-Q into whichever app is active next.
+  /// Pumps key-ups until `keyCode` is up, fading the windows out (and
+  /// returning true) if it stays down past `deadline`. Then drops queued
+  /// events, or the held key would repeat Command-Q into the next active app.
   private static func waitForKeyUp(keyCode: UInt16, deadline: Date) -> Bool {
     var pastDeadline = false
     var lastEvent: NSEvent?
@@ -118,7 +116,6 @@ enum QuitHold {
     return pastDeadline
   }
 
-  /// The browser windows, and the sheets and other windows attached to them.
   private static func setWindowsAlpha(
     _ alpha: CGFloat, duration: TimeInterval
   ) {

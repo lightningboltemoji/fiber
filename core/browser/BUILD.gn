@@ -1,20 +1,8 @@
 assert(is_mac)
 
-# Fiber's integration with Chrome: implementations of Chrome's UI interfaces
-# that drive Fiber's own UI (//fiber/ui) through //fiber/bridge. Like
-# //chrome/browser/ui/webui_browser:impl, it's linked from
-# //chrome/browser:browser (see patches/chromium/chrome-browser-BUILD.gn.patch)
-# and uses //chrome/browser headers through browser_public_dependencies.
-#
-#   hooks/         the functions Fiber's Chromium patches call
-#   window/        BrowserWindow and the stubs it needs
-#   context_menu/  pages' context menus, and Chrome's other menus
-#   dialogs/       dialogs Chrome shows for a tab, and app-modally, and prompts
-#   downloads/     waiting for downloads before quitting or closing
-#   extensions/    the toolbar's extensions, their popups, and installing them
-#   new_tab/       chrome://newtab, Fiber's New Tab page
-#   omnibox/       Chrome's omnibox, with the command palette as its view
-#   swipe/         swiping between pages
+# Implementations of Chrome's UI interfaces that drive Fiber's UI (//fiber/ui)
+# through //fiber/bridge. Linked from //chrome/browser:browser like
+# webui_browser:impl (see patches/chromium/chrome-browser-BUILD.gn.patch).
 source_set("browser") {
   sources = [
     "context_menu/fiber_render_view_context_menu.h",

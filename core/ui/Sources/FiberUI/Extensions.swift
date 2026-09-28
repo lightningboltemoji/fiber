@@ -33,17 +33,14 @@ import FiberBridge
   }
 }
 
-/// A window's extensions: the extensions menu (ExtensionsMenu), opened from
-/// the puzzle piece at the end of the toolbar, and the buttons of the
-/// extensions pinned beside it (ExtensionsBar). Clicking an extension runs it,
-/// which usually opens its popup (ExtensionPopup) from its button, or from
-/// the puzzle piece if it isn't pinned.
+/// A window's extensions: the menu (ExtensionsMenu) from the toolbar's puzzle
+/// piece, the pinned extensions' buttons (ExtensionsBar), and their popups
+/// (ExtensionPopup), which open from the puzzle piece when unpinned.
 @MainActor
 final class ExtensionsController: NSObject, FiberExtensions {
   var actions: (any FiberExtensionsActions)?
 
   private let bar: ExtensionsBar
-  /// Whether the toolbar, and so the bar, is showing.
   private let isBarShown: () -> Bool
   /// Where the bar's menu button is, in the window's content view, for
   /// popups while the toolbar is hidden.
@@ -129,7 +126,6 @@ final class ExtensionsController: NSObject, FiberExtensions {
     return popup
   }
 
-  /// The window's closing: the menu goes with it.
   func windowWillClose() {
     closeMenu()
   }
@@ -287,8 +283,6 @@ final class ExtensionsBar: NSStackView {
   }
 }
 
-/// An extension's button: its icon, with its badge over the corner, dimmed
-/// where it can't do anything.
 @MainActor
 final class ExtensionButton: ToolbarButton {
   let extensionID: String
@@ -426,8 +420,7 @@ final class ExtensionBadge: NSView {
   }
 }
 
-/// An extension's popup: its page, in a popover from its button, fitted to
-/// the page's size. It closes when the user clicks away from it.
+/// An extension's popup: its page, in a popover fitted to the page's size.
 @MainActor
 final class ExtensionPopup: NSObject, FiberExtensionPopup, NSPopoverDelegate {
   /// Called when the user closes the popup, by clicking away from it.

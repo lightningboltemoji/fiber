@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Puts Fiber's version on an Info.plist in place of Chromium's.
 
-CFBundleShortVersionString (what Finder shows) gets the full version, Fiber's
-with the Chromium release in it; CFBundleVersion (what Launch Services compares)
-gets Fiber's alone. See version.gni.
+CFBundleShortVersionString (what Finder shows) gets the full version.
+CFBundleVersion (what Launch Services and updaters compare) gets Fiber's alone,
+so a release that only takes a new Chromium still bumps VERSION.
 """
 
 import argparse

@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 # Brings chromium/src in line with patches/chromium/, and links core/ into the
-# tree as //fiber. Each patched file ends up as Chromium's version plus its
-# patch. build_chromium.sh runs this before every build, so a pull that changes
-# the patches takes effect on its own; checking all of them takes a fraction of
-# a second, and a file whose patch hasn't changed isn't touched (nor rebuilt).
+# tree as //fiber. build_chromium.sh runs it before every build, so it's quick
+# and never touches a file whose patch hasn't changed (that would rebuild it).
 #
-# Local edits (made in chromium/src and not yet saved to a patch with
-# update_patches.sh) are never overwritten. chromium/src/.git/fiber-patches
-# records, for each file, its patch and its contents the last time the two
-# matched. That tells edits in progress (the patch hasn't changed since: keep
-# them) from a stale file (it's as the old patch left it: reset it and apply the
-# new one). A file with edits whose patch also changed is a conflict, and this
-# stops.
+# Local edits not yet saved with update_patches.sh are never overwritten.
+# .git/fiber-patches records each file's patch and contents when the two last
+# matched: a file edited since is kept (or, if its patch changed too, stops
+# this), and an unedited one whose patch changed is reset and re-patched.
 #
 # Usage: scripts/apply_patches.sh [--revert | --record]
 #   --revert  reset the patched files instead (sync_chromium.sh does this first).

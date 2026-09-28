@@ -7,11 +7,9 @@
 
 namespace fiber {
 
-// Adds Fiber's defaults for Chrome features to `overrides`. They take
-// precedence over field trials, but not over --enable-features and
-// --disable-features. Called from ChromeFeatureListCreator::SetUpFieldTrials()
-// (see patches/chromium/
-// chrome-browser-metrics-chrome_feature_list_creator.cc.patch).
+// Fiber's feature defaults, outranking field trials but not command-line flags.
+// Called from ChromeFeatureListCreator::SetUpFieldTrials() (see patches/
+// chromium/chrome-browser-metrics-chrome_feature_list_creator.cc.patch).
 void AddFeatureOverrides(
     std::vector<base::FeatureList::FeatureOverrideInfo>& overrides);
 

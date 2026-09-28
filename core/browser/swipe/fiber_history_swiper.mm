@@ -24,7 +24,6 @@ constexpr CGFloat kVerticalScrollDistance = 10;
   // Set from the gesture's scroll-begin until the page reports on its first
   // scroll.
   BOOL _waitingForFirstGestureScroll;
-  // How far the gesture has scrolled.
   NSSize _scrollDelta;
   // The gesture can't become a swipe.
   BOOL _ruledOut;
@@ -98,11 +97,9 @@ constexpr CGFloat kVerticalScrollDistance = 10;
   NSWindow* nsWindow = event.window;
   __weak FiberHistorySwiper* weakSelf = self;
   __block BOOL began = NO;
-  // Once the user lets go, the UI decides whether the swipe lands and carries
-  // it there itself: AppKit's own call (its phase, ended or cancelled) often
-  // goes back from a swipe slowed to a stop near the end. AppKit's tracking
-  // carries on unheeded, keeping the gesture's momentum off the page, until
-  // it's done.
+  // Once the user lets go, the UI decides whether the swipe lands: AppKit's
+  // call often backs out of a swipe slowed to a stop near the end. AppKit's
+  // tracking carries on unheeded, keeping the momentum off the page.
   __block BOOL released = NO;
   __block BOOL settled = NO;
   __block BOOL tracked = NO;

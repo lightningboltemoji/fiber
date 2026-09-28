@@ -134,8 +134,7 @@ extension VeilPrompt.Button.Role {
   }
 }
 
-/// A prompt's list, under a heading: what an extension asks to do, say. Each
-/// item's detail goes under it, smaller.
+/// A prompt's list, under a heading: what an extension asks to do, say.
 @MainActor
 private final class PromptList: NSStackView {
   private static let width: CGFloat = 400

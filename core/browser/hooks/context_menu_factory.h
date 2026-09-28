@@ -14,10 +14,8 @@ class WebContents;
 
 namespace fiber {
 
-// The context menu for `params` (a right-click on a page), shown by Fiber's
-// UI, if `web_contents` is a tab in a Fiber window; null otherwise, and Chrome
-// shows its own. Called from ChromeWebContentsViewDelegateViewsMac::BuildMenu()
-// (see patches/chromium/
+// Null unless `web_contents` is a tab in a Fiber window. Called from
+// ChromeWebContentsViewDelegateViewsMac::BuildMenu() (see patches/chromium/
 // chrome-browser-ui-views-tab_contents-chrome_web_contents_view_delegate_views_mac.mm.patch).
 std::unique_ptr<RenderViewContextMenuMac> CreateContextMenu(
     content::WebContents* web_contents,

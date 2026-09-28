@@ -1,17 +1,8 @@
-"""Anchor - the Fiber app icon.
+"""Anchor, the Fiber app icon: a spider's attachment disc, abstracted.
 
-A spider's attachment disc, abstracted. Where a spider fixes its dragline to a
-surface, it spins a fan of piriform fibrils set in cement that dries into a
-membrane. Here the dragline runs in off the left edge and flares into a hub,
-seven fibrils fan out ahead of it (mirrored about its heading), each ending in
-a cement pad, and webbing spans the fibrils in shallow scallops. Each part is
-its own Liquid Glass group, front to back:
-
-    dragline - the lead fiber and the hub it flares into
-    fibrils  - the fan and its pads
-    web      - the membrane between the fibrils
-
-The fan's bounding box (dragline excluded) sits on the tile's centre, 8px low.
+The dragline runs in off the left edge into a hub, a fan of fibrils ending in
+cement pads spreads ahead of it, and webbing spans the fibrils in scallops.
+HUB puts the fan's bounds (dragline excluded) on the tile's centre, 8px low.
 """
 
 import math
@@ -80,9 +71,8 @@ def web(corners):
 
 
 def mark():
-    """The icon's glyph on its own, for Fiber's UI to draw in one color: the fan
-    at full strength, the webbing fainter, and the dragline fading in along its
-    heading."""
+    """The icon's glyph without its tile, as SVG for Fiber's UI to draw in one
+    color."""
     fibrils, corners = fan()
     membrane = web(corners)
     # The dragline, as far out as it shows, fading from its end to near the hub.

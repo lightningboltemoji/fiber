@@ -1,11 +1,8 @@
 import AppKit
 import FiberBridge
 
-/// Plays Chrome's omnibox for the harness's command palette: suggests the
-/// sample sites and made-up searches as the user types, autocompletes a site's
-/// host inline, moves the selection with the arrow keys and Tab, and opens
-/// what's picked in the mock browser. Enough to exercise the palette, not a
-/// model of Chrome's ranking.
+/// Plays Chrome's omnibox for the harness's command palette: enough to
+/// exercise the palette, not a model of Chrome's ranking.
 @MainActor
 final class MockOmnibox: NSObject, FiberOmniboxActions {
   private struct Entry {
@@ -184,7 +181,6 @@ final class MockOmnibox: NSObject, FiberOmniboxActions {
         && (Self.host($0).hasPrefix(typed.lowercased())
           || Self.title(for: $0).localizedCaseInsensitiveContains(typed))
     }
-    // The first site whose host starts with what's typed autocompletes.
     if autocomplete,
       let site = sites.first(where: { Self.host($0).hasPrefix(typed.lowercased()) })
     {

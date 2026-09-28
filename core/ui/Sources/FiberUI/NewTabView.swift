@@ -1,9 +1,8 @@
 import AppKit
 
 /// Fiber's New Tab page (chrome://newtab), drawn over the tab's page, which is
-/// empty and the same color: a plain page with Fiber's mark, faint, in the
-/// middle. The command palette opens over it; clicking the page opens it
-/// again.
+/// empty and the same color. The command palette opens over it; clicking the
+/// page opens it again.
 final class NewTabView: NSView {
   private static let markWidth: CGFloat = 132
 

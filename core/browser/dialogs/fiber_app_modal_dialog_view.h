@@ -16,12 +16,9 @@ class AppModalDialogController;
 
 namespace fiber {
 
-// A JavaScript dialog Chrome shows app-modally, in Fiber's UI. Mostly that's a
-// page asking before it's left or reloaded (beforeunload), which Fiber asks
-// over the page, veiled; otherwise it's an alert, confirm, or prompt from a
-// page without a tab-modal dialog manager, shown as a sheet like a tab's.
-// Dialogs for pages outside Fiber's windows are cancelled. Owns itself, and
-// its controller, until the dialog ends.
+// A JavaScript dialog Chrome shows app-modally: beforeunload, asked over the
+// veiled page, or one from a page without a tab-modal dialog manager, as a
+// sheet. Cancelled outside Fiber's windows. Owns itself until it ends.
 class FiberAppModalDialogView : public javascript_dialogs::AppModalDialogView {
  public:
   FiberAppModalDialogView(const FiberAppModalDialogView&) = delete;

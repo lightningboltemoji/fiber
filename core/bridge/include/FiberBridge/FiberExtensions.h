@@ -43,7 +43,6 @@ NS_SWIFT_SENDABLE
 
 @end
 
-// What the user does with a window's extensions.
 NS_SWIFT_UI_ACTOR
 @protocol FiberExtensionsActions <NSObject>
 
@@ -62,7 +61,6 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
-// How an extension's popup ended.
 NS_SWIFT_UI_ACTOR
 @protocol FiberExtensionPopupActions <NSObject>
 

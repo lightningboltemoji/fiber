@@ -10,10 +10,9 @@ class MenuModel;
 
 namespace fiber {
 
-// Shows Chrome's menu `model` (an extension's, say) as a native menu
-// (FiberContextMenuFactory) at `event`'s location in `view`, and returns once
-// it's closed and the item chosen, if any, has run. Anything can happen
-// meanwhile, `model` going away included.
+// Shows Chrome's menu `model` (an extension's, say) in Fiber's UI at `event`'s
+// location in `view`. Returns once it's closed and the chosen item has run;
+// anything can happen meanwhile, `model` going away included.
 void RunMenuModel(ui::MenuModel* model, NSEvent* event, NSView* view);
 
 }  // namespace fiber

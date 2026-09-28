@@ -4,7 +4,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 // What's waiting for downloads to finish.
 typedef NS_ENUM(NSInteger, FiberDownloadsWaitReason) {
-  // Quitting.
   FiberDownloadsWaitReasonQuit,
   // Closing a window whose downloads would be cancelled with it (the last
   // Incognito window's, say).
@@ -33,7 +32,6 @@ NS_SWIFT_SENDABLE
 
 @end
 
-// What the user does while waiting for downloads.
 NS_SWIFT_UI_ACTOR
 @protocol FiberDownloadsWaitActions <NSObject>
 

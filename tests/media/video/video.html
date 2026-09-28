@@ -5,10 +5,9 @@
 <pre id="log"></pre>
 <div id="stage"></div>
 <script type="module">
-// Checks H.264/HEVC decoding frame by frame against ffmpeg's decode (index.py):
-// every frame that comes out must be one ffmpeg made (luma hash), or where
-// they differ VideoToolbox's own decode, for its timestamp, in presentation
-// order.
+// Checks H.264/HEVC decoding frame by frame: every frame that comes out must be
+// ffmpeg's for its timestamp (index.py; by luma hash), or VideoToolbox's where
+// the two differ, in presentation order.
 const params = new URLSearchParams(location.search);
 const only = params.get('only');
 const logEl = document.getElementById('log');
@@ -91,9 +90,9 @@ function annexB(idx, s, trailing = false) {
   return out;
 }
 
-// Decodes `plan`: a list of segments {name, from, to, offset (us), annexb}.
-// Each segment's samples [from, to) are decoded in order; `configure` segments
-// reconfigure first. Returns the frames that came out and what was expected.
+// Decodes `plan`, segments {name, from, to, offset (us), annexb, trailing,
+// expectAll}, each one's samples [from, to) in order, and judges the frames
+// that come out.
 async function webcodecs(plan, {flushBetween = false} = {}) {
   const out = [], expected = new Map();
   let error = null, chain = Promise.resolve();
@@ -130,9 +129,9 @@ async function webcodecs(plan, {flushBetween = false} = {}) {
     }
     const offset = seg.offset || 0;
     const from = seg.from ?? 0, to = seg.to ?? idx.samples.length;
-    // Frames decoding starts at, and the ones that should come out: from the
-    // first sample on, all but those before it in presentation order (leading
-    // frames that refer to frames before it), unless `expectAll`.
+    // Every frame from `from` on should come out, but the leading frames that
+    // precede it in presentation order (they refer to frames before it),
+    // unless `expectAll`.
     const startCts = idx.samples[from].cts;
     for (let i = from; i < to; i++) {
       const s = idx.samples[i];
@@ -152,7 +151,6 @@ async function webcodecs(plan, {flushBetween = false} = {}) {
   return {error, ...judge(out, expected)};
 }
 
-// Out of order, wrong content, missing, extra.
 function judge(out, expected) {
   let outOfOrder = 0, wrong = 0, extra = 0, last = -Infinity;
   for (const f of out) {

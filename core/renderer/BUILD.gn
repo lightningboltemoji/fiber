@@ -3,8 +3,6 @@ assert(is_mac)
 # Fiber's integration with Blink, in the renderer. It's linked into Blink's
 # core (see patches/chromium/third_party-blink-renderer-core-BUILD.gn.patch),
 # so it depends on nothing Blink couldn't.
-#
-#   hooks/  the functions Fiber's Blink patches call
 source_set("renderer") {
   sources = [
     "hooks/page_scrollbar.cc",

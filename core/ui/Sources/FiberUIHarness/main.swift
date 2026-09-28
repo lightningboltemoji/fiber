@@ -1,13 +1,6 @@
-// Runs Fiber's UI against a mock browser (MockBrowser), without Chromium. The
-// mock uses the bridge exactly as //fiber/browser does.
-//
-// `--tabs N` opens the first window with N tabs of made-up sites, the last one
-// active.
-//
-// `--ask-before-leaving` starts every page asking before it's left, as if it
-// had a beforeunload handler.
-//
-// `--downloads N` starts N made-up downloads, which quitting waits for.
+// Runs Fiber's UI against a mock browser that uses the bridge exactly as
+// //fiber/browser does, without Chromium. Flags: `--tabs N` (made-up sites),
+// `--downloads N` (which quitting waits for), `--ask-before-leaving`.
 
 import AppKit
 import FiberBridge

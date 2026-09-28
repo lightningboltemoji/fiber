@@ -2,26 +2,18 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-/// The window's tabs, behind the gutter along the page's right edge (see
-/// PageGutter). Hovering anywhere in the gutter opens a glass panel out of
-/// it, listing the tabs, placed so the active tab is level with the pointer;
-/// dragging the gutter moves the window. Scrolling moves the panel under the
-/// pointer like a picker wheel, and lifting off selects the tab it settles
-/// on; clicking a tab selects it too. While the toolbar shows, its sidebar
-/// (TabSidebar) lists the tabs instead, and the gutter only moves the window.
-///
-/// This view takes the pointer and scroll events and keeps the model;
-/// TabPickerView draws it. It fills the window's height along its right
-/// edge, but only the gutter (and the open panel) takes clicks.
+/// The window's tabs, in a glass panel that opens out of the page's gutter
+/// (see PageGutter) and scrolls like a picker wheel, selecting on lift-off.
+/// This view takes the events and keeps the model; TabPickerView draws it.
 @MainActor
 final class TabPicker: NSView {
   /// Room for the open panel and a little past it.
   static let width = TabPickerModel.panelInset + TabListLayout.panelWidth + 40
 
-  /// Called when the user picks a tab.
+  /// Called with the picked tab's ID, unless it's already active.
   var onSelect: (Int) -> Void = { _ in }
 
-  /// Whether the gutter opens the panel. Turning it off closes the panel.
+  /// Off while the toolbar's sidebar (TabSidebar) lists the tabs instead.
   var isPanelEnabled: Bool {
     get { model.isPanelEnabled }
     set {
@@ -102,7 +94,6 @@ final class TabPicker: NSView {
     }
   }
 
-  /// Closes the panel back into the gutter.
   func close() {
     openTimer?.invalidate()
     closeTimer?.invalidate()
@@ -348,7 +339,6 @@ final class TabPicker: NSView {
     return model.tabs.indices.contains(row) ? model.tabs[row] : nil
   }
 
-  /// Highlights the tab under `point`.
   private func highlightRow(at point: CGPoint) {
     let tabID = tab(at: point)?.tabID
     guard tabID != model.highlightedTabID else {
@@ -521,14 +511,12 @@ final class TabPickerModel {
 
   static let panelInset: CGFloat = 10
 
-  /// The page's gutter, the window's height along its right edge.
   var gutterRect: CGRect {
     CGRect(
       x: size.width - PageGutter.width, y: 0, width: PageGutter.width,
       height: size.height)
   }
 
-  /// The active tab's row.
   var activeRow: Int {
     tabs.firstIndex { $0.tabID == activeTabID } ?? 0
   }

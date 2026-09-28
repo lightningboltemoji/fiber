@@ -13,14 +13,9 @@
 
 namespace fiber {
 
-// Chrome's omnibox, with Fiber's command palette as its text field. Chrome's
-// OmniboxEditModel decides what the field shows (the page's URL, what the user
-// typed, inline autocompletion, the selected suggestion's text) and this
-// mirrors that to the palette (a FiberOmnibox). What the user does in the
-// palette comes back through its FiberOmniboxActions.
-//
-// Like Chrome's views omnibox (OmniboxViewViews), `text_` is everything in the
-// field, inline autocompletion included, which the field shows selected.
+// Chrome's omnibox, with Fiber's command palette (FiberOmnibox) as its text
+// field: mirrors to the palette what Chrome's OmniboxEditModel decides the
+// field shows, and hands the model what the user does there.
 class FiberOmniboxView : public OmniboxView {
  public:
   // `controller` must outlive this.
@@ -92,6 +87,8 @@ class FiberOmniboxView : public OmniboxView {
   id<FiberOmnibox> __weak ui_;
   FiberOmniboxViewActions* __strong actions_;
 
+  // Everything in the field, inline autocompletion (shown selected) included,
+  // as in OmniboxViewViews.
   std::u16string text_;
   gfx::Range selection_;
   // Whether an input method is composing text in the field. Inline

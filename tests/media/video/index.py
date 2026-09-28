@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Indexes each progressive NAME.mp4 here into NAME.json for the test page:
-the video track's samples in decoding order (offset, size, dts/cts in us, key),
-its avcC/hvcC (WebCodecs' description), each sample's NAL unit types, and
-ffmpeg's decode as a reference: the SHA-256 of each frame's luma plane, in
-presentation order, with its time. Where VideoToolbox's own decode (vtref, which
-gen.sh builds) differs, its hash too, as the frame's 'alt'."""
+"""Indexes each progressive NAME.mp4 here into NAME.json for the test page: its
+video samples in decoding order (times in us) with their NAL unit types, its avcC/hvcC,
+and each frame's luma SHA-256 from ffmpeg's decode, plus vtref's as 'alt' where it differs."""
 import glob, hashlib, json, os, struct, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))

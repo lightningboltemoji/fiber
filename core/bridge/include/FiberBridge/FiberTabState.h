@@ -15,7 +15,6 @@ NS_SWIFT_SENDABLE
 // Identifies the tab for as long as it exists, wherever it moves.
 @property(readonly) NSInteger tabID;
 @property(readonly, copy) NSString* title;
-// Nil while the page has no favicon (yet).
 @property(readonly, nullable) NSImage* favicon;
 @property(readonly) BOOL isLoading;
 

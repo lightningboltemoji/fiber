@@ -1,20 +1,9 @@
 import AppKit
 import FiberBridge
 
-/// Swiping between pages, as Safari does it: the page follows the user's
-/// fingers like a sheet of paper, with the page it's going to beside it (its
-/// snapshot, or the window's background if there's none).
-///
-/// - Back: the page slides right, uncovering the previous page, which comes in
-///   from a little to the left, darkened a little, under the page's shadow.
-/// - Forward: the next page slides in from the right over this one, which
-///   draws back a little to the left, darkening.
-///
-/// The browser drives the progress from AppKit's swipe tracking while the
-/// user's fingers are down. When they let go, the swipe decides whether it
-/// lands and carries itself there, on from the fingers' speed. Once it lands
-/// on the other page, the snapshot covers the page until the browser has it
-/// showing.
+/// Swiping between pages, as Safari does it. The browser drives the progress
+/// from AppKit's swipe tracking; after release this carries the swipe on, and
+/// if it lands, the snapshot covers the page until the browser shows it.
 @MainActor
 final class HistorySwipe: NSObject {
   /// How far the page underneath moves over the whole swipe, as a fraction of
@@ -34,11 +23,8 @@ final class HistorySwipe: NSObject {
   /// on after the user lets go: higher settles sooner.
   private static let settleStiffness: Double = 22
 
-  /// Holds the snapshot, the darkening and the shadow. It goes under the page
-  /// area going back and over it going forward; its owner adds it with
-  /// place(_:).
   let view = HistorySwipeView()
-  /// Where the swipe puts `view`, below or above the page area.
+  /// Set by the owner, which adds `view` below or above the page area.
   var place: (_ view: NSView, _ above: Bool) -> Void = { _, _ in }
 
   private let pageArea: NSView
@@ -229,9 +215,7 @@ final class HistorySwipe: NSObject {
   }
 }
 
-/// The swipe's layers: the snapshot of the page swiped to, a darkening over
-/// whichever page is underneath, and the shadow cast on it. Only drawn; the
-/// swipe has the input.
+/// The swipe's layers, which HistorySwipe lays out.
 final class HistorySwipeView: NSView {
   private let snapshotLayer = CALayer()
   private let dimLayer = CALayer()
@@ -275,9 +259,8 @@ final class HistorySwipeView: NSView {
     nil
   }
 
-  /// Where the page is in this view and which of its corners are rounded,
-  /// and what the page swiped to looked like: `nil` shows the window's
-  /// background, as the page would be before it draws.
+  /// A `nil` snapshot shows the window's background, as the page would be
+  /// before it draws.
   func setPage(frame: NSRect, corners: CACornerMask, snapshot: NSImage?) {
     pageFrame = frame
     pageCorners = corners
@@ -293,10 +276,9 @@ final class HistorySwipeView: NSView {
     CATransaction.commit()
   }
 
-  /// Lays the layers out for a point in the swipe. `snapshotX` is how far the
-  /// snapshot is from the page's place. `dimsSnapshot`: the darkening is over
-  /// the snapshot (going back), not the page under this view (going
-  /// forward). `shadowEdge` is the x the shadow falls left from.
+  /// `snapshotX` offsets the snapshot from the page's place. `dimsSnapshot`
+  /// darkens the snapshot (going back) instead of the page under this view
+  /// (going forward). `shadowEdge` is the x the shadow falls left from.
   func layout(
     snapshotX: CGFloat, dim: Float, dimsSnapshot: Bool, shadowEdge: CGFloat,
     shadowOpacity: Float

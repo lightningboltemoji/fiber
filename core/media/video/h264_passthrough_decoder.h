@@ -58,12 +58,11 @@ class H264PassthroughDecoder : public PassthroughDecoder {
   // carries a recovery point SEI.
   bool waiting_ = true;
 
-  // After starting at a recovery point, the frame_num of the first frame
-  // that's whole, which may be a few frames on (D.2.8); frames before it are
-  // decoded but not shown. Then that frame's timestamp, which frames that
-  // come before it (the ones that refer to frames from before the recovery
-  // point) are skipped for, until the first frame after it.
+  // After starting at a recovery point, the frame_num of the first whole frame,
+  // maybe a few on (D.2.8); frames before it are decoded but not shown.
   std::optional<int> recovery_frame_num_;
+  // Then that frame's timestamp: frames that precede it in presentation order
+  // refer to frames from before the recovery point, and are skipped.
   std::optional<base::TimeDelta> shown_from_;
 };
 

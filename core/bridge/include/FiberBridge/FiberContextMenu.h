@@ -3,15 +3,12 @@
 NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSInteger, FiberContextMenuItemKind) {
-  // Does something when chosen.
   FiberContextMenuItemKindCommand,
-  // Opens its submenu.
   FiberContextMenuItemKindSubmenu,
-  // A line between groups of items. Has no ID or title.
+  // Has no ID or title.
   FiberContextMenuItemKindSeparator,
 };
 
-// One item in a page's context menu.
 NS_SWIFT_SENDABLE
 @interface FiberContextMenuItem : NSObject
 
@@ -33,14 +30,12 @@ NS_SWIFT_SENDABLE
 // The SF Symbol shown beside the title, if any.
 @property(readonly, copy, nullable) NSString* symbolName;
 @property(readonly) BOOL enabled;
-// Shows a checkmark.
 @property(readonly) BOOL checked;
 // A submenu's items. Empty for other kinds.
 @property(readonly, copy) NSArray<FiberContextMenuItem*>* submenu;
 
 @end
 
-// What the user does with a context menu.
 NS_SWIFT_UI_ACTOR
 @protocol FiberContextMenuActions <NSObject>
 
@@ -53,7 +48,8 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
-// A context menu for something on a page (a link, an image, selected text…).
+// A page's context menu (for a link, selected text…), or another of Chrome's
+// menus, like an extension's.
 NS_SWIFT_UI_ACTOR
 @protocol FiberContextMenu <NSObject>
 

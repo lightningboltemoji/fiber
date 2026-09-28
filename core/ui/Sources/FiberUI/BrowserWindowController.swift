@@ -9,12 +9,7 @@ import FiberBridge
   }
 }
 
-/// A browser window and its native chrome, all floating over the page: the
-/// toolbar (shown with Command-S) and the tab sidebar below it, the tab picker
-/// on the right edge, the command palette (Command-L), the load
-/// progress bar, and the link status bubble. The page stops short of the
-/// window's right edge, leaving a gutter for the tab picker (see PageGutter).
-/// Reports what the user does to its actions.
+/// A browser window and its native chrome, all floating over the page.
 @MainActor
 final class BrowserWindowController: NSObject, FiberWindow {
   private static let defaultWindowSize = NSSize(width: 1280, height: 820)
@@ -38,12 +33,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   var window: NSWindow { browserWindow }
 
-  /// The controller of `window`, if it's a browser window.
   static func controller(for window: NSWindow) -> BrowserWindowController? {
     (window as? BrowserWindow)?.controller
   }
 
-  /// Every browser window's controller.
   static var all: [BrowserWindowController] {
     NSApp.windows.compactMap { ($0 as? BrowserWindow)?.controller }
   }
@@ -56,7 +49,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let tabPicker = TabPicker()
   private let tabSidebar = TabSidebar()
   private let commandPalette = CommandPalette()
-  /// The extensions menu, and the extensions pinned beside it in the toolbar.
   private lazy var extensionsController = ExtensionsController(
     bar: toolbar.extensionsBar,
     isBarShown: { [weak self] in self?.isToolbarVisible ?? false },
@@ -81,15 +73,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let statusBubble = StatusBubble()
   /// Blurs the page and darkens the window while it waits on the user.
   private lazy var veil = Veil(blurring: pageArea)
-  /// Swiping between pages moves the page area.
   private lazy var historySwipe = HistorySwipe(pageArea: pageArea, page: pageView)
   /// What the window is waiting on the user for, over the veil.
   private var prompt: VeilPrompt?
-  /// Where keyboard focus was before the prompt took it.
   private weak var responderBeforePrompt: NSResponder?
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
-  /// Shown with Command-S, until hidden with it again, with the tab sidebar.
+  /// Toggled with Command-S; the tab sidebar shows with the toolbar.
   private var isToolbarShown = false
   /// The toolbar, tab sidebar and tab picker hide while a page is fullscreen.
   private var areControlsVisible = true
@@ -122,11 +112,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // Control.
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
-    // BrowserWindow moves the traffic lights in from the corner (see
-    // windowControlsLayout). Pages under the title bar still get clicks
-    // there, and don't move the window
+    // Pages under the title bar get its clicks and don't move the window
     // (patches/chromium/content-app_shim_remote_cocoa-…); only the capsules
-    // do.
+    // do. BrowserWindow moves the traffic lights (see windowControlsLayout).
     window.collectionBehavior.insert(.fullScreenPrimary)
     // Fiber has its own tabs; keep AppKit from merging windows.
     window.tabbingMode = .disallowed
@@ -244,7 +232,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     toolbar.addressButton.action = #selector(addressClicked(_:))
   }
 
-  /// Shows or hides the toolbar (Command-S).
   fileprivate func toggleToolbar() {
     isToolbarShown = !isToolbarVisible
     if !isToolbarShown {
@@ -253,9 +240,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     updateToolbar(animated: true)
   }
 
-  /// Fades the toolbar and the tab sidebar in or out, with the traffic
-  /// lights, which show with them. The sidebar lists the tabs in place of the
-  /// tab picker's panel.
+  /// The tab sidebar and the traffic lights show with the toolbar. The
+  /// sidebar lists the tabs in place of the tab picker's panel.
   private func updateToolbar(animated: Bool) {
     let isVisible = isToolbarVisible
     let views: [NSView] = [toolbar, tabSidebar]
@@ -313,10 +299,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     content.addSubview(windowControlsBackground)
   }
 
-  /// Shows the traffic lights and their capsule with the toolbar, and fades
-  /// them out otherwise so the page shows through. While the window is
-  /// fullscreen, AppKit shows the traffic lights with the menu bar, without
-  /// the capsule.
+  /// The traffic lights and their capsule show with the toolbar. While the
+  /// window is fullscreen, AppKit shows the traffic lights with the menu bar,
+  /// without the capsule.
   private func updateWindowControls(animated: Bool) {
     let isFullScreen = window.styleMask.contains(.fullScreen)
     let showsButtons = isToolbarVisible || isFullScreen
@@ -540,7 +525,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     commandPalette.focus()
   }
 
-  /// Closes the command palette, returning focus to the page.
   private func closeCommandPalette() {
     guard commandPalette.isOpen else {
       return

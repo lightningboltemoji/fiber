@@ -1,13 +1,8 @@
 import AppKit
 
-/// What a window waits on the user for, shown over its veil (see
-/// BrowserWindowController.present(_:)): an icon, a title, a message, anything
-/// else in between, and a row of glass buttons, centered over the page. Return
-/// presses the default button and Escape the cancel button.
-///
-/// While it's up, the window is the prompt's: it covers the window's content,
-/// taking its clicks and scrolls, holds keyboard focus, and swallows the menu's
-/// shortcuts, as a modal alert would.
+/// What a window waits on the user for, over its veil (see
+/// BrowserWindowController.present(_:)). While it's up it has the window's
+/// clicks, scrolls, keyboard focus and menu shortcuts, as a modal alert would.
 @MainActor
 final class VeilPrompt: NSView {
   struct Button {
@@ -64,7 +59,6 @@ final class VeilPrompt: NSView {
   private let stack = NSStackView()
   private let titleLabel: NSTextField
   private let messageLabel: NSTextField
-  /// The space between the message and what follows it.
   private let messageSpacing: CGFloat
   private let buttonsRow = NSStackView()
   private var buttons: [(NSButton, Button)] = []

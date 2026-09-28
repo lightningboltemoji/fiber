@@ -1,15 +1,9 @@
 import AppKit
 import FiberBridge
 
-/// Fiber's command palette: a glass panel floating over the top of the page,
-/// opened with Command-L or by clicking the toolbar's address. It's Chrome's
-/// omnibox underneath (see FiberOmnibox): as the user types, the browser fills
-/// in the field (autocompleting inline) and lists suggestions under it, from
-/// history, bookmarks, open tabs and the search engine, and opens what the
-/// user picks. It's where the rest of Fiber's commands will go.
-///
-/// This view covers the window's content while open, dimming the page a
-/// little; clicking outside the panel dismisses it.
+/// Fiber's command palette, opened with Command-L or by clicking the toolbar's
+/// address. It's Chrome's omnibox underneath (see FiberOmnibox): the browser
+/// fills in the field and lists the suggestions. Covers the window while open.
 @MainActor
 final class CommandPalette: NSView, FiberOmnibox {
   private static let maxWidth: CGFloat = 640
@@ -26,7 +20,6 @@ final class CommandPalette: NSView, FiberOmnibox {
   private static let horizontalInset: CGFloat = 18
 
   var actions: (any FiberOmniboxActions)?
-  /// Called when the palette opens, however it was asked to.
   var onOpen: () -> Void = {}
   /// Called when the palette is done: the user opened something from it,
   /// pressed Escape, or clicked outside it. Its owner closes it.
@@ -293,8 +286,6 @@ final class CommandPalette: NSView, FiberOmnibox {
 
   // MARK: Content
 
-  /// The field, with a search icon and the keyword mode chip; the suggestions
-  /// under it; and a row of keyboard hints at the bottom.
   private func configureContent() {
     let icon = NSImageView(
       image: NSImage(
@@ -353,8 +344,7 @@ final class CommandPalette: NSView, FiberOmnibox {
     content.horizontalInset = Self.horizontalInset
   }
 
-  /// "Open ↩  New Tab ⌥↩  Close esc", the keys fainter than their actions.
-  /// (Command-Return opens a new tab in the background, as in Chrome.)
+  /// Command-Return, unlisted, opens a new tab in the background, as in Chrome.
   private static var hints: NSAttributedString {
     let text = NSMutableAttributedString()
     let hints = [("Open", "↩"), ("New Tab", "⌥↩"), ("Close", "esc")]
@@ -445,9 +435,6 @@ extension CommandPalette: NSTextFieldDelegate {
   }
 }
 
-/// The panel's content, top to bottom: the field's row, a separator, the
-/// suggestions (`listHeight` of them, scrolling if there are more), and the
-/// keyboard hints.
 private final class PaletteContentView: NSView {
   var fieldRow: NSView? {
     didSet { replace(oldValue, with: fieldRow) }
@@ -511,8 +498,6 @@ private final class PaletteContentView: NSView {
   }
 }
 
-/// The search icon, the keyword mode chip when there is one, and the field,
-/// which takes the rest of the row.
 private final class FieldRowView: NSView {
   private static let iconSpacing: CGFloat = 12
   private static let chipSpacing: CGFloat = 8

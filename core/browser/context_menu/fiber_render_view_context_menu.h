@@ -58,7 +58,8 @@ class FiberRenderViewContextMenu : public RenderViewContextMenuMac {
     size_t index;
   };
 
-  // The UI's items for `model`'s, and records them in `items_`.
+  // The UI's items for those of `model`'s that Fiber shows, recorded in
+  // `items_`.
   NSArray<FiberContextMenuItem*>* ItemsFromModel(ui::MenuModel* model);
 
   // Indexed by the UI's item IDs.

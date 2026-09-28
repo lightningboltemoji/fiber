@@ -13,21 +13,15 @@
 // which the renderer's ffmpeg demuxer describes.
 namespace fiber {
 
-// The AudioSpecificConfig AudioToolbox decodes a stream with. An AAC-LC
-// config that doesn't signal SBR may still carry it (implicit signaling,
-// 1.6.5.3), and ADTS never signals it: HE-AAC in MPEG-2 TS (HLS) and internet
-// radio arrives that way. Where the core runs at 24 kHz or less, as HE-AAC's
-// does, this signals SBR explicitly, and for mono PS too, as Chromium does
-// when a codec string says HE-AAC. AudioToolbox then decodes those layers if
-// they're there, and upsamples the core if they're not. Anything else comes
-// back as it is.
+// The AudioSpecificConfig AudioToolbox decodes a stream with. AAC-LC at 24 kHz
+// or less may carry SBR implicitly (1.6.5.3), so it gets SBR, and PS for mono,
+// signaled; AudioToolbox upsamples the core if absent (.agents/MEDIA.md).
 std::vector<uint8_t> AudioToolboxAudioSpecificConfig(
     base::span<const uint8_t> config);
 
-// What AudioToolbox puts out for a stream with AudioSpecificConfig `config`,
-// given AudioToolboxAudioSpecificConfig(config): SBR's rate, and two channels
-// for PS's mono, as Chromium's MP4 parser reckons them. Nothing where the
-// config doesn't say, as when a program config element gives the channels.
+// What AudioToolbox puts out for `config`, once rewritten as above: SBR's rate,
+// and two channels for PS's mono, as Chromium's MP4 parser reckons them.
+// Nothing where the config doesn't say (a program config element's channels).
 struct AudioToolboxOutput {
   int sample_rate = 0;
   int channels = 0;

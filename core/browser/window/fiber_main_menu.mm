@@ -8,7 +8,6 @@ namespace fiber {
 
 namespace {
 
-// The item tagged `tag` in `menu` or its submenus.
 NSMenuItem* FindItemWithTag(NSMenu* menu, NSInteger tag) {
   for (NSMenuItem* item in menu.itemArray) {
     if (item.tag == tag) {

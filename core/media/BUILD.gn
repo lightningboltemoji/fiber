@@ -1,13 +1,8 @@
 assert(is_mac)
 
-# Fiber's integration with Chromium's media stack. Fiber leaves the decoding of
-# H.264, HEVC and AAC to macOS instead of building decoders of its own (see
-# //fiber/build/args.gni).
-#
-#   aac/        AAC's AudioSpecificConfig, as AudioToolbox is given it
-#   hooks/      the functions Fiber's media patches call
-#   video/      H.264 and HEVC for Chromium's VideoToolbox decoder
-#   web_audio/  AAC for Web Audio, decoded in the GPU process
+# Fiber's integration with Chromium's media stack: macOS decodes H.264, HEVC
+# and AAC, and Fiber builds no decoders of its own (see .agents/MEDIA.md).
+# hooks/ holds the functions Fiber's media patches call.
 
 # AAC through AudioToolbox. It's linked into //media (see
 # patches/chromium/media-filters-BUILD.gn.patch), so it depends on nothing
@@ -26,9 +21,8 @@ source_set("media") {
 }
 
 # H.264 and HEVC through VideoToolbox, in place of Chromium's H264Decoder and
-# H265Decoder. It's linked into //media/gpu/mac, part of the media_gpu
-# component (see patches/chromium/media-gpu-mac-BUILD.gn.patch), and includes
-# its headers.
+# H265Decoder. It's part of //media/gpu/mac's media_gpu component (see
+# patches/chromium/media-gpu-mac-BUILD.gn.patch), and includes its headers.
 source_set("video_toolbox") {
   sources = [
     "hooks/video_toolbox_decoder.cc",

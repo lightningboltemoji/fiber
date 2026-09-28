@@ -1,21 +1,13 @@
 import AppKit
 import ObjectiveC
 
-/// Where AppKit puts a window's traffic lights, which it has no public API to
-/// move.
-///
-/// Like Chrome's BrowserWindowFrame
-/// (components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm),
-/// this subclasses the window's frame view, AppKit's private NSThemeFrame, and
-/// overrides the private methods it lays them out with: the traffic lights sit
-/// `inset.width` from the window's left edge, centered in a title bar
-/// `titlebarHeight` tall. Fullscreen keeps AppKit's layout, where the title bar
-/// slides down with the menu bar.
-///
-/// A window uses it by returning `frameViewClass(base:)` from its (private)
-/// `+frameViewClassForStyleMask:`.
+/// Moves the traffic lights, which AppKit has no public API for, by overriding
+/// private NSThemeFrame methods in a subclass, as Chrome's BrowserWindowFrame
+/// does (components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm).
 @MainActor
 enum WindowFrame {
+  /// The traffic lights sit `buttonsInset` from the window's left edge,
+  /// centered in a title bar `titlebarHeight` tall.
   struct Layout {
     var buttonsInset: CGFloat
     var titlebarHeight: CGFloat
@@ -23,8 +15,8 @@ enum WindowFrame {
 
   private static var subclasses: [ObjectIdentifier: AnyClass] = [:]
 
-  /// A subclass of `base` (the frame view class AppKit chose) that lays the
-  /// traffic lights out as `layout` says.
+  /// A subclass of `base` (the frame view class AppKit chose), for a window to
+  /// return from its (private) `+frameViewClassForStyleMask:`.
   static func frameViewClass(base: AnyClass, layout: Layout) -> AnyClass {
     if let subclass = subclasses[ObjectIdentifier(base)] {
       return subclass
@@ -48,8 +40,8 @@ enum WindowFrame {
     return subclass
   }
 
-  /// Makes `subclass` answer `value` to a CGFloat getter, except while its
-  /// window is fullscreen, when it answers what `base` does.
+  /// Makes `subclass` answer `value` to a CGFloat getter, except in fullscreen,
+  /// where `base`'s answer lets the title bar slide down with the menu bar.
   private static func override(
     _ name: String, in subclass: AnyClass, base: AnyClass, value: CGFloat
   ) {

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Generates the video test streams (tests/media/README.md) and indexes them:
-# each NAME.mp4 (progressive) gets NAME.frag.mp4 for MSE and NAME.json for the
-# page (index.py), with ffmpeg's and VideoToolbox's decodes as references.
+# Generates the video test streams (tests/media/README.md): each NAME.mp4 gets
+# NAME.frag.mp4 for MSE, and NAME.json (index.py) with its reference decodes.
 # Needs ffmpeg with libx264, libx265 and VideoToolbox, and Xcode's swiftc.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -20,11 +19,9 @@ x265() {
     -x265-params "log-level=error:$params" "$@" "$name.mp4"
 }
 
-# H.264: B-pyramid, deep B runs, Baseline (POC type 2), open GOP (recovery
-# point SEI), intra refresh (recovery points with a frame count), 1080p (a
-# cropped SPS), interlaced (MBAFF) and 32x32 (which only VideoToolbox's
-# software decoder takes), High 10, 4:2:2 and 4:4:4, VideoToolbox's encoder,
-# and three sizes for resolution changes.
+# H.264. Baseline has POC type 2, open GOP recovery point SEIs, intra refresh
+# recovery points with a frame count, and 1080p a cropped SPS; interlaced
+# (MBAFF) and 32x32 only VideoToolbox's software decoder takes.
 x264 h264_bpyr 640x360 3 "keyint=30:min-keyint=30:scenecut=0:bframes=3:b-pyramid=normal:ref=4" -profile:v high
 x264 h264_b5 640x360 3 "keyint=45:min-keyint=45:scenecut=0:bframes=5:b-adapt=0:b-pyramid=normal:ref=6" -profile:v high
 x264 h264_base 640x360 3 "keyint=30:min-keyint=30:scenecut=0" -profile:v baseline

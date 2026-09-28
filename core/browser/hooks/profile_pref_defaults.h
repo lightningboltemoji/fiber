@@ -7,10 +7,9 @@ class PrefRegistrySyncable;
 
 namespace fiber {
 
-// Changes the defaults of profile prefs Chrome registered, where Fiber's
-// differ. The user can still change them in chrome://settings. Called at the
-// end of RegisterProfilePrefs() (see patches/chromium/
-// chrome-browser-prefs-browser_prefs.cc.patch).
+// Fiber's defaults for Chrome's profile prefs, which the user can still change
+// in chrome://settings. Called at the end of RegisterProfilePrefs() (see
+// patches/chromium/chrome-browser-prefs-browser_prefs.cc.patch).
 void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry);
 
 }  // namespace fiber

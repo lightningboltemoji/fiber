@@ -31,10 +31,9 @@ import FiberBridge
   }
 }
 
-/// A quit, or a window's close, waiting for downloads to finish: "Quitting
-/// when downloads finish" over the veiled page, with each download's progress
-/// and a button to cancel it (or resume it, if paused), Continue Browsing
-/// (Escape) to stop waiting, and Quit Now to go ahead without them.
+/// A quit, or a window's close, waiting for downloads to finish, over the
+/// veiled page: each download's progress, Continue Browsing to stop waiting,
+/// and Quit (or Close) Now to go ahead without them.
 @MainActor
 final class DownloadsWait: NSObject, FiberDownloadsWait {
   private let actions: any FiberDownloadsWaitActions
@@ -186,8 +185,6 @@ private final class DownloadList: NSView {
   }
 }
 
-/// A download: its name, its status, a progress bar under them, and buttons to
-/// resume it (while paused) and cancel it.
 @MainActor
 private final class DownloadRow: FlippedView {
   static let height: CGFloat = 50
@@ -344,7 +341,6 @@ private final class ProgressBar: NSView {
   }
 }
 
-/// Lays out top-down.
 private class FlippedView: NSView {
   override var isFlipped: Bool { true }
 }

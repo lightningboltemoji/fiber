@@ -3,20 +3,13 @@ import FiberBridge
 import SwiftUI
 
 /// The window's tabs while the toolbar shows: the tab picker's panel, kept
-/// open along the window's right edge below the toolbar, and the gutter
-/// doesn't open the picker meanwhile. It lists the tabs top to bottom, grows
-/// with them as far as the window's bottom, and scrolls past that, keeping the
-/// active tab in view. Hovering a tab highlights it and clicking selects it;
-/// dragging the rest of the panel moves the window.
-///
-/// This view takes the pointer and scroll events and keeps the model;
-/// TabSidebarView draws it. It fills the column the panel can grow into, but
-/// only the panel takes clicks.
+/// open below the toolbar. It fills the column the panel can grow into, but
+/// only the panel takes clicks. TabSidebarView draws it.
 @MainActor
 final class TabSidebar: NSView {
   static let width = TabListLayout.panelWidth
 
-  /// Called when the user picks a tab.
+  /// Not called for the tab that's already active.
   var onSelect: (Int) -> Void = { _ in }
 
   private let model = TabSidebarModel()
@@ -242,7 +235,6 @@ final class TabSidebar: NSView {
 final class TabSidebarModel {
   var tabs: [FiberTabState] = []
   var activeTabID = 0
-  /// The tab under the pointer.
   var hoveredTabID: Int?
   /// How far the list is scrolled up the panel.
   var scrollOffset: CGFloat = 0
@@ -250,22 +242,19 @@ final class TabSidebarModel {
   var size: CGSize = .zero
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
 
-  /// The panel, at the column's top: as tall as its tabs, up to the column's.
   var panelRect: CGRect {
     CGRect(
       x: 0, y: 0, width: size.width,
       height: min(TabListLayout.panelHeight(rows: tabs.count), size.height))
   }
 
-  /// How far the list scrolls: as far as it overflows the panel.
   var scrollRange: ClosedRange<CGFloat> {
     0...max(TabListLayout.panelHeight(rows: tabs.count) - size.height, 0)
   }
 }
 
-/// Draws the tab sidebar: the tab picker's glass and list, with the list
-/// scrolled inside the glass's rim. The highlight rests on the active tab
-/// and glides to the one under the pointer. TabSidebar handles all input.
+/// Draws the tab sidebar; TabSidebar handles all input. The highlight rests
+/// on the active tab and glides to the one under the pointer.
 struct TabSidebarView: View {
   let model: TabSidebarModel
 

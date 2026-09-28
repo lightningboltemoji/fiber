@@ -1,8 +1,6 @@
 // Opens a real site in Fiber over the DevTools protocol and reports what its
-// media stack did: decoders chosen, codecs, playback progress, errors.
+// media stack did (see README.md).
 //   node site.mjs <url> [--h264] [--secs 25] [--click <selector>] [--shot name] [--out Default | --binary path]
-// --h264 hides VP9 and AV1 from the page (as the h264ify extension does), so
-// sites that prefer them fall back to H.264.
 import {spawn} from 'node:child_process';
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -63,6 +61,7 @@ const s = (m, p) => send(m, p, sessionId);
 await s('Page.enable');
 await s('Runtime.enable');
 await s('Media.enable');
+// Hides VP9 and AV1, as the h264ify extension does, so sites fall back to H.264.
 if (flag('--h264')) {
   await s('Page.addScriptToEvaluateOnNewDocument', {source: `(() => {
     const bad = t => /vp9|vp09|av01|av1|webm/i.test(t || '');

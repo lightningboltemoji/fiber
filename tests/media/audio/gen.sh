@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Generates the audio test files (tests/media/README.md): AAC of each kind
-# encoded by Apple (afconvert) and ffmpeg, Apple's own decodes of them as the
-# references (ref_NAME.f32, refs.json), ADTS and HLS variants, and the indexes
-# the WebCodecs tests read (aindex.json, hf_adts.json).
+# Generates the audio test files (tests/media/README.md): AAC encoded by Apple
+# and ffmpeg, and Apple's decodes of it as references (ref_NAME.f32, refs.json).
 # Needs macOS's afconvert, and ffmpeg with libx264, libmp3lame and libopus.
 set -euo pipefail
 cd "$(dirname "$0")"

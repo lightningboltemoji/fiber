@@ -1,15 +1,8 @@
 import AppKit
 
-/// The window's toolbar, shown with Command-S: a row of glass capsules along
-/// the top of the page, level with the traffic lights' capsule. The address
-/// capsule holds the navigation buttons and the page's address, which opens
-/// the command palette when clicked; the capsule at the end holds the
-/// extensions (see ExtensionsBar), and a placeholder for menus. Buttons with
-/// an icon are circles, and the address a capsule, so the buttons at each
-/// end of a capsule meet its rim.
-///
-/// The window controller wires up the controls, places the row, and shows and
-/// hides it.
+/// The window's toolbar, shown with Command-S: glass capsules along the top
+/// of the page, level with the traffic lights'. Buttons are circles and the
+/// address a capsule, so the buttons at each end of a capsule meet its rim.
 @MainActor
 final class Toolbar: NSView {
   /// The capsules' height, which matches the traffic lights' capsule.
@@ -28,7 +21,6 @@ final class Toolbar: NSView {
   /// Shows the page's address; the window controller opens the command
   /// palette from it.
   let addressButton = Toolbar.makeAddressButton()
-  /// The extensions menu's button and the extensions pinned beside it.
   let extensionsBar = ExtensionsBar()
 
   private let addressCapsule = RimmedGlassView(rimWidth: Toolbar.rimWidth)
@@ -107,8 +99,6 @@ final class Toolbar: NSView {
     reloadButton.toolTip = label
   }
 
-  /// Back and Forward at the start, the address in the middle, and Reload at
-  /// the end. Dragging the space between them moves the window.
   private func makeAddressContent() -> NSView {
     let content = WindowDragArea()
     let navigation = NSStackView(views: [backButton, forwardButton])
@@ -136,8 +126,7 @@ final class Toolbar: NSView {
     return content
   }
 
-  /// The extensions, then a stand-in for the menu button to come, which does
-  /// nothing.
+  /// The ellipsis after the extensions is an inert stand-in for a menu button.
   private func makeExtensionsContent() -> NSView {
     let content = WindowDragArea()
     let more = NSImageView(

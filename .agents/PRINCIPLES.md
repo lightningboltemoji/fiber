@@ -29,3 +29,11 @@ the rules the rest follows from. How it's built is in
 - **Fix the pattern, not the symptom.** It's early. If something needs a
   workaround to behave, question the approach before adding the workaround.
 - **macOS 26 and later only.**
+
+## Documentation sweep
+
+As a last step before deeming work 'complete', sweep through the change set and ensure that:
+
+- Code comments are never derivable from reading code
+- Code comments never include narration, history (i.e. anything unrelated to understanding the code)
+- Code comments generally no longer than 3 lines except in rare circumstances of unusual complexity

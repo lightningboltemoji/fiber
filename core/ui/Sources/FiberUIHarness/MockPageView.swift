@@ -1,8 +1,6 @@
 import AppKit
 
-/// Stands in for a tab's web contents: shows the URL, links to other fake
-/// pages, and buttons that open JavaScript dialogs. Right-clicking it, or a
-/// link, shows a context menu.
+/// Stands in for a tab's web contents.
 @MainActor
 final class MockPageView: NSView {
   private static let links = [

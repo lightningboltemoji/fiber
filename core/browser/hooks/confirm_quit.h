@@ -7,11 +7,9 @@
 @class NSString;
 class Profile;
 
-// Warn Before Quitting (holding Command-Q to quit), in Fiber's UI
-// (FiberQuitConfirmation) in place of Chrome's ConfirmQuitPanelController.
-// Called from AppController (see
-// patches/chromium/chrome-browser-app_controller_mac.mm.patch), which checks
-// the preference first.
+// Warn Before Quitting (holding Command-Q to quit), in place of Chrome's
+// ConfirmQuitPanelController. Called from AppController, which checks the
+// pref first (see patches/chromium/chrome-browser-app_controller_mac.mm.patch).
 namespace fiber {
 
 // Runs as the user presses the quit shortcut, whose key-down is `event`, until
@@ -27,9 +25,8 @@ void CancelConfirmQuit();
 NSString* QuitKeyCommandString();
 
 // Quitting found downloads in progress in `profiles`: lists them over the page
-// in the window last used (or a new one), and quits once they're done or the
-// user goes ahead without them. If the user stops waiting instead, the windows
-// come back. In place of Chrome's alert asking whether to cancel them.
+// in the last active window (or a new one), in place of Chrome's alert. Quits
+// once they're done or the user goes ahead; cancelling brings the windows back.
 void WaitForDownloadsBeforeQuitting(const std::vector<Profile*>& profiles);
 
 }  // namespace fiber

@@ -1,12 +1,9 @@
 import FiberBridge
 import SwiftUI
 
-/// Draws the tab picker. The open panel comes out of the page's gutter like a
-/// drop of glass: it appears at the pointer, stretches out of the gutter,
-/// then spreads up and down into the panel, bouncing as it settles, with the
-/// tab list uncovered inside it. Closing runs it backwards, out of sight.
-/// Positions come from the model, in the picker's coordinates; TabPicker
-/// handles all input.
+/// Draws the tab picker; TabPicker handles all input. The panel opens out of
+/// the page's gutter like a drop of glass, from the pointer. Positions come
+/// from the model, in the picker's coordinates.
 struct TabPickerView: View {
   /// The drop's size, in the gutter.
   private static let dropSize: CGFloat = 8

@@ -1,13 +1,8 @@
 import AppKit
 
-/// Blurs a window's page and darkens the window over it, while the window
-/// waits on the user: as they hold Command-Q to quit, say. What the window is
-/// waiting for shows over the veil.
-///
-/// The blur is a filter on the page's views rather than a backdrop over them:
-/// a backdrop only samples what's inside the window, so its blur darkens
-/// toward the window's edges. The filter is only there while the veil is,
-/// since it costs an offscreen pass over the page every frame.
+/// Blurs a window's page and darkens the window while it waits on the user.
+/// The blur is a filter on the page's views: a backdrop only samples inside
+/// the window, so its blur would darken toward the window's edges.
 @MainActor
 final class Veil {
   /// A fully drawn veil's blur radius, and the opacity of its black.
@@ -106,6 +101,8 @@ final class Veil {
     blurredView.contentFilters = [clamp, blur]
   }
 
+  /// The filter costs an offscreen pass over the page every frame, so it's
+  /// only on while the veil is.
   private func removeFilter() {
     blurredView.layer?.removeAnimation(forKey: "veil")
     blurredView.contentFilters = []

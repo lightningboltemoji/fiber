@@ -1,9 +1,8 @@
 import AppKit
 
-/// A thin accent-colored bar along the top of the page that tracks load
-/// progress, then fills and fades out when loading finishes. Only for slow
-/// loads: it shows once a load has taken `revealDelay`, so quick ones (the New
-/// Tab page, most pages) never show it.
+/// A thin bar along the top of the page for load progress. It shows only once
+/// a load has taken `revealDelay`, so quick ones (the New Tab page, most
+/// pages) never show it.
 final class LoadProgressBar: NSView {
   private static let revealDelay: Duration = .milliseconds(500)
 
