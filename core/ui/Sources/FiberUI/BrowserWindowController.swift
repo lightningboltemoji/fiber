@@ -173,12 +173,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
     toolbar.autoresizingMask = [.width, .minYMargin]
     content.addSubview(toolbar)
 
-    // Below the toolbar, level with its right end.
+    // Below the traffic lights' capsule, level with its left end.
     tabSidebar.frame = NSRect(
-      x: content.bounds.width - Self.edgeInset - TabSidebar.width,
-      y: Self.edgeInset, width: TabSidebar.width,
-      height: toolbar.frame.minY - Toolbar.spacing - Self.edgeInset)
-    tabSidebar.autoresizingMask = [.height, .minXMargin]
+      x: Self.edgeInset, y: Self.edgeInset, width: TabSidebar.width,
+      height: toolbar.frame.minY - 2 * Toolbar.spacing - Self.edgeInset)
+    tabSidebar.autoresizingMask = [.height, .maxXMargin]
     tabSidebar.onSelect = { [weak self] tabID in
       self?.actions.selectTab(withID: tabID)
     }
