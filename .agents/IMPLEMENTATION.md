@@ -267,10 +267,16 @@ controls float over it in Liquid Glass, mostly out of sight:
   (Command-S; Save Page As moves to Shift-Command-S). A row of capsules level
   with the traffic lights: the traffic lights' own, an address capsule
   (back/forward, the page's address, reload), and one for extensions (see
-  below) and, for now, a placeholder for menus. The traffic lights otherwise
-  stay hidden (and take no clicks).
+  below) and, for now, a placeholder for menus. Buttons with an icon are
+  circles, and the address a capsule. The traffic lights
+  otherwise stay hidden (and take no clicks).
   `browser/window/fiber_main_menu.mm` adds the menu item
   to Chrome's main menu; the window handles `-toggleToolbarShown:`.
+  The tab sidebar (`ui/TabSidebar.swift`) shows and hides with the toolbar:
+  the tab picker's panel (see below), kept open below the toolbar's right
+  end, as tall as its tabs down to the window's bottom, and scrolling past
+  that with the active tab kept in view. Clicking a tab selects it. Meanwhile
+  the gutter doesn't open the picker.
 - **Command palette** (`ui/CommandPalette.swift`): Command-L (Chrome's Focus
   Location, so new tabs open it too) or clicking the toolbar's address opens a
   glass panel over the dimmed page, with the page's full URL selected. Nothing
@@ -298,7 +304,8 @@ controls float over it in Liquid Glass, mostly out of sight:
   An extension's New Tab page still replaces it.
   Switching to a tab restores its focus as Chrome's views window does, which
   on the New Tab page means the command palette.
-- **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`): the
+- **Tab picker** (`ui/TabPicker.swift`, drawn by `TabPickerView.swift`, with
+  the list in `TabList.swift`, which the tab sidebar shares): the
   page stops 8pt short of the window's right edge, and that gutter
   (`ui/PageGutter.swift`, which shows the page as the top of a stack of tabs)
   is the picker's handle: hovering anywhere along it opens a panel listing

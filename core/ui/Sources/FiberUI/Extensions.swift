@@ -301,6 +301,7 @@ final class ExtensionButton: ToolbarButton {
     imagePosition = .imageOnly
     imageScaling = .scaleProportionallyDown
     bezelStyle = .accessoryBarAction
+    borderShape = .circle
     showsBorderOnlyWhileMouseInside = true
     widthAnchor.constraint(equalToConstant: Toolbar.buttonSize).isActive = true
     heightAnchor.constraint(equalToConstant: Toolbar.buttonSize).isActive = true

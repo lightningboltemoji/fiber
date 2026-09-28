@@ -4,7 +4,9 @@ import AppKit
 /// the top of the page, level with the traffic lights' capsule. The address
 /// capsule holds the navigation buttons and the page's address, which opens
 /// the command palette when clicked; the capsule at the end holds the
-/// extensions (see ExtensionsBar), and a placeholder for menus.
+/// extensions (see ExtensionsBar), and a placeholder for menus. Buttons with
+/// an icon are circles, and the address a capsule, so the buttons at each
+/// end of a capsule meet its rim.
 ///
 /// The window controller wires up the controls, places the row, and shows and
 /// hides it.
@@ -15,8 +17,8 @@ final class Toolbar: NSView {
   static let spacing: CGFloat = 8
   private static let rimWidth: CGFloat = 5
   static let buttonSize: CGFloat = 28
-  /// Between the end capsule's content and its rim.
-  private static let endPadding: CGFloat = 6
+  /// Between the buttons at each end of a capsule and its rim.
+  private static let endInset: CGFloat = 2
 
   let backButton = Toolbar.makeButton(symbol: "chevron.backward", label: "Back")
   let forwardButton = Toolbar.makeButton(
@@ -63,7 +65,7 @@ final class Toolbar: NSView {
   /// The end capsule fits its content; the address capsule takes the rest.
   private func layoutCapsules() {
     let extensionsWidth =
-      endContent.fittingSize.width + 2 * (Self.rimWidth + Self.endPadding)
+      endContent.fittingSize.width + 2 * (Self.rimWidth + Self.endInset)
     let extensionsX = bounds.width - extensionsWidth
     extensionsCapsule.frame = NSRect(
       x: extensionsX, y: 0, width: extensionsWidth, height: Self.height)
@@ -119,10 +121,10 @@ final class Toolbar: NSView {
     }
     NSLayoutConstraint.activate([
       navigation.leadingAnchor.constraint(
-        equalTo: content.leadingAnchor, constant: 2),
+        equalTo: content.leadingAnchor, constant: Self.endInset),
       navigation.centerYAnchor.constraint(equalTo: content.centerYAnchor),
       reloadButton.trailingAnchor.constraint(
-        equalTo: content.trailingAnchor, constant: -2),
+        equalTo: content.trailingAnchor, constant: -Self.endInset),
       reloadButton.centerYAnchor.constraint(equalTo: content.centerYAnchor),
       addressButton.leadingAnchor.constraint(
         equalTo: navigation.trailingAnchor, constant: 2),
@@ -158,6 +160,7 @@ final class Toolbar: NSView {
   private static func makeAddressButton() -> NSButton {
     let button = NSButton(title: "", target: nil, action: nil)
     button.bezelStyle = .accessoryBarAction
+    button.borderShape = .capsule
     button.showsBorderOnlyWhileMouseInside = true
     button.toolTip = "Search or enter address"
     button.setContentCompressionResistancePriority(
@@ -171,6 +174,7 @@ final class Toolbar: NSView {
       systemSymbolName: symbol, accessibilityDescription: label)
     button.imagePosition = .imageOnly
     button.bezelStyle = .accessoryBarAction
+    button.borderShape = .circle
     button.showsBorderOnlyWhileMouseInside = true
     button.toolTip = label
     button.widthAnchor.constraint(equalToConstant: buttonSize).isActive = true

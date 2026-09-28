@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// Liquid Glass with a pronounced rim, like Safari's address field: a second
 /// layer of glass inset inside the first, so each draws its edge and the band
@@ -45,5 +46,29 @@ final class RimmedGlassView: NSView {
   private func updateCornerRadii() {
     outer.cornerRadius = cornerRadius
     inner.cornerRadius = max(cornerRadius - rimWidth, 0)
+  }
+}
+
+/// RimmedGlassView in SwiftUI, for glass whose shape animates.
+struct RimmedGlass: View {
+  let cornerRadius: CGFloat
+  let rimWidth: CGFloat
+
+  var body: some View {
+    Color.clear
+      .glassEffect(
+        .regular,
+        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+      )
+      .overlay {
+        Color.clear
+          .glassEffect(
+            .regular,
+            in: RoundedRectangle(
+              cornerRadius: max(cornerRadius - rimWidth, 0),
+              style: .continuous)
+          )
+          .padding(rimWidth)
+      }
   }
 }

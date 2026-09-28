@@ -7,7 +7,8 @@ import SwiftUI
 /// it, listing the tabs, placed so the active tab is level with the pointer;
 /// dragging the gutter moves the window. Scrolling moves the panel under the
 /// pointer like a picker wheel, and lifting off selects the tab it settles
-/// on; clicking a tab selects it too.
+/// on; clicking a tab selects it too. While the toolbar shows, its sidebar
+/// (TabSidebar) lists the tabs instead, and the gutter only moves the window.
 ///
 /// This view takes the pointer and scroll events and keeps the model;
 /// TabPickerView draws it. It fills the window's height along its right
@@ -15,10 +16,21 @@ import SwiftUI
 @MainActor
 final class TabPicker: NSView {
   /// Room for the open panel and a little past it.
-  static let width = TabPickerModel.panelInset + TabPickerModel.panelWidth + 40
+  static let width = TabPickerModel.panelInset + TabListLayout.panelWidth + 40
 
   /// Called when the user picks a tab.
   var onSelect: (Int) -> Void = { _ in }
+
+  /// Whether the gutter opens the panel. Turning it off closes the panel.
+  var isPanelEnabled: Bool {
+    get { model.isPanelEnabled }
+    set {
+      model.isPanelEnabled = newValue
+      if !newValue {
+        close()
+      }
+    }
+  }
 
   private enum Metrics {
     /// How far the pointer can stray from the open panel before it closes.
@@ -37,8 +49,6 @@ final class TabPicker: NSView {
     static let flickProjection: CGFloat = 0.12
     /// A flick's velocity is its scrolling over this long before lift-off.
     static let flickWindow: TimeInterval = 0.1
-    /// Scrolling past the first or last tab stretches no further than this.
-    static let rubberBandLimit: CGFloat = 120
   }
 
   private let model = TabPickerModel()
@@ -133,14 +143,14 @@ final class TabPicker: NSView {
   /// The range of panel tops that keeps a tab level with `y`.
   private func panelTopRange(keepingRowAt y: CGFloat) -> ClosedRange<CGFloat> {
     let last = max(model.tabs.count - 1, 0)
-    return (y - TabPickerLayout.rowCenter(last))...(y
-      - TabPickerLayout.rowCenter(0))
+    return (y - TabListLayout.rowCenter(last))...(y
+      - TabListLayout.rowCenter(0))
   }
 
   /// The row nearest `y` were the panel's top at `top`.
   private func nearestRow(to y: CGFloat, panelTop top: CGFloat) -> Int {
-    let offset = (y - top - TabPickerLayout.rowCenter(0))
-    let row = Int((offset / TabPickerLayout.rowStep).rounded())
+    let offset = (y - top - TabListLayout.rowCenter(0))
+    let row = Int((offset / TabListLayout.rowStep).rounded())
     return min(max(row, 0), model.tabs.count - 1)
   }
 
@@ -305,11 +315,11 @@ final class TabPicker: NSView {
   /// Opens the panel with the active tab level with `y`.
   private func open(anchoredAt y: CGFloat) {
     openTimer?.invalidate()
-    guard !model.isExpanded, !model.tabs.isEmpty else {
+    guard model.isPanelEnabled, !model.isExpanded, !model.tabs.isEmpty else {
       return
     }
     let row = model.activeRow
-    model.panelTop = y - TabPickerLayout.rowCenter(row)
+    model.panelTop = y - TabListLayout.rowCenter(row)
     model.highlightedTabID = model.tabs[row].tabID
     withAnimation(.spring(duration: 0.42, bounce: 0.22)) {
       model.isExpanded = true
@@ -330,11 +340,11 @@ final class TabPicker: NSView {
     guard point.x >= panel.minX, point.x <= bounds.width else {
       return nil
     }
-    let offset = point.y - panel.minY - TabPickerLayout.contentInset
+    let offset = point.y - panel.minY - TabListLayout.contentInset
     guard offset >= 0 else {
       return nil
     }
-    let row = Int(offset / TabPickerLayout.rowStep)
+    let row = Int(offset / TabListLayout.rowStep)
     return model.tabs.indices.contains(row) ? model.tabs[row] : nil
   }
 
@@ -407,7 +417,7 @@ final class TabPicker: NSView {
     scrollSamples.removeAll {
       event.timestamp - $0.time > Metrics.flickWindow
     }
-    model.panelTop = rubberBand(
+    model.panelTop = TabListLayout.rubberBand(
       scrollTop, in: panelTopRange(keepingRowAt: point.y))
     // A tick on the trackpad as each tab comes under the pointer.
     let previous = model.highlightedTabID
@@ -449,7 +459,7 @@ final class TabPicker: NSView {
       max(current + (event.scrollingDeltaY > 0 ? -1 : 1), 0),
       model.tabs.count - 1)
     withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
-      model.panelTop = point.y - TabPickerLayout.rowCenter(row)
+      model.panelTop = point.y - TabListLayout.rowCenter(row)
     }
     model.highlightedTabID = model.tabs[row].tabID
     scheduleWheelSettle { [weak self] in
@@ -483,48 +493,12 @@ final class TabPicker: NSView {
     }
     let tabID = model.tabs[row].tabID
     withAnimation(.spring(duration: 0.35, bounce: 0.18)) {
-      model.panelTop = y - TabPickerLayout.rowCenter(row)
+      model.panelTop = y - TabListLayout.rowCenter(row)
     }
     model.highlightedTabID = tabID
     if tabID != model.activeTabID {
       onSelect(tabID)
     }
-  }
-
-  /// `value` clamped to `range`, except that it stretches a little past it
-  /// with growing resistance.
-  private func rubberBand(_ value: CGFloat, in range: ClosedRange<CGFloat>)
-    -> CGFloat
-  {
-    func stretch(_ distance: CGFloat) -> CGFloat {
-      let limit = Metrics.rubberBandLimit
-      return (1 - 1 / (distance * 0.55 / limit + 1)) * limit
-    }
-    if value < range.lowerBound {
-      return range.lowerBound - stretch(range.lowerBound - value)
-    }
-    if value > range.upperBound {
-      return range.upperBound + stretch(value - range.upperBound)
-    }
-    return value
-  }
-}
-
-/// The open panel's layout, shared by the picker's hit testing and drawing.
-enum TabPickerLayout {
-  static let rowHeight: CGFloat = 34
-  static let rowSpacing: CGFloat = 2
-  static var rowStep: CGFloat { rowHeight + rowSpacing }
-  /// From the panel's edge to its rows: the glass's rim and a little more.
-  static let contentInset: CGFloat = 10
-
-  /// The center of row `row`, from the panel's top.
-  static func rowCenter(_ row: Int) -> CGFloat {
-    contentInset + CGFloat(row) * rowStep + rowHeight / 2
-  }
-
-  static func panelHeight(rows: Int) -> CGFloat {
-    2 * contentInset + CGFloat(max(rows, 1)) * rowStep - rowSpacing
   }
 }
 
@@ -534,6 +508,8 @@ final class TabPickerModel {
   var tabs: [FiberTabState] = []
   var activeTabID = 0
   var isExpanded = false
+  /// Whether the gutter opens the panel (see TabPicker.isPanelEnabled).
+  var isPanelEnabled = true
   /// The open panel's top, in the picker's (flipped) coordinates.
   var panelTop: CGFloat = 0
   /// The tab under the pointer, or where scrolling has brought the panel.
@@ -544,7 +520,6 @@ final class TabPickerModel {
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
 
   static let panelInset: CGFloat = 10
-  static let panelWidth: CGFloat = 264
 
   /// The page's gutter, the window's height along its right edge.
   var gutterRect: CGRect {
@@ -560,8 +535,8 @@ final class TabPickerModel {
 
   var panelRect: CGRect {
     CGRect(
-      x: size.width - Self.panelInset - Self.panelWidth, y: panelTop,
-      width: Self.panelWidth,
-      height: TabPickerLayout.panelHeight(rows: tabs.count))
+      x: size.width - Self.panelInset - TabListLayout.panelWidth, y: panelTop,
+      width: TabListLayout.panelWidth,
+      height: TabListLayout.panelHeight(rows: tabs.count))
   }
 }

@@ -10,8 +10,8 @@ import FiberBridge
 }
 
 /// A browser window and its native chrome, all floating over the page: the
-/// toolbar (shown with Command-S), the tab picker on the right edge, the
-/// command palette (Command-L), the load
+/// toolbar (shown with Command-S) and the tab sidebar below it, the tab picker
+/// on the right edge, the command palette (Command-L), the load
 /// progress bar, and the link status bubble. The page stops short of the
 /// window's right edge, leaving a gutter for the tab picker (see PageGutter).
 /// Reports what the user does to its actions.
@@ -54,6 +54,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let actions: any FiberWindowActions
   private let toolbar = Toolbar()
   private let tabPicker = TabPicker()
+  private let tabSidebar = TabSidebar()
   private let commandPalette = CommandPalette()
   /// The extensions menu, and the extensions pinned beside it in the toolbar.
   private lazy var extensionsController = ExtensionsController(
@@ -88,9 +89,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private weak var responderBeforePrompt: NSResponder?
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
-  /// Shown with Command-S, until hidden with it again.
+  /// Shown with Command-S, until hidden with it again, with the tab sidebar.
   private var isToolbarShown = false
-  /// The toolbar and tab picker hide while a page is fullscreen.
+  /// The toolbar, tab sidebar and tab picker hide while a page is fullscreen.
   private var areControlsVisible = true
   fileprivate var isToolbarVisible: Bool {
     isToolbarShown && areControlsVisible
@@ -193,6 +194,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
       height: Toolbar.height)
     toolbar.autoresizingMask = [.width, .minYMargin]
     content.addSubview(toolbar)
+
+    // Below the toolbar, level with its right end.
+    tabSidebar.frame = NSRect(
+      x: content.bounds.width - Self.edgeInset - TabSidebar.width,
+      y: Self.edgeInset, width: TabSidebar.width,
+      height: toolbar.frame.minY - Toolbar.spacing - Self.edgeInset)
+    tabSidebar.autoresizingMask = [.height, .minXMargin]
+    tabSidebar.onSelect = { [weak self] tabID in
+      self?.actions.selectTab(withID: tabID)
+    }
+    content.addSubview(tabSidebar)
     updateToolbar(animated: false)
 
     tabPicker.frame = NSRect(
@@ -241,20 +253,30 @@ final class BrowserWindowController: NSObject, FiberWindow {
     updateToolbar(animated: true)
   }
 
-  /// Fades the toolbar in or out, with the traffic lights, which show with it.
+  /// Fades the toolbar and the tab sidebar in or out, with the traffic
+  /// lights, which show with them. The sidebar lists the tabs in place of the
+  /// tab picker's panel.
   private func updateToolbar(animated: Bool) {
     let isVisible = isToolbarVisible
+    let views: [NSView] = [toolbar, tabSidebar]
     if isVisible {
-      toolbar.isHidden = false
+      for view in views {
+        view.isHidden = false
+      }
     }
+    tabPicker.isPanelEnabled = !isVisible
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animated ? (isVisible ? 0.18 : 0.25) : 0
-      toolbar.animator().alphaValue = isVisible ? 1 : 0
+      for view in views {
+        view.animator().alphaValue = isVisible ? 1 : 0
+      }
     } completionHandler: { [weak self] in
       MainActor.assumeIsolated {
-        // Hidden, so its controls don't take clicks or focus.
+        // Hidden, so their controls don't take clicks or focus.
         if let self, !self.isToolbarVisible {
-          self.toolbar.isHidden = true
+          for view in views {
+            view.isHidden = true
+          }
         }
       }
     }
@@ -368,6 +390,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
     tabPicker.setTabs(tabs, activeTabID: activeTabID)
+    tabSidebar.setTabs(tabs, activeTabID: activeTabID)
   }
 
   func setLoading(_ loading: Bool, progress: Double) {
