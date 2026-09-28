@@ -3,8 +3,8 @@ import AppKit
 /// The window's toolbar, shown with Command-S: a row of glass capsules along
 /// the top of the page, level with the traffic lights' capsule. The address
 /// capsule holds the navigation buttons and the page's address, which opens
-/// the command palette when clicked; the capsule at the end is a placeholder
-/// for menus and extensions.
+/// the command palette when clicked; the capsule at the end holds the
+/// extensions (see ExtensionsBar), and a placeholder for menus.
 ///
 /// The window controller wires up the controls, places the row, and shows and
 /// hides it.
@@ -14,8 +14,9 @@ final class Toolbar: NSView {
   static let height: CGFloat = 40
   static let spacing: CGFloat = 8
   private static let rimWidth: CGFloat = 5
-  private static let buttonSize: CGFloat = 28
-  private static let extensionsWidth: CGFloat = 84
+  static let buttonSize: CGFloat = 28
+  /// Between the end capsule's content and its rim.
+  private static let endPadding: CGFloat = 6
 
   let backButton = Toolbar.makeButton(symbol: "chevron.backward", label: "Back")
   let forwardButton = Toolbar.makeButton(
@@ -25,9 +26,12 @@ final class Toolbar: NSView {
   /// Shows the page's address; the window controller opens the command
   /// palette from it.
   let addressButton = Toolbar.makeAddressButton()
+  /// The extensions menu's button and the extensions pinned beside it.
+  let extensionsBar = ExtensionsBar()
 
   private let addressCapsule = RimmedGlassView(rimWidth: Toolbar.rimWidth)
   private let extensionsCapsule = RimmedGlassView(rimWidth: Toolbar.rimWidth)
+  private let endContent = NSStackView()
 
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -37,6 +41,8 @@ final class Toolbar: NSView {
     }
     addressCapsule.contentView = makeAddressContent()
     extensionsCapsule.contentView = makeExtensionsContent()
+    // Pinning an extension widens the capsule, and the address gives way.
+    extensionsBar.onResize = { [weak self] in self?.layoutCapsules() }
   }
 
   @available(*, unavailable)
@@ -51,12 +57,27 @@ final class Toolbar: NSView {
   }
 
   override func resizeSubviews(withOldSize oldSize: NSSize) {
-    let extensionsX = bounds.width - Self.extensionsWidth
+    layoutCapsules()
+  }
+
+  /// The end capsule fits its content; the address capsule takes the rest.
+  private func layoutCapsules() {
+    let extensionsWidth =
+      endContent.fittingSize.width + 2 * (Self.rimWidth + Self.endPadding)
+    let extensionsX = bounds.width - extensionsWidth
     extensionsCapsule.frame = NSRect(
-      x: extensionsX, y: 0, width: Self.extensionsWidth, height: Self.height)
+      x: extensionsX, y: 0, width: extensionsWidth, height: Self.height)
     addressCapsule.frame = NSRect(
       x: 0, y: 0, width: max(extensionsX - Self.spacing, 0),
       height: Self.height)
+  }
+
+  /// Where the extensions menu's button is, in `view`'s coordinates, even
+  /// while the toolbar is hidden: where popups come from.
+  func extensionsMenuButtonRect(in view: NSView) -> NSRect {
+    layoutSubtreeIfNeeded()
+    let button = extensionsBar.menuButton
+    return button.convert(button.bounds, to: view)
   }
 
   /// Shows the page's short address (usually just its host), or a prompt when
@@ -113,25 +134,23 @@ final class Toolbar: NSView {
     return content
   }
 
-  /// Stand-ins for the extension and menu buttons to come. They do nothing.
+  /// The extensions, then a stand-in for the menu button to come, which does
+  /// nothing.
   private func makeExtensionsContent() -> NSView {
     let content = WindowDragArea()
-    let icons = NSStackView(
-      views: [
-        ("puzzlepiece.extension", "Extensions"), ("ellipsis", "More"),
-      ].map { symbol, label in
-        let icon = NSImageView(
-          image: NSImage(
-            systemSymbolName: symbol, accessibilityDescription: label)!)
-        icon.contentTintColor = .tertiaryLabelColor
-        return icon
-      })
-    icons.spacing = 14
-    icons.translatesAutoresizingMaskIntoConstraints = false
-    content.addSubview(icons)
+    let more = NSImageView(
+      image: NSImage(
+        systemSymbolName: "ellipsis", accessibilityDescription: "More")!)
+    more.contentTintColor = .tertiaryLabelColor
+    more.widthAnchor.constraint(equalToConstant: Self.buttonSize).isActive =
+      true
+    endContent.setViews([extensionsBar, more], in: .leading)
+    endContent.spacing = 2
+    endContent.translatesAutoresizingMaskIntoConstraints = false
+    content.addSubview(endContent)
     NSLayoutConstraint.activate([
-      icons.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-      icons.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+      endContent.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+      endContent.centerYAnchor.constraint(equalTo: content.centerYAnchor),
     ])
     return content
   }
@@ -146,8 +165,8 @@ final class Toolbar: NSView {
     return button
   }
 
-  private static func makeButton(symbol: String, label: String) -> NSButton {
-    let button = NSButton()
+  static func makeButton(symbol: String, label: String) -> ToolbarButton {
+    let button = ToolbarButton()
     button.image = NSImage(
       systemSymbolName: symbol, accessibilityDescription: label)
     button.imagePosition = .imageOnly

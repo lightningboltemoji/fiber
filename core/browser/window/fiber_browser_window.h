@@ -22,6 +22,7 @@
 namespace fiber {
 
 class DownloadsWait;
+class FiberExtensionsToolbar;
 class HistorySwipeNavigation;
 class FiberLocationBar;
 class FiberStatusBubble;
@@ -50,8 +51,13 @@ class FiberBrowserWindow : public BrowserWindow,
       content::WebContents* web_contents);
   // Returns the Fiber window that is `window`, if any.
   static FiberBrowserWindow* FromNativeWindow(gfx::NativeWindow window);
+  // Returns `browser`'s window, if it's a Fiber window.
+  static FiberBrowserWindow* FromBrowser(BrowserWindowInterface* browser);
 
   BrowserWindowInterface* browser() const { return browser_; }
+
+  // Makes `web_contents` the active tab, if it's one of this window's.
+  void ActivateTab(content::WebContents* web_contents);
 
   // Called by FiberBrowserWindowActions for what the user does in the window.
   void ExecuteCommand(int command, WindowOpenDisposition disposition);
@@ -264,6 +270,7 @@ class FiberBrowserWindow : public BrowserWindow,
   id<FiberWindow> __strong ui_;
   std::unique_ptr<FiberLocationBar> location_bar_;
   std::unique_ptr<FiberStatusBubble> status_bubble_;
+  std::unique_ptr<FiberExtensionsToolbar> extensions_toolbar_;
   // Closing waiting for the window's downloads, if it is.
   base::WeakPtr<DownloadsWait> downloads_wait_;
   // After a history swipe lands, until the page it went to shows.

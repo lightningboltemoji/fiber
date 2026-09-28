@@ -40,6 +40,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 #include "fiber/browser/downloads/downloads_wait.h"
+#include "fiber/browser/extensions/fiber_extensions_toolbar.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
 #include "fiber/browser/swipe/page_snapshots.h"
 #import "fiber/browser/window/fiber_browser_window_actions.h"
@@ -159,6 +160,20 @@ FiberBrowserWindow* FiberBrowserWindow::FromNativeWindow(
   return nullptr;
 }
 
+// static
+FiberBrowserWindow* FiberBrowserWindow::FromBrowser(
+    BrowserWindowInterface* browser) {
+  if (!browser) {
+    return nullptr;
+  }
+  for (FiberBrowserWindow* fiber_window : AllWindows()) {
+    if (fiber_window->browser_ == browser) {
+      return fiber_window;
+    }
+  }
+  return nullptr;
+}
+
 FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
     : browser_(browser) {
   AllWindows().push_back(this);
@@ -175,10 +190,14 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
               actions:actions_];
   location_bar_ = std::make_unique<FiberLocationBar>(this, ui_.omnibox);
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
+  extensions_toolbar_ =
+      std::make_unique<FiberExtensionsToolbar>(browser_, ui_.extensions);
   browser_->GetTabStripModel()->AddObserver(this);
 }
 
 FiberBrowserWindow::~FiberBrowserWindow() {
+  // Its popup and actions go while the browser's features are still there.
+  extensions_toolbar_.reset();
   if (downloads_wait_) {
     downloads_wait_->Close();
   }
@@ -259,6 +278,16 @@ void FiberBrowserWindow::SelectTab(int32_t tab_id) {
     model->ActivateTabAt(index,
                          TabStripUserGestureDetails(
                              TabStripUserGestureDetails::GestureType::kMouse));
+  }
+}
+
+void FiberBrowserWindow::ActivateTab(content::WebContents* web_contents) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  const int index =
+      web_contents ? model->GetIndexOfWebContents(web_contents)
+                   : TabStripModel::kNoTab;
+  if (index != TabStripModel::kNoTab && index != model->active_index()) {
+    model->ActivateTabAt(index);
   }
 }
 

@@ -1,0 +1,48 @@
+diff --git a/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc b/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc
+index 9bc1098150..a8a212cb88 100644
+--- a/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc
++++ b/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc
+@@ -7,12 +7,14 @@
+ 
+ #include "base/functional/callback.h"
+ #include "base/memory/raw_ptr.h"
++#include "build/build_config.h"
+ #include "chrome/browser/extensions/extension_uninstall_dialog.h"
+ #include "chrome/browser/ui/extensions/extension_dialog_utils.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "extensions/browser/ui_util.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "extensions/common/constants.h"
++#include "fiber/browser/hooks/extension_dialogs.h"
+ #include "ui/base/interaction/element_identifier.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/models/dialog_model.h"
+@@ -22,6 +24,8 @@ static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
+ 
+ namespace {
+ 
++// Fiber: Fiber's prompt takes the place of this dialog (see Create()).
++#if !BUILDFLAG(IS_MAC)
+ DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kCheckboxId);
+ 
+ // The implementation of the uninstall dialog.
+@@ -150,6 +154,7 @@ void ExtensionUninstallDialogImpl::DialogClosing() {
+   dialog_model_ = nullptr;
+   OnDialogClosed(CLOSE_ACTION_CANCELED);
+ }
++#endif  // !BUILDFLAG(IS_MAC)
+ 
+ }  // namespace
+ 
+@@ -163,6 +168,11 @@ std::unique_ptr<extensions::ExtensionUninstallDialog>
+ extensions::ExtensionUninstallDialog::Create(Profile* profile,
+                                              gfx::NativeWindow parent,
+                                              Delegate* delegate) {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber's prompt, over the veiled page, in place of Chrome's dialog.
++  return fiber::CreateExtensionUninstallDialog(profile, parent, delegate);
++#else
+   return std::make_unique<ExtensionUninstallDialogImpl>(profile, parent,
+                                                         delegate);
++#endif
+ }

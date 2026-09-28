@@ -8,9 +8,10 @@ assert(is_mac)
 #
 #   hooks/         the functions Fiber's Chromium patches call
 #   window/        BrowserWindow and the stubs it needs
-#   context_menu/  pages' context menus
-#   dialogs/       dialogs Chrome shows for a tab, and app-modally
+#   context_menu/  pages' context menus, and Chrome's other menus
+#   dialogs/       dialogs Chrome shows for a tab, and app-modally, and prompts
 #   downloads/     waiting for downloads before quitting or closing
+#   extensions/    the toolbar's extensions, their popups, and installing them
 #   new_tab/       chrome://newtab, Fiber's New Tab page
 #   omnibox/       Chrome's omnibox, with the command palette as its view
 #   swipe/         swiping between pages
@@ -18,18 +19,34 @@ source_set("browser") {
   sources = [
     "context_menu/fiber_render_view_context_menu.h",
     "context_menu/fiber_render_view_context_menu.mm",
+    "context_menu/menu_model_menu.h",
+    "context_menu/menu_model_menu.mm",
     "dialogs/fiber_app_modal_dialog_view.h",
     "dialogs/fiber_app_modal_dialog_view.mm",
     "dialogs/fiber_javascript_dialog_view.h",
     "dialogs/fiber_javascript_dialog_view.mm",
+    "dialogs/prompt.h",
+    "dialogs/prompt.mm",
     "downloads/downloads_wait.h",
     "downloads/downloads_wait.mm",
+    "extensions/extension_install_dialog.h",
+    "extensions/extension_install_dialog.mm",
+    "extensions/extension_uninstall_dialog.h",
+    "extensions/extension_uninstall_dialog.mm",
+    "extensions/fiber_extension_action_delegate.h",
+    "extensions/fiber_extension_action_delegate.mm",
+    "extensions/fiber_extension_popup.h",
+    "extensions/fiber_extension_popup.mm",
+    "extensions/fiber_extensions_toolbar.h",
+    "extensions/fiber_extensions_toolbar.mm",
     "hooks/browser_window_factory.h",
     "hooks/browser_window_factory.mm",
     "hooks/confirm_quit.h",
     "hooks/confirm_quit.mm",
     "hooks/context_menu_factory.h",
     "hooks/context_menu_factory.mm",
+    "hooks/extension_dialogs.h",
+    "hooks/extension_dialogs.mm",
     "hooks/feature_overrides.cc",
     "hooks/feature_overrides.h",
     "hooks/javascript_dialog_factory.h",
@@ -77,6 +94,8 @@ source_set("browser") {
     "//chrome/browser/ui/browser_window",
     "//chrome/browser/ui/cocoa",
     "//chrome/browser/ui/exclusive_access",
+    "//chrome/browser/ui/extensions",
+    "//chrome/browser/ui/extensions:extension_popup_types",
     "//chrome/browser/ui/find_bar",
     "//chrome/browser/ui/location_bar",
     "//chrome/browser/ui/omnibox",
@@ -91,14 +110,18 @@ source_set("browser") {
     "//components/pref_registry",
     "//components/renderer_context_menu",
     "//components/search_engines",
+    "//components/sessions",
     "//components/strings",
     "//components/tabs:public",
     "//components/url_formatter",
     "//components/viz/common",
     "//content/public/browser",
+    "//extensions/browser",
+    "//extensions/common",
     "//fiber/bridge",
     "//fiber/ui",
     "//third_party/blink/public/common",
+    "//third_party/icu",
     "//skia",
     "//third_party/metrics_proto",
     "//ui/base",

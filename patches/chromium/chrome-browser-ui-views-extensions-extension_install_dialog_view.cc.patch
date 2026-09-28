@@ -1,0 +1,49 @@
+diff --git a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
+index 83ce5b59c1..ad3bd43c61 100644
+--- a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
++++ b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
+@@ -12,6 +12,7 @@
+ #include "base/i18n/message_formatter.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/strings/utf_string_conversions.h"
++#include "build/build_config.h"
+ #include "chrome/browser/extensions/extension_install_prompt.h"
+ #include "chrome/browser/extensions/extension_install_prompt_show_params.h"
+ #include "chrome/browser/picture_in_picture/picture_in_picture_input_protector.h"
+@@ -33,6 +34,7 @@
+ #include "extensions/common/constants.h"
+ #include "extensions/common/extension.h"
+ #include "extensions/common/extension_urls.h"
++#include "fiber/browser/hooks/extension_dialogs.h"
+ #include "ui/accessibility/ax_enums.mojom.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_header_macros.h"
+@@ -82,6 +84,9 @@ std::u16string GetRatingAccessibleName(double rating, int rating_count) {
+       rating, rating_count);
+ }
+ 
++// Fiber: Fiber's prompt takes the place of this dialog (see
++// GetDefaultShowDialogCallback()).
++#if !BUILDFLAG(IS_MAC)
+ void ShowExtensionInstallDialogImpl(
+     std::unique_ptr<ExtensionInstallPromptShowParams> show_params,
+     ExtensionInstallPrompt::DoneCallback done_callback,
+@@ -108,6 +113,7 @@ void ShowExtensionInstallDialogImpl(
+                                                     parent_window)
+       ->Show();
+ }
++#endif  // !BUILDFLAG(IS_MAC)
+ 
+ }  // namespace
+ 
+@@ -732,5 +738,10 @@ END_METADATA
+ // static
+ ExtensionInstallPrompt::ShowDialogCallback
+ ExtensionInstallPrompt::GetDefaultShowDialogCallback() {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber's prompt, over the veiled page, in place of Chrome's dialog.
++  return fiber::ExtensionInstallDialogCallback();
++#else
+   return base::BindRepeating(&ShowExtensionInstallDialogImpl);
++#endif
+ }

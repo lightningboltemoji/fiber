@@ -2,6 +2,7 @@
 
 @class FiberPageState;
 @class FiberTabState;
+@protocol FiberExtensions;
 @protocol FiberOmnibox;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -55,6 +56,8 @@ NS_SWIFT_UI_ACTOR
 @property(readonly) NSWindow* window;
 // The command palette, where the user enters an address or search.
 @property(readonly) id<FiberOmnibox> omnibox;
+// The extensions menu, and the extensions pinned beside it in the toolbar.
+@property(readonly) id<FiberExtensions> extensions;
 
 // Shows `view` (the active tab's page) in the content area in place of the
 // previous one. Nil leaves the content area empty.

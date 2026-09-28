@@ -1,9 +1,9 @@
 import AppKit
 
 /// What a window waits on the user for, shown over its veil (see
-/// BrowserWindowController.present(_:)): a title, a message, anything else in
-/// between, and a row of glass buttons, centered over the page. Return presses
-/// the default button and Escape the cancel button.
+/// BrowserWindowController.present(_:)): an icon, a title, a message, anything
+/// else in between, and a row of glass buttons, centered over the page. Return
+/// presses the default button and Escape the cancel button.
 ///
 /// While it's up, the window is the prompt's: it covers the window's content,
 /// taking its clicks and scrolls, holds keyboard focus, and swallows the menu's
@@ -14,6 +14,10 @@ final class VeilPrompt: NSView {
     enum Role {
       /// Return presses it; it's tinted.
       case `default`
+      /// Tinted, but only a click presses it, and not until the prompt has
+      /// been up a moment (`confirmDelay`): for what a page could trick the
+      /// user into accepting, like adding an extension.
+      case confirm
       /// Escape presses it.
       case cancel
       case other
@@ -24,8 +28,14 @@ final class VeilPrompt: NSView {
     var action: () -> Void
   }
 
+  /// How long a confirm button waits to be pressed once the prompt is up, as
+  /// Chrome's extension install dialog does.
+  private static let confirmDelay: TimeInterval = 0.5
+
   private enum Metrics {
     static let maxWidth: CGFloat = 480
+    static let iconSize: CGFloat = 64
+    static let iconSpacing: CGFloat = 16
     static let sideMargin: CGFloat = 32
     static let eyebrowSpacing: CGFloat = 6
     static let titleSpacing: CGFloat = 8
@@ -41,23 +51,38 @@ final class VeilPrompt: NSView {
   /// The line under the title.
   var message: String {
     get { messageLabel.stringValue }
-    set { messageLabel.stringValue = newValue }
+    set {
+      messageLabel.stringValue = newValue
+      updateMessageVisibility()
+    }
   }
 
+  /// Called if the prompt goes without being answered or dismissed by its
+  /// owner: another took its place, or its window closed.
+  var onRemoved: (() -> Void)?
+
   private let stack = NSStackView()
+  private let titleLabel: NSTextField
   private let messageLabel: NSTextField
+  /// The space between the message and what follows it.
+  private let messageSpacing: CGFloat
   private let buttonsRow = NSStackView()
   private var buttons: [(NSButton, Button)] = []
 
-  /// `eyebrow` goes over the title, smaller (the site asking, say).
-  /// `accessory` goes between the message and the buttons.
+  /// `icon` goes at the top, and `eyebrow` over the title, smaller (the site
+  /// asking, say). `accessory` goes between the message and the buttons.
   init(
-    eyebrow: String? = nil, title: String, message: String,
-    accessory: NSView? = nil, buttons: [Button]
+    icon: NSImage? = nil, eyebrow: String? = nil, title: String,
+    message: String, accessory: NSView? = nil, buttons: [Button]
   ) {
+    titleLabel = Self.makeLabel(
+      title, font: .systemFont(ofSize: Metrics.titleSize, weight: .semibold),
+      color: .white)
     messageLabel = Self.makeLabel(
       message, font: .systemFont(ofSize: Metrics.messageSize),
       color: .white.withAlphaComponent(0.8))
+    messageSpacing =
+      accessory == nil ? Metrics.buttonsSpacing : Metrics.accessorySpacing
     super.init(frame: .zero)
     // Dark glass, and white text brighter than the system's secondary colors:
     // over a white page, the veil is only a mid gray.
@@ -69,6 +94,16 @@ final class VeilPrompt: NSView {
     stack.translatesAutoresizingMaskIntoConstraints = false
     addSubview(stack)
 
+    if let icon {
+      let iconView = NSImageView(image: icon)
+      iconView.imageScaling = .scaleProportionallyUpOrDown
+      NSLayoutConstraint.activate([
+        iconView.widthAnchor.constraint(equalToConstant: Metrics.iconSize),
+        iconView.heightAnchor.constraint(equalToConstant: Metrics.iconSize),
+      ])
+      stack.addArrangedSubview(iconView)
+      stack.setCustomSpacing(Metrics.iconSpacing, after: iconView)
+    }
     if let eyebrow, !eyebrow.isEmpty {
       let label = Self.makeLabel(
         eyebrow, font: .systemFont(ofSize: Metrics.eyebrowSize, weight: .medium),
@@ -76,19 +111,16 @@ final class VeilPrompt: NSView {
       stack.addArrangedSubview(label)
       stack.setCustomSpacing(Metrics.eyebrowSpacing, after: label)
     }
-    let titleLabel = Self.makeLabel(
-      title, font: .systemFont(ofSize: Metrics.titleSize, weight: .semibold),
-      color: .white)
     stack.addArrangedSubview(titleLabel)
-    stack.setCustomSpacing(Metrics.titleSpacing, after: titleLabel)
     stack.addArrangedSubview(messageLabel)
-    var last: NSView = messageLabel
+    stack.setCustomSpacing(messageSpacing, after: messageLabel)
+    // An empty message takes no room (see updateMessageVisibility()).
+    stack.detachesHiddenViews = true
+    updateMessageVisibility()
     if let accessory {
-      stack.setCustomSpacing(Metrics.accessorySpacing, after: last)
       stack.addArrangedSubview(accessory)
-      last = accessory
+      stack.setCustomSpacing(Metrics.buttonsSpacing, after: accessory)
     }
-    stack.setCustomSpacing(Metrics.buttonsSpacing, after: last)
 
     buttonsRow.orientation = .horizontal
     buttonsRow.spacing = Metrics.buttonSpacing
@@ -96,6 +128,11 @@ final class VeilPrompt: NSView {
       let button = Self.makeButton(spec)
       button.target = self
       button.action = #selector(buttonPressed(_:))
+      // Enabled once the prompt has been up a moment; see
+      // viewDidMoveToWindow().
+      if spec.role == .confirm {
+        button.isEnabled = false
+      }
       buttonsRow.addArrangedSubview(button)
       self.buttons.append((button, spec))
     }
@@ -121,6 +158,15 @@ final class VeilPrompt: NSView {
     fatalError("init(coder:) is not supported")
   }
 
+  /// Hides an empty message, and spaces what follows it from the title
+  /// instead.
+  private func updateMessageVisibility() {
+    messageLabel.isHidden = messageLabel.stringValue.isEmpty
+    stack.setCustomSpacing(
+      messageLabel.isHidden ? messageSpacing : Metrics.titleSpacing,
+      after: titleLabel)
+  }
+
   // MARK: Buttons
 
   private static func makeLabel(_ text: String, font: NSFont, color: NSColor)
@@ -139,14 +185,14 @@ final class VeilPrompt: NSView {
     button.bezelStyle = .glass
     button.borderShape = .capsule
     button.controlSize = .extraLarge
-    if spec.role == .default {
+    if spec.role == .default || spec.role == .confirm {
       button.tintProminence = .primary
     }
     let hint: String? =
       switch spec.role {
       case .default: "↩"
       case .cancel: "esc"
-      case .other: nil
+      case .confirm, .other: nil
       }
     if let hint {
       // The key that presses it, after the title and fainter.
@@ -160,7 +206,7 @@ final class VeilPrompt: NSView {
             .font: NSFont.systemFont(
               ofSize: font.pointSize - 2, weight: .medium),
             // On the tinted button, white; the others are glass.
-            .foregroundColor: spec.role == .default
+            .foregroundColor: spec.role == .default || spec.role == .confirm
               ? NSColor.white.withAlphaComponent(0.6) : .tertiaryLabelColor,
           ]))
       button.attributedTitle = title
@@ -183,6 +229,21 @@ final class VeilPrompt: NSView {
   }
 
   // MARK: Events
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    guard window != nil else {
+      return
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.confirmDelay) {
+      [weak self] in
+      MainActor.assumeIsolated {
+        for (button, spec) in self?.buttons ?? [] where spec.role == .confirm {
+          button.isEnabled = true
+        }
+      }
+    }
+  }
 
   override var acceptsFirstResponder: Bool { true }
 

@@ -221,7 +221,8 @@ core/                → //fiber
     hooks/           the functions patches call
     window/          BrowserWindow implementation and its stubs
     context_menu/    pages' context menus
-    dialogs/         JavaScript dialogs, tab-modal and app-modal (beforeunload)
+    dialogs/         JavaScript dialogs, tab-modal and app-modal (beforeunload), prompts
+    extensions/      the toolbar's extensions, their popups, adding and removing them
     downloads/       waiting for downloads before quitting or closing
     swipe/           swiping between pages, and the snapshots it shows
     new_tab/         chrome://newtab, Fiber's New Tab page
@@ -255,8 +256,9 @@ controls float over it in Liquid Glass, mostly out of sight:
 - **Toolbar** (`ui/Toolbar.swift`), hidden until View > Show Toolbar
   (Command-S; Save Page As moves to Shift-Command-S). A row of capsules level
   with the traffic lights: the traffic lights' own, an address capsule
-  (back/forward, the page's address, reload), and a placeholder for menus and
-  extensions. The traffic lights otherwise stay hidden (and take no clicks).
+  (back/forward, the page's address, reload), and one for extensions (see
+  below) and, for now, a placeholder for menus. The traffic lights otherwise
+  stay hidden (and take no clicks).
   `browser/window/fiber_main_menu.mm` adds the menu item
   to Chrome's main menu; the window handles `-toggleToolbarShown:`.
 - **Command palette** (`ui/CommandPalette.swift`): Command-L (Chrome's Focus
@@ -302,10 +304,13 @@ controls float over it in Liquid Glass, mostly out of sight:
   hit-tests and composites there).
 - **The veil** (`ui/Veil.swift`): when a window waits on the user, its page
   blurs and the window darkens, and what it's waiting for shows over it
-  (`ui/VeilPrompt.swift`: a title, a message, glass buttons; Return and
-  Escape press the default and cancel buttons, and the window's clicks,
+  (`ui/VeilPrompt.swift`: an icon, a title, a message, glass buttons; Return
+  and Escape press the default and cancel buttons, and the window's clicks,
   keys and menu shortcuts go nowhere else). The blur is a filter on the page
   area, not a backdrop, which would darken toward the window's edges.
+  `bridge/FiberPrompt.h` (`dialogs/prompt.mm`, `ui/Prompt.swift`) is the
+  general case, for Chrome's dialogs that are words and buttons: a prompt
+  another takes the place of, or whose window closes, ends unanswered.
   - *Holding Command-Q to quit* (Warn Before Quitting, `ui/QuitConfirmation.swift`,
     `hooks/confirm_quit.mm`): the veil falls over every window while the key
     is held and drains off when it's let go; another press fills it from
@@ -321,6 +326,15 @@ controls float over it in Liquid Glass, mostly out of sight:
     resume each; the quit goes ahead once they're done, or at once with Quit
     Now, and Continue Browsing (Escape) calls it off. Chrome's alert is cut.
     Closing the last Incognito window with downloads waits the same way.
+  - *Adding and removing extensions* (`extensions/extension_install_dialog.mm`,
+    `extensions/extension_uninstall_dialog.mm`, `hooks/extension_dialogs.mm`):
+    Chrome's install prompt ("Add “uBlock Origin Lite”?" and what it can do,
+    from the Web Store or `chrome://extensions`; also re-enabling one that
+    asks for more, and `chrome.permissions.request()`), a notice once it's
+    added (with Pin to Toolbar), and the confirmation before removing one.
+    Adding takes a click, not Return, and the button waits half a second, as
+    Chrome's does. Each is asked in the window it's for, or the profile's last
+    active one, or answered no. Chrome's views dialogs for all three are cut.
 - **Context menus** (`context_menu/fiber_render_view_context_menu.mm`,
   `ui/ContextMenu.swift`): right-clicking a page shows a native menu built
   from Chrome's (`RenderViewContextMenu`, which decides what's in it and runs
@@ -331,6 +345,25 @@ controls float over it in Liquid Glass, mostly out of sight:
   out, and so is anything a new Chromium release adds until it's listed.
   AppKit adds its own (Services, Speech, AutoFill) as it does to any text
   view's menu. DevTools windows keep Chrome's Cocoa menu.
+- **Extensions** (`extensions/`, `bridge/FiberExtensions.h`,
+  `ui/Extensions.swift`, `ui/ExtensionsMenu.swift`): the toolbar's last
+  capsule has a puzzle piece that opens the extensions menu (a popover
+  listing every extension, a pin for each, and Manage Extensions), and the
+  buttons of pinned extensions beside it, each with its icon and badge, dimmed
+  where it can't run. Clicking one runs it; right-clicking shows its menu
+  (Chrome's `ExtensionContextMenuModel`, through the context menu bridge:
+  Options, Unpin, Remove, Inspect Popup…). A popup is the extension's page
+  (`ExtensionViewHost`) in a popover from its button, or the puzzle piece if
+  it isn't pinned, sized as the page asks, closing on a click away, Escape or
+  `window.close()`. The model is Chrome's, as on Android: per window,
+  `FiberExtensionsToolbar` owns an `ExtensionsToolbarViewModel`, registered
+  as the window's `ExtensionsContainer` (which `chrome.action.openPopup()` and
+  the like look up), with a `FiberExtensionActionDelegate` for each
+  extension's `ExtensionActionViewModel`; pins are Chrome's
+  (`ToolbarActionsModel`, the `extensions.pinned_extensions` pref). Icons
+  come without Chrome's badge, which the UI draws. Not yet: extensions'
+  keyboard shortcuts (`commands`; Chrome's registry is views-only), site
+  access requests, the disabled-extension alert, and side panels.
 - **Swiping between pages** (`swipe/fiber_history_swiper.mm`,
   `ui/HistorySwipe.swift`): as in Safari, the page follows the fingers like a
   sheet of paper, over (going back) or under (forward) the page it's going to.
@@ -356,7 +389,9 @@ status bubble, JavaScript dialogs and context menus are Swift behind the bridge 
 `swift run --package-path core/ui FiberUIHarness --tabs 20` starts with 20
 tabs, `--ask-before-leaving` makes its pages ask before they're left, and
 `--downloads 4` gives a quit downloads to wait for. Its pages swipe too, and
-View > Simulate Swipe Back (Command-[) plays one without a trackpad.
+View > Simulate Swipe Back (Command-[) plays one without a trackpad. It has
+made-up extensions (one pinned, with a count that climbs), and View >
+Simulate Extension Install (Command-E) plays adding one.
 Not yet as described:
 
 - The rest of the window applies the snapshots it's pushed straight to its

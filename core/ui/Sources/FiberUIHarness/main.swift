@@ -156,6 +156,10 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
           "]"),
         // What a page going fullscreen does.
         item("Toggle Controls", #selector(MockBrowser.toggleControls(_:))),
+        // What adding an extension from a store does.
+        item(
+          "Simulate Extension Install",
+          #selector(MockBrowser.simulateExtensionInstall(_:)), "e"),
       ])
     return main
   }

@@ -1,0 +1,31 @@
+diff --git a/chrome/browser/ui/extensions/extension_install_ui_desktop.cc b/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
+index c9e2a59c3e..d07dbc2895 100644
+--- a/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
++++ b/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
+@@ -52,6 +52,7 @@
+ #include "content/public/browser/web_contents.h"
+ #include "extensions/browser/install/crx_install_error.h"
+ #include "extensions/common/extension.h"
++#include "fiber/browser/hooks/extension_dialogs.h"
+ #include "ui/base/l10n/l10n_util.h"
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -138,6 +139,10 @@ void ExtensionInstallUIDesktop::OnInstallSuccess(
+   CHECK(browser_window);
+ 
+   if (!extension->is_app()) {
++#if BUILDFLAG(IS_MAC)
++    // Fiber: Fiber's notice, in place of Chrome's post-install dialog.
++    fiber::OnExtensionInstalled(browser_window, extension, icon);
++#else
+     SkBitmap icon_to_use = icon ? *icon : SkBitmap();
+     extensions::TriggerPostInstallDialog(
+         profile(), extension, icon_to_use,
+@@ -170,6 +175,7 @@ void ExtensionInstallUIDesktop::OnInstallSuccess(
+               }
+             },
+             extension->id()));
++#endif  // BUILDFLAG(IS_MAC)
+     return;
+   }
+ 

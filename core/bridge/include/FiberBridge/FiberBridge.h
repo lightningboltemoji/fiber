@@ -14,9 +14,11 @@
 
 #import "FiberContextMenu.h"
 #import "FiberDownloadsWait.h"
+#import "FiberExtensions.h"
 #import "FiberJavaScriptDialog.h"
 #import "FiberOmnibox.h"
 #import "FiberPageState.h"
+#import "FiberPrompt.h"
 #import "FiberQuitConfirmation.h"
 #import "FiberTabState.h"
 #import "FiberWindow.h"

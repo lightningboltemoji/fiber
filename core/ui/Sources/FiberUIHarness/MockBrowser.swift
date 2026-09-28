@@ -36,6 +36,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var dialog: (any FiberJavaScriptDialog)?
   private var controlsVisible = true
   private var omnibox: MockOmnibox!
+  private var extensions: MockExtensions!
 
   init(urls: [String], app: HarnessAppDelegate) {
     self.app = app
@@ -53,6 +54,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
         self?.navigate(toInput: input, event: event)
       })
     ui.omnibox.actions = omnibox
+    extensions = MockExtensions(ui: ui.extensions, window: ui.window)
     for url in urls {
       openTab(url, activate: true)
     }
@@ -123,6 +125,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   @objc func reloadPage(_ sender: Any?) {
     reload(with: nil)
+  }
+
+  @objc func simulateExtensionInstall(_ sender: Any?) {
+    extensions.simulateInstall()
   }
 
   @objc func toggleControls(_ sender: Any?) {
@@ -477,6 +483,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     for tab in tabs {
       tab.loadTimer?.invalidate()
     }
+    extensions.stop()
     ui.window.close()
     app?.browserDidClose(self)
   }

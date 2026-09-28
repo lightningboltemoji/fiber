@@ -48,12 +48,23 @@ final class BrowserWindowController: NSObject, FiberWindow {
     NSApp.windows.compactMap { ($0 as? BrowserWindow)?.controller }
   }
   var omnibox: any FiberOmnibox { commandPalette }
+  var extensions: any FiberExtensions { extensionsController }
 
   private let browserWindow: BrowserWindow
   private let actions: any FiberWindowActions
   private let toolbar = Toolbar()
   private let tabPicker = TabPicker()
   private let commandPalette = CommandPalette()
+  /// The extensions menu, and the extensions pinned beside it in the toolbar.
+  private lazy var extensionsController = ExtensionsController(
+    bar: toolbar.extensionsBar,
+    isBarShown: { [weak self] in self?.isToolbarVisible ?? false },
+    hiddenMenuButtonRect: { [weak self] in
+      guard let self, let content = self.window.contentView else {
+        return nil
+      }
+      return (content, self.toolbar.extensionsMenuButtonRect(in: content))
+    })
   private let newTabView = NewTabView()
   /// The page and the gutter behind it, which the veil blurs as one.
   private let pageArea = NSView()
@@ -224,6 +235,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Shows or hides the toolbar (Command-S).
   fileprivate func toggleToolbar() {
     isToolbarShown = !isToolbarVisible
+    if !isToolbarShown {
+      extensionsController.closeMenu()
+    }
     updateToolbar(animated: true)
   }
 
@@ -373,6 +387,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     if !visible {
       tabPicker.close()
       closeCommandPalette()
+      extensionsController.closeMenu()
     }
     tabPicker.isHidden = !visible
     // A fullscreen page gets the whole window.
@@ -415,10 +430,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
       prompt == nil ? amount : 1, duration: duration, timing: timing)
   }
 
-  /// Shows `prompt` over the veil, in place of any other, and brings the
-  /// window forward: it may have faded out as the user quit.
+  /// Shows `prompt` over the veil, in place of any other (whose onRemoved is
+  /// called), and brings the window forward: it may have faded out as the user
+  /// quit.
   func present(_ prompt: VeilPrompt) {
-    self.prompt?.removeFromSuperview()
+    if let replaced = self.prompt {
+      replaced.removeFromSuperview()
+      replaced.onRemoved?()
+    }
     if self.prompt == nil {
       responderBeforePrompt = window.firstResponder
     }
@@ -546,6 +565,15 @@ extension BrowserWindowController: NSWindowDelegate {
 
   func windowDidBecomeMain(_ notification: Notification) {
     actions.windowDidBecomeMain()
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    // What was waiting on the user goes unanswered.
+    if let prompt {
+      self.prompt = nil
+      prompt.onRemoved?()
+    }
+    extensionsController.windowWillClose()
   }
 
   func windowDidResignMain(_ notification: Notification) {
