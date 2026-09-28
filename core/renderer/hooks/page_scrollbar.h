@@ -6,8 +6,9 @@
 namespace fiber {
 
 // Where the main frame's overlay vertical scrollbar goes, given `rect`, where
-// Chrome puts it: in from the page's right edge, and short of its rounded
-// corners. Called from PaintLayerScrollableArea::RectForVerticalScrollbar().
+// Chrome puts it: in from the window's right edge, clear of the tab picker, and
+// short of the page's rounded corners. Called from
+// PaintLayerScrollableArea::RectForVerticalScrollbar().
 gfx::Rect PageScrollbarRect(const gfx::Rect& rect, float scale_from_dip);
 
 }  // namespace fiber

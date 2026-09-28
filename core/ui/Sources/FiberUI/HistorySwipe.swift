@@ -47,8 +47,8 @@ final class HistorySwipe: NSObject {
     let completion: (Bool) -> Void
   }
 
-  /// Moves `pageArea` (the page and the gutter continuing it). `page`, in it,
-  /// is where the snapshot goes, the page's size and shape.
+  /// Moves `pageArea`, which holds the page. `page`, in it, is where the
+  /// snapshot goes, the page's size and shape.
   init(pageArea: NSView, page: NSView) {
     self.pageArea = pageArea
     self.page = page
@@ -236,7 +236,7 @@ final class HistorySwipeView: NSView {
     dimLayer.backgroundColor = NSColor.black.cgColor
     dimLayer.opacity = 0
     for layer in [snapshotLayer, dimLayer] {
-      layer.cornerRadius = PageGutter.cornerRadius
+      layer.cornerRadius = BrowserWindowController.pageCornerRadius
       layer.cornerCurve = .continuous
     }
     shadowLayer.startPoint = CGPoint(x: 0, y: 0.5)

@@ -27,6 +27,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     buttonsInset: edgeInset + windowControlsPadding.width,
     // The traffic lights are 14pt, centered in the title bar.
     titlebarHeight: 2 * (edgeInset + windowControlsPadding.height) + 14)
+  /// The window's own corner radius, which the page's corners match.
+  static let pageCornerRadius: CGFloat = 16
   private static let progressBarHeight: CGFloat = 3
   // Inset from the window's bottom-left corner, clear of its rounding.
   private static let statusBubbleInset: CGFloat = 10
@@ -59,13 +61,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return (content, self.toolbar.extensionsMenuButtonRect(in: content))
     })
   private let newTabView = NewTabView()
-  /// The page and the gutter behind it, which the veil blurs as one.
+  /// Holds `pageView`; the veil blurs it, and swiping between pages moves it.
   private let pageArea = NSView()
   /// The page and the New Tab page over it, with its corners rounded like the
-  /// window's. It stops short of the window's right edge, where the gutter
-  /// shows the tab stack behind it.
+  /// window's.
   private let pageView = NSView()
-  private let gutter = PageGutter()
   /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
   /// draws over the (empty) page.
   private var isNewTabPage = false
@@ -132,22 +132,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
         view, positioned: above ? .above : .below, relativeTo: self.pageArea)
     }
 
-    // Behind the page, and under its edge.
-    let gutterWidth = PageGutter.width + PageGutter.underlap
-    gutter.frame = NSRect(
-      x: content.bounds.width - gutterWidth, y: 0, width: gutterWidth,
-      height: content.bounds.height)
-    gutter.autoresizingMask = [.height, .minXMargin]
-    pageArea.addSubview(gutter)
-
-    pageView.frame = NSRect(
-      x: 0, y: 0, width: content.bounds.width - PageGutter.width,
-      height: content.bounds.height)
+    pageView.frame = pageArea.bounds
     pageView.autoresizingMask = [.width, .height]
     pageView.wantsLayer = true
     // Clips the page's own layer too.
     pageView.layer?.masksToBounds = true
-    pageView.layer?.cornerRadius = PageGutter.cornerRadius
+    pageView.layer?.cornerRadius = Self.pageCornerRadius
     pageView.layer?.cornerCurve = .continuous
     pageArea.addSubview(pageView)
     updatePageCorners()
@@ -359,12 +349,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
     newTabView.isHidden = !isNewTabPage
-    // The stack steps from what shows as the page: the New Tab page is drawn
-    // in the window's background color, and a page without a background of
-    // its own is white.
-    gutter.pageColor =
-      isNewTabPage
-      ? .windowBackgroundColor : state.backgroundColor ?? .white
     toolbar.setAddress(state.displayURL)
     toolbar.backButton.isEnabled = state.canGoBack
     toolbar.forwardButton.isEnabled = state.canGoForward
@@ -398,27 +382,23 @@ final class BrowserWindowController: NSObject, FiberWindow {
       extensionsController.closeMenu()
     }
     tabPicker.isHidden = !visible
-    // A fullscreen page gets the whole window.
-    gutter.isHidden = !visible
-    pageView.frame = pageArea.bounds.divided(
-      atDistance: visible ? PageGutter.width : 0, from: .maxXEdge
-    ).remainder
     updatePageCorners()
     updateToolbar(animated: false)
   }
 
-  /// Rounds the page like the window: against the gutter, and at the
-  /// window's own corners. A fullscreen page, and the page's edges against a
-  /// fullscreen window's screen, stay square.
+  /// Rounds the page like the window. A fullscreen page, and a fullscreen
+  /// window's, stay square.
   private func updatePageCorners(windowFullScreen: Bool? = nil) {
-    var corners: CACornerMask = []
-    if areControlsVisible {
-      corners = [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
-      if !(windowFullScreen ?? window.styleMask.contains(.fullScreen)) {
-        corners.formUnion([.layerMinXMinYCorner, .layerMinXMaxYCorner])
-      }
-    }
-    pageView.layer?.maskedCorners = corners
+    let isSquare =
+      !areControlsVisible
+      || (windowFullScreen ?? window.styleMask.contains(.fullScreen))
+    pageView.layer?.maskedCorners =
+      isSquare
+      ? []
+      : [
+        .layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner,
+        .layerMaxXMaxYCorner,
+      ]
   }
 
   // MARK: Veil

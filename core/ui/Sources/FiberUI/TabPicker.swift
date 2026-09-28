@@ -2,9 +2,10 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-/// The window's tabs, in a glass panel that opens out of the page's gutter
-/// (see PageGutter) and scrolls like a picker wheel, selecting on lift-off.
-/// This view takes the events and keeps the model; TabPickerView draws it.
+/// The window's tabs, behind a glass bump on the window's right edge that
+/// opens into a panel, which scrolls like a picker wheel, selecting on
+/// lift-off. Dragging the bump moves the window. This view takes the events
+/// and keeps the model; TabPickerView draws it.
 @MainActor
 final class TabPicker: NSView {
   /// Room for the open panel and a little past it.
@@ -13,7 +14,8 @@ final class TabPicker: NSView {
   /// Called with the picked tab's ID, unless it's already active.
   var onSelect: (Int) -> Void = { _ in }
 
-  /// Off while the toolbar's sidebar (TabSidebar) lists the tabs instead.
+  /// Off while the toolbar's sidebar (TabSidebar) lists the tabs instead; the
+  /// bump still moves the window.
   var isPanelEnabled: Bool {
     get { model.isPanelEnabled }
     set {
@@ -25,6 +27,10 @@ final class TabPicker: NSView {
   }
 
   private enum Metrics {
+    /// How far in from the window's edge the pointer opens the panel and
+    /// drags the window from: the bump's visible half, which the page's
+    /// scrollbar keeps clear of (fiber/renderer/hooks/page_scrollbar.cc).
+    static let hotZoneWidth = TabPickerModel.bumpWidth / 2
     /// How far the pointer can stray from the open panel before it closes.
     static let panelSlop: CGFloat = 24
     /// How long the pointer rests on the edge before the panel opens, so it
@@ -32,9 +38,12 @@ final class TabPicker: NSView {
     static let openDelay: TimeInterval = 0.07
     /// How long the pointer can be away before the panel closes.
     static let closeDelay: TimeInterval = 0.15
-    /// How long the panel stays open after the pointer overshoots the gutter
-    /// or the panel off the window's edge, for it to come back.
-    static let overshootDelay: TimeInterval = 0.75
+    /// How long the panel stays open after the pointer overshoots the bump
+    /// off the window's edge, for it to come back.
+    static let overshootDelay: TimeInterval = 1.5
+    /// How far above or below the bump the pointer can leave and still count
+    /// as overshooting it.
+    static let overshootSlop: CGFloat = 24
     /// A scroll wheel (no trackpad phases) selects once it rests this long.
     static let wheelSettleDelay: TimeInterval = 0.35
     /// How far past lift-off a flick carries, in seconds of its velocity.
@@ -55,8 +64,8 @@ final class TabPicker: NSView {
   /// under the pointer meanwhile, and the rest of the gesture still comes here.
   private var isScrolling = false
   private var pressedTabID: Int?
-  /// After the gutter is pressed to move the window, until the pointer leaves
-  /// the gutter: the panel stays shut.
+  /// After the bump is pressed to move the window, until the pointer leaves
+  /// it: the panel stays shut.
   private var isOpenHeldOff = false
 
   override init(frame: NSRect) {
@@ -117,9 +126,12 @@ final class TabPicker: NSView {
     model.size = newSize
   }
 
-  /// Where the pointer opens the panel: the gutter the page stops short of,
-  /// so the page keeps all of itself.
-  private var hotZone: CGRect { model.gutterRect }
+  private var hotZone: CGRect {
+    let bump = model.bumpRect
+    return CGRect(
+      x: bounds.width - Metrics.hotZoneWidth, y: bump.minY - 8,
+      width: Metrics.hotZoneWidth, height: bump.height + 16)
+  }
 
   /// Where the pointer keeps the open panel open: around it, and between it
   /// and the window's edge.
@@ -155,8 +167,8 @@ final class TabPicker: NSView {
     if isHidden {
       return nil
     }
-    // While the panel is closed, scrolling over the gutter is for the page
-    // (the gutter passes it on).
+    // While the panel is closed, scrolling over the bump is for the page
+    // under it.
     if !model.isExpanded, NSApp.currentEvent?.type == .scrollWheel {
       return nil
     }
@@ -167,7 +179,7 @@ final class TabPicker: NSView {
     return area.contains(point) ? self : nil
   }
 
-  /// The open panel and the gutter between it and the window's edge, where
+  /// The open panel and the space between it and the window's edge, where
   /// the pointer that opened it may still be.
   private var panelHitRect: CGRect {
     let panel = model.panelRect
@@ -209,7 +221,7 @@ final class TabPicker: NSView {
     if isOpenHeldOff {
       isOpenHeldOff = false
     } else if overshot(to: point) {
-      // The gutter is thin, so the pointer aiming for it can shoot off the
+      // The bump is thin, so the pointer aiming for it can shoot off the
       // window. Open the panel (or keep it open) for a moment so it can come
       // back to the panel instead.
       open(anchoredAt: min(max(point.y, 0), bounds.height))
@@ -222,17 +234,20 @@ final class TabPicker: NSView {
     }
   }
 
-  /// Whether the pointer left the window through its right edge: across the
-  /// gutter, or beside the open panel.
+  /// Whether the pointer left the window through its right edge beside the
+  /// bump or the open panel.
   private func overshot(to point: CGPoint) -> Bool {
-    point.x >= bounds.width - 1 && (0...bounds.height).contains(point.y)
+    let zone =
+      model.isExpanded
+      ? keepOpenZone : hotZone.insetBy(dx: 0, dy: -Metrics.overshootSlop)
+    return point.x >= bounds.width - 1 && (zone.minY...zone.maxY).contains(point.y)
   }
 
   override func mouseDown(with event: NSEvent) {
     let point = location(of: event)
     if hotZone.contains(point) {
-      // Pressing the gutter is for moving the window: the panel goes, and
-      // stays shut until the pointer leaves the gutter.
+      // Pressing the bump is for moving the window: the panel goes, and
+      // stays shut until the pointer leaves the bump.
       close()
       isOpenHeldOff = true
       window?.performDrag(with: event)
@@ -317,12 +332,12 @@ final class TabPicker: NSView {
     }
   }
 
-  /// For accessibility, which can't hover the gutter.
+  /// For accessibility, which presses the bump rather than hovering it.
   private func toggle() {
     if model.isExpanded {
       close()
     } else {
-      open(anchoredAt: model.gutterRect.midY)
+      open(anchoredAt: model.bumpRect.midY)
     }
   }
 
@@ -498,23 +513,27 @@ final class TabPickerModel {
   var tabs: [FiberTabState] = []
   var activeTabID = 0
   var isExpanded = false
-  /// Whether the gutter opens the panel (see TabPicker.isPanelEnabled).
+  /// Whether the bump opens the panel (see TabPicker.isPanelEnabled).
   var isPanelEnabled = true
   /// The open panel's top, in the picker's (flipped) coordinates.
   var panelTop: CGFloat = 0
   /// The tab under the pointer, or where scrolling has brought the panel.
   var highlightedTabID: Int?
-  /// The picker's size, which places the gutter.
+  /// The picker's size, which places the bump.
   var size: CGSize = .zero
   @ObservationIgnored var onToggle: () -> Void = {}
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
 
+  /// The bump is a capsule this wide, centered on the window's edge.
+  nonisolated static let bumpWidth: CGFloat = 16
   static let panelInset: CGFloat = 10
 
-  var gutterRect: CGRect {
-    CGRect(
-      x: size.width - PageGutter.width, y: 0, width: PageGutter.width,
-      height: size.height)
+  /// A capsule centered on the window's edge, a third of its height.
+  var bumpRect: CGRect {
+    let height = max(size.height / 3, 60)
+    return CGRect(
+      x: size.width - Self.bumpWidth / 2, y: ((size.height - height) / 2).rounded(),
+      width: Self.bumpWidth, height: height)
   }
 
   var activeRow: Int {

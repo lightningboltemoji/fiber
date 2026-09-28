@@ -91,7 +91,7 @@ Each surface Fiber replaces, and where it lives:
 | Surface | Chrome integration | UI |
 |---|---|---|
 | Browser window, toolbar, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift`, `Toolbar.swift` |
-| Tabs (picker on the window's edge, sidebar with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift`, `PageGutter.swift` |
+| Tabs (picker on the window's edge, sidebar with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift` |
 | Omnibox, as a command palette | `browser/omnibox/` | `CommandPalette.swift`, `SuggestionList.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
@@ -99,7 +99,7 @@ Each surface Fiber replaces, and where it lives:
 | Page context menus | `browser/context_menu/` | `ContextMenu.swift` |
 | Extensions toolbar, menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
 | Swiping between pages | `browser/swipe/` | `HistorySwipe.swift` |
-| The page's scrollbar, inset from its edge | `renderer/hooks/` | |
+| The page's scrollbar, clear of the tab picker | `renderer/hooks/` | |
 | Media codecs | `media/` | |
 
 Where Fiber has no replacement yet: DevTools, app and picture-in-picture

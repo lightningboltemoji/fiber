@@ -235,7 +235,6 @@ class FiberBrowserWindow : public BrowserWindow,
   // content::WebContentsObserver (observes the active tab):
   void LoadProgressChanged(double progress) override;
   void DidStopLoading() override;
-  void OnBackgroundColorChanged() override;
   void DidStartNavigation(
       content::NavigationHandle* navigation_handle) override;
 
