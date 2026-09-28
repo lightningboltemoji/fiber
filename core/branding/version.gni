@@ -1,0 +1,47 @@
+import("//build/apple/tweak_info_plist.gni")
+import("//chrome/version.gni")
+
+# Fiber's version (VERSION, MAJOR.MINOR.PATCH), and the version the app shows:
+# Fiber's, then the Chromium release it's built on, without Chromium's MINOR
+# (always 0). Fiber 0.1.0 on Chromium 155.0.8059.12 shows 0.1.0c155.8059.12.
+#
+# Chrome itself keeps Chromium's version (version_info, chrome/VERSION): the
+# User-Agent, extensions' minimum_chrome_version, the framework's Versions/
+# directory and the profile's last version all depend on it. Fiber's version
+# is only what the app shows: its Info.plist (fiber_app_info_plist below) and
+# Chrome's About pages (version_buildflags.h, see
+# patches/chromium/chrome-browser-ui-webui-version-version_ui.cc.patch).
+fiber_version = read_file("//fiber/branding/VERSION", "trim string")
+fiber_version_full = "${fiber_version}c$chrome_version_major." +
+                     "$chrome_version_build.$chrome_version_patch"
+
+# The app's Info.plist: tweak_info_plist, which gives it Chromium's version,
+# then Fiber's version in its place. chrome_app_plist is one (see
+# patches/chromium/chrome-BUILD.gn.patch); the framework and the helpers keep
+# Chromium's, which is what Chrome's code reads from them.
+#
+# CFBundleShortVersionString is what Finder shows. CFBundleVersion is what
+# Launch Services, and updaters like Sparkle, compare to find the newer copy,
+# so it's only numbers and only Fiber's: a release that just takes a new
+# Chromium bumps Fiber's version too.
+template("fiber_app_info_plist") {
+  _chromium_plist_target = target_name + "_chromium"
+  tweak_info_plist(_chromium_plist_target) {
+    forward_variables_from(invoker, "*")
+  }
+
+  action(target_name) {
+    script = "//fiber/branding/set_version.py"
+    sources = get_target_outputs(":$_chromium_plist_target")
+    outputs = [ "$target_gen_dir/${target_name}_fiber.plist" ]
+    deps = [ ":$_chromium_plist_target" ]
+    args = [
+      "--version",
+      fiber_version,
+      "--version-full",
+      fiber_version_full,
+      rebase_path(sources[0], root_build_dir),
+      rebase_path(outputs[0], root_build_dir),
+    ]
+  }
+}

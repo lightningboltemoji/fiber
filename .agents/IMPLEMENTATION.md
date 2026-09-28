@@ -180,6 +180,16 @@ of its build; Fiber already needs them for Swift.
   `/Applications`. The binaries carry only the linker's ad-hoc signatures;
   signing for distribution will go through Chromium's `sign_chrome.py` with a
   Developer ID.
+- Two versions. Fiber's is `branding/VERSION` (`0.1.0`), and the app shows it
+  with the Chromium release it's built on, `0.1.0c155.8059.12`
+  (`branding/version.gni`): in Finder (`CFBundleShortVersionString`), on
+  Settings › About and on `chrome://version`, and in `make dist`'s zip name.
+  Chrome itself keeps Chromium's version (`chrome/VERSION`), since the
+  User-Agent, extensions' `minimum_chrome_version` and the framework's
+  `Versions/` directory depend on it, and so do the framework's and the
+  helpers' `Info.plist`s. The app's `CFBundleVersion`, which Launch Services
+  and updaters compare, is Fiber's version alone, so every release bumps it,
+  even one that only takes a new Chromium. Tag releases `v<VERSION>`.
 - Swift is compiled by GN. Chromium's Apple toolchain already has a Swift tool
   (Chrome for iOS uses it) that is disabled on macOS by a single check. One
   patch enables it, and `core/build/` holds Fiber's Swift template
@@ -215,7 +225,7 @@ patches/chromium/    our edits to Chromium, one patch per file
 scripts/             sync, patch, build, run, size
 core/                → //fiber
   build/             GN args (args.gni), Swift template (swift.gni) and flags
-  branding/          product name, bundle ID; BUILD.gn compiles the app icon
+  branding/          product name, bundle ID, version; BUILD.gn compiles the app icon
     icon/            the icon's generator, AppIcon.icon, Assets.xcassets, renders
   browser/           C++ Chrome integration
     hooks/           the functions patches call

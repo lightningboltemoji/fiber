@@ -1,0 +1,14 @@
+diff --git a/chrome/browser/ui/webui/version/BUILD.gn b/chrome/browser/ui/webui/version/BUILD.gn
+index 8c207f69b1..cc9ab105f4 100644
+--- a/chrome/browser/ui/webui/version/BUILD.gn
++++ b/chrome/browser/ui/webui/version/BUILD.gn
+@@ -30,6 +30,9 @@ source_set("version") {
+     "//components/webui/version",
+     "//components/webui/version/resources",
+     "//content/public/common",
++
++    # Fiber: Fiber's version, for the About pages.
++    "//fiber/branding:version_buildflags",
+     "//ui/base",
+     "//v8:v8_version",
+   ]

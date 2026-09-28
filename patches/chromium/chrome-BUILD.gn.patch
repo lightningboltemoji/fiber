@@ -1,8 +1,28 @@
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index 8a60d7061b..38df09456b 100644
+index 8a60d7061b..2bf3c14c59 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -661,14 +661,17 @@ if (is_win) {
+@@ -53,6 +53,9 @@ if (is_android) {
+   import("//chrome/updater/branding.gni")
+   import("//chrome/version.gni")
+   import("//content/public/app/mac_helpers.gni")
++
++  # Fiber: fiber_app_info_plist, for chrome_app_plist.
++  import("//fiber/branding/version.gni")
+   import("//media/cdm/library_cdm/cdm_paths.gni")
+   import("//services/on_device_model/on_device_model.gni")
+   import("//third_party/icu/config.gni")
+@@ -508,7 +511,8 @@ if (is_win) {
+     }
+   }
+ 
+-  tweak_info_plist("chrome_app_plist") {
++  # Fiber: with Fiber's version in place of Chromium's.
++  fiber_app_info_plist("chrome_app_plist") {
+     info_plist = "app/app-Info.plist"
+     args = [
+       "--breakpad=0",
+@@ -661,14 +665,17 @@ if (is_win) {
      }
    }
  
@@ -22,7 +42,7 @@ index 8a60d7061b..38df09456b 100644
    }
  
    bundle_data("chrome_resources") {
-@@ -1156,20 +1159,23 @@ if (is_win) {
+@@ -1156,20 +1163,23 @@ if (is_win) {
      }
    }
  
@@ -59,7 +79,7 @@ index 8a60d7061b..38df09456b 100644
    }
  
    if (bundle_widevine_cdm) {
-@@ -1385,7 +1391,6 @@ if (is_win) {
+@@ -1385,7 +1395,6 @@ if (is_win) {
        ":chrome_framework_helpers",
        ":chrome_framework_resources",
        ":optimization_guide_library",
@@ -67,7 +87,7 @@ index 8a60d7061b..38df09456b 100644
        ":widevine_cdm_library",
        "//chrome/browser/resources/media/mei_preload:component_bundle",
        "//chrome/browser/web_applications/isolated_web_apps/key_distribution/preload:component_bundle",
-@@ -1399,7 +1404,13 @@ if (is_win) {
+@@ -1399,7 +1408,13 @@ if (is_win) {
        bundle_deps += [ ":angle_binaries" ]
      }
  

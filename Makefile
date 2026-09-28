@@ -45,13 +45,18 @@ icon:
 	uv run core/branding/icon/build.py
 
 # --- Version -------------------------------------------------------------------------------------
-# The bundle carries Chromium's version (CHROMIUM_VERSION); Fiber has none of its own yet. Archives
-# are named for the Fiber commit: its v* tag if it has one, otherwise the short hash.
-GIT_DESCRIBE := $(shell git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null)
-VERSION      ?= $(if $(GIT_DESCRIBE),$(patsubst v%,%,$(GIT_DESCRIBE)),0.0.0)
+# Fiber's version is core/branding/VERSION; tag its release v<VERSION>. The app shows it with the
+# Chromium release it's built on, 0.1.0c155.8059.12 (core/branding/version.gni), and archives are
+# named for that, read from the bundle. A build that isn't the release's tag adds its commit.
+FIBER_VERSION  := $(shell cat core/branding/VERSION)
+RELEASE_TAG    := $(shell git describe --tags --match 'v$(FIBER_VERSION)' --dirty 2>/dev/null)
+COMMIT         := $(shell git describe --always --dirty --exclude '*' 2>/dev/null)
+VERSION_SUFFIX := $(if $(filter v$(FIBER_VERSION),$(RELEASE_TAG)),,-$(COMMIT))
+BUNDLE_VERSION  = /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+                  $(BUNDLE)/Contents/Info.plist
 
 print-version:
-	@echo $(VERSION)
+	@echo $(FIBER_VERSION)
 
 # --- Fiber.app -----------------------------------------------------------------------------------
 # The dev build's app can't leave out/$(OUT), so the bundle comes from its own build in out/Release:
@@ -74,15 +79,14 @@ app:
 	rm -rf $(BUNDLE)
 	mkdir -p $(DIST)
 	ditto $(RELEASE)/$(APP_NAME).app $(BUNDLE)
-	@echo "built $(BUNDLE) — Chromium $$(cat CHROMIUM_VERSION), Fiber $(VERSION)"
+	@echo "built $(BUNDLE), version $$($(BUNDLE_VERSION))"
 
 # `ditto`, not `zip`: a bundle carries symlinks and xattrs that plain zip mangles.
-ZIP := $(DIST)/$(APP_NAME)-$(VERSION).zip
-
 zip:
-	rm -f $(ZIP)
-	ditto -c -k --keepParent $(BUNDLE) $(ZIP)
-	@shasum -a 256 $(ZIP)
+	@zip="$(DIST)/$(APP_NAME)-$$($(BUNDLE_VERSION))$(VERSION_SUFFIX).zip" && \
+	rm -f "$$zip" && \
+	ditto -c -k --keepParent $(BUNDLE) "$$zip" && \
+	shasum -a 256 "$$zip"
 
 dist: app zip
 

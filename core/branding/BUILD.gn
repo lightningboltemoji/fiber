@@ -1,4 +1,6 @@
+import("//build/buildflag_header.gni")
 import("//build/config/mac/mac_sdk.gni")
+import("//fiber/branding/version.gni")
 
 assert(is_mac)
 
@@ -29,4 +31,11 @@ action("app_icon") {
     rebase_path("icon/AppIcon.icon", root_build_dir),
     rebase_path("icon/Assets.xcassets", root_build_dir),
   ]
+}
+
+# Fiber's version for C++: BUILDFLAG(FIBER_VERSION_FULL), the version the app
+# shows (see version.gni), as a UTF-16 literal for Chrome's UI strings.
+buildflag_header("version_buildflags") {
+  header = "version_buildflags.h"
+  flags = [ "FIBER_VERSION_FULL=u\"$fiber_version_full\"" ]
 }
