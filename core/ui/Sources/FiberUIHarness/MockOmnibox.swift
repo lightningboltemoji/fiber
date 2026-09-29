@@ -1,8 +1,8 @@
 import AppKit
 import FiberBridge
 
-/// Plays Chrome's omnibox for the harness's command palette: enough to
-/// exercise the palette, not a model of Chrome's ranking.
+/// Plays Chrome's omnibox for the harness's omnibar: enough to exercise the
+/// omnibar, not a model of Chrome's ranking.
 @MainActor
 final class MockOmnibox: NSObject, FiberOmniboxActions {
   private struct Entry {

@@ -66,8 +66,7 @@ NS_SWIFT_SENDABLE
 
 @end
 
-// One row of the command palette's suggestions, as Chrome's omnibox would
-// show it.
+// One row of the omnibar's suggestions, as Chrome's omnibox would show it.
 NS_SWIFT_SENDABLE
 @interface FiberSuggestion : NSObject
 
@@ -109,13 +108,13 @@ NS_SWIFT_SENDABLE
 
 @end
 
-// What the user does in the command palette's field and suggestions. It's
-// Chrome's omnibox underneath: the browser suggests, autocompletes, and opens
-// what the user picks.
+// What the user does in the omnibar's field and suggestions. It's Chrome's
+// omnibox underneath: the browser suggests, autocompletes, and opens what the
+// user picks.
 NS_SWIFT_UI_ACTOR
 @protocol FiberOmniboxActions <NSObject>
 
-// The palette opened, or closed. Closing discards what the user typed.
+// The omnibar opened, or closed. Closing discards what the user typed.
 - (void)omniboxDidFocus;
 - (void)omniboxDidBlur;
 // The user changed the field's text or selection: typed, deleted, pasted, or
@@ -140,15 +139,15 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
-// The command palette, as the omnibox's view: the browser tells it what its
-// field and suggestions show.
+// The omnibar, as the omnibox's view: the browser tells it what its field and
+// suggestions show.
 NS_SWIFT_UI_ACTOR
 @protocol FiberOmnibox <NSObject>
 
-// Set once, before the palette opens.
+// Set once, before the omnibar opens.
 @property(nonatomic, nullable) id<FiberOmniboxActions> actions;
 
-// Opens the palette (Command-L, and new tabs). If it's already open, it stays
+// Opens the omnibar (Command-L, and new tabs). If it's already open, it stays
 // as it is.
 - (void)focus;
 // What the field shows, with `selectedRange` selected; an empty range is the

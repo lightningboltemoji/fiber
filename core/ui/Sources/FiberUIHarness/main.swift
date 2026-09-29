@@ -1,6 +1,7 @@
 // Runs Fiber's UI against a mock browser that uses the bridge exactly as
 // //fiber/browser does, without Chromium. Flags: `--tabs N` (made-up sites),
-// `--downloads N` (which quitting waits for), `--ask-before-leaving`.
+// `--downloads N` (which quitting waits for), `--ask-before-leaving`,
+// `--palette QUERY` (the command palette, open with QUERY typed).
 
 import AppKit
 import FiberBridge
@@ -14,6 +15,8 @@ app.run()
 @MainActor
 final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   private var browsers: [MockBrowser] = []
+  /// Every window's tabs, as one profile's.
+  let tabIndex = FiberTabIndexFactory.tabIndex()
   private lazy var downloads = MockDownloads(count: launchDownloadCount)
   /// Set once the downloads are done, so the quit they held up goes ahead.
   private var isDoneWaiting = false
@@ -22,6 +25,14 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     NSApp.mainMenu = makeMainMenu()
     openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
     NSApp.activate()
+    if let query = launchPaletteQuery {
+      // Once the pages have loaded, so there's text to find.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        MainActor.assumeIsolated {
+          self?.browsers.last?.openCommandPalette(typing: query)
+        }
+      }
+    }
   }
 
   // Like Chrome with Warn Before Quitting on: Command-Q quits only when held.
@@ -71,6 +82,16 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     return max(count, 0)
   }
 
+  private var launchPaletteQuery: String? {
+    let arguments = CommandLine.arguments
+    guard let flag = arguments.firstIndex(of: "--palette"),
+      arguments.indices.contains(flag + 1)
+    else {
+      return nil
+    }
+    return arguments[flag + 1]
+  }
+
   private var launchTabCount: Int {
     let arguments = CommandLine.arguments
     guard let flag = arguments.firstIndex(of: "--tabs"),
@@ -84,11 +105,26 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   func openWindow(urls: [String]) {
     let browser = MockBrowser(urls: urls, app: self)
     browsers.append(browser)
+    tabsDidChange()
     browser.show()
   }
 
   func browserDidClose(_ browser: MockBrowser) {
     browsers.removeAll { $0 === browser }
+    tabsDidChange()
+  }
+
+  func tabsDidChange() {
+    tabIndex.setTabs(browsers.flatMap(\.tabStates))
+  }
+
+  func browser(withTab tabID: Int) -> MockBrowser? {
+    browsers.first { $0.tabs.contains { $0.id == tabID } }
+  }
+
+  /// Like Chrome, switching to a tab in another window brings it forward.
+  func selectTab(withID tabID: Int) {
+    browser(withTab: tabID)?.show(tabWithID: tabID)
   }
 
   @objc private func newWindow(_ sender: Any?) {
@@ -142,6 +178,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       [
         // Handled by the window itself, as in the real app.
         item("Show Toolbar", #selector(NSWindow.toggleToolbarShown(_:)), "s"),
+        item(
+          "Command Palette",
+          #selector(FiberWindowMenuActions.toggleCommandPalette(_:)), "p"),
         item("Reload Page", #selector(MockBrowser.reloadPage(_:)), "r"),
         item("Simulate Swipe Back", #selector(MockBrowser.simulateSwipeBack(_:)), "["),
         item(

@@ -26,6 +26,7 @@ class FiberExtensionsToolbar;
 class HistorySwipeNavigation;
 class FiberLocationBar;
 class FiberStatusBubble;
+class TabIndexSource;
 
 // Chrome's BrowserWindow for Fiber's native windows (//fiber/ui, created
 // through FiberWindowFactory), in place of Chrome's views-based BrowserView.
@@ -55,7 +56,12 @@ class FiberBrowserWindow : public BrowserWindow,
   void ExecuteCommand(int command, WindowOpenDisposition disposition);
   bool IsCommandEnabled(int command) const;
   void FocusWebContents();
+  // Selects the tab, in whichever of the profile's windows has it, and brings
+  // that window forward.
   void SelectTab(int32_t tab_id);
+  // Selects the tab, and finds `text` in its page.
+  void RevealText(int32_t tab_id, const std::u16string& text);
+  void OnCommandPaletteOpened();
   void OnWindowCloseRequested();
   void OnWindowActivationChanged(bool active);
   void OnWindowFullscreenChanged();
@@ -259,6 +265,8 @@ class FiberBrowserWindow : public BrowserWindow,
   std::unique_ptr<FiberLocationBar> location_bar_;
   std::unique_ptr<FiberStatusBubble> status_bubble_;
   std::unique_ptr<FiberExtensionsToolbar> extensions_toolbar_;
+  // The profile's, shared with its other windows.
+  raw_ptr<TabIndexSource> tab_index_source_;
   // Set while closing the window waits for its downloads.
   base::WeakPtr<DownloadsWait> downloads_wait_;
   // After a history swipe lands, until the page it went to shows.

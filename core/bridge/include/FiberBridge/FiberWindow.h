@@ -4,8 +4,16 @@
 @class FiberTabState;
 @protocol FiberExtensions;
 @protocol FiberOmnibox;
+@protocol FiberTabIndex;
 
 NS_ASSUME_NONNULL_BEGIN
+
+// Browser commands the command palette lists.
+typedef NS_ENUM(NSInteger, FiberCommand) {
+  FiberCommandNewTab,
+  // Prints the active tab's page, with the system's print panel.
+  FiberCommandPrint,
+};
 
 typedef NS_ENUM(NSInteger, FiberHistorySwipeDirection) {
   // To the previous page: the page moves right, uncovering it.
@@ -25,8 +33,17 @@ NS_SWIFT_UI_ACTOR
 - (void)reloadWithEvent:(nullable NSEvent*)event;
 - (void)stopLoading;
 - (void)focusPage;
-// Does nothing if the tab is gone.
+// Selects the tab, in whichever of the profile's windows has it, and brings
+// that window forward. Does nothing if the tab is gone.
 - (void)selectTabWithID:(NSInteger)tabID;
+// Selects the tab, as -selectTabWithID: does, and finds `text` (from its page
+// text, see FiberTabIndex) in its page, leaving it selected.
+- (void)revealText:(NSString*)text inTabWithID:(NSInteger)tabID;
+- (BOOL)canRunCommand:(FiberCommand)command;
+- (void)runCommand:(FiberCommand)command;
+// The command palette opened. The active tab's page text may have changed
+// since it was last read.
+- (void)commandPaletteDidOpen;
 
 // The user asked to close the window. The browser closes it when it's ready,
 // which may be never: a page's unload handler can keep it open.
@@ -37,15 +54,29 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
+// Main menu actions a window handles itself.
+NS_SWIFT_UI_ACTOR
+@protocol FiberWindowMenuActions <NSObject>
+
+// Opens the command palette, or closes it if it's open.
+- (void)toggleCommandPalette:(nullable id)sender;
+
+@end
+
 // //fiber/browser shows and positions `window`, which handles
-// -toggleToolbarShown: (Show Toolbar in the View menu) itself.
+// -toggleToolbarShown: (Show Toolbar in the View menu) and
+// FiberWindowMenuActions itself.
 NS_SWIFT_UI_ACTOR
 @protocol FiberWindow <NSObject>
 
 @property(readonly) NSWindow* window;
-// The command palette, where the user enters an address or search.
+// The omnibar, where the user enters an address or search.
 @property(readonly) id<FiberOmnibox> omnibox;
 @property(readonly) id<FiberExtensions> extensions;
+
+// Opens the command palette, which searches the profile's tabs and runs
+// commands. If it's open, its text is selected.
+- (void)showCommandPalette;
 
 // Shows `view` (the active tab's page) in the content area in place of the
 // previous one. Nil leaves the content area empty.
@@ -89,9 +120,11 @@ NS_SWIFT_UI_ACTOR
 @interface FiberWindowFactory : NSObject
 
 // `frame` is in screen coordinates; an empty frame centers a default-sized
-// window. The window isn't shown until its owner orders it front.
+// window. The window isn't shown until its owner orders it front. `tabIndex`
+// is its profile's.
 + (id<FiberWindow>)windowWithFrame:(NSRect)frame
-                           actions:(id<FiberWindowActions>)actions;
+                           actions:(id<FiberWindowActions>)actions
+                          tabIndex:(id<FiberTabIndex>)tabIndex;
 
 - (instancetype)init NS_UNAVAILABLE;
 

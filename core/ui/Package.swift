@@ -1,10 +1,12 @@
 // swift-tools-version: 6.2
 
 // Builds //fiber/ui's sources with SwiftPM, for Xcode (previews, editor
-// tooling), for FiberUIHarness to run the UI against a mock browser, and to
-// prove the UI doesn't depend on Chromium. GN builds them into the app.
+// tooling), for FiberUIHarness to run the UI against a mock browser, for its
+// tests, and to prove the UI doesn't depend on Chromium. GN builds them into
+// the app.
 //
 //   swift run --package-path core/ui FiberUIHarness
+//   swift test --package-path core/ui
 
 import PackageDescription
 
@@ -22,5 +24,6 @@ let package = Package(
     .target(name: "FiberUI", dependencies: ["FiberBridge"]),
     .executableTarget(
       name: "FiberUIHarness", dependencies: ["FiberBridge", "FiberUI"]),
+    .testTarget(name: "FiberUITests", dependencies: ["FiberUI"]),
   ]
 )

@@ -10,5 +10,6 @@
 #import "FiberPageState.h"
 #import "FiberPrompt.h"
 #import "FiberQuitConfirmation.h"
+#import "FiberTabIndex.h"
 #import "FiberTabState.h"
 #import "FiberWindow.h"

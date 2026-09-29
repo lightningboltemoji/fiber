@@ -1,7 +1,7 @@
 import AppKit
 import FiberBridge
 
-/// The command palette's suggestions. The browser moves the selection (see
+/// The omnibar's suggestions. The browser moves the selection (see
 /// `setSelection(index:part:actionIndex:)`). Indexes are the browser's too:
 /// hidden suggestions keep their index but get no row.
 @MainActor

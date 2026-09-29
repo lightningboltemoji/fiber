@@ -12,6 +12,10 @@ void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry) {
   // user's own history, bookmarks, and tabs.
   registry->SetDefaultPrefValue(prefs::kSearchSuggestEnabled,
                                 base::Value(false));
+  // Printing goes straight to the system's print panel, not Chrome's print
+  // preview.
+  registry->SetDefaultPrefValue(prefs::kPrintPreviewDisabled,
+                                base::Value(true));
 }
 
 }  // namespace fiber

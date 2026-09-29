@@ -29,7 +29,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   // Set once `self` exists to be the window's actions.
   private var ui: (any FiberWindow)!
   private weak var app: HarnessAppDelegate?
-  private var tabs: [MockTab] = []
+  private(set) var tabs: [MockTab] = []
   private var activeTab: MockTab!
   private var dialog: (any FiberJavaScriptDialog)?
   private var controlsVisible = true
@@ -39,7 +39,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
   init(urls: [String], app: HarnessAppDelegate) {
     self.app = app
     super.init()
-    ui = FiberWindowFactory.window(withFrame: .zero, actions: self)
+    ui = FiberWindowFactory.window(
+      withFrame: .zero, actions: self, tabIndex: app.tabIndex)
     omnibox = MockOmnibox(
       ui: ui.omnibox,
       currentURL: { [weak self] in
@@ -86,10 +87,34 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   func selectTab(withID tabID: Int) {
     guard let tab = tabs.first(where: { $0.id == tabID }) else {
+      app?.selectTab(withID: tabID)
       return
     }
     activate(tab)
   }
+
+  func revealText(_ text: String, inTabWithID tabID: Int) {
+    selectTab(withID: tabID)
+    app?.browser(withTab: tabID)?.tabs.first { $0.id == tabID }?.page.find(text)
+  }
+
+  func canRun(_ command: FiberCommand) -> Bool {
+    true
+  }
+
+  func run(_ command: FiberCommand) {
+    switch command {
+    case .newTab:
+      newTab(nil)
+    case .print:
+      NSPrintOperation(view: activeTab.page).runModal(
+        for: ui.window, delegate: nil, didRun: nil, contextInfo: nil)
+    @unknown default:
+      break
+    }
+  }
+
+  func commandPaletteDidOpen() {}
 
   func windowShouldClose() {
     guard tabs.contains(where: \.page.asksBeforeLeaving) else {
@@ -140,7 +165,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   // MARK: Omnibox
 
-  /// Opens what the user picked in the command palette: a URL, or a search.
+  /// Opens what the user picked in the omnibar: a URL, or a search.
   func navigate(toInput input: String, event: NSEvent?) {
     let input = input.trimmingCharacters(in: .whitespaces)
     guard !input.isEmpty else {
@@ -235,6 +260,14 @@ final class MockBrowser: NSObject, FiberWindowActions {
     startLoading(tab)
   }
 
+  /// Brings the window forward, showing the tab.
+  func show(tabWithID tabID: Int) {
+    if let tab = tabs.first(where: { $0.id == tabID }) {
+      activate(tab)
+    }
+    show()
+  }
+
   private func activate(_ tab: MockTab) {
     guard tab !== activeTab else {
       return
@@ -242,6 +275,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     // Switching tabs dismisses the page's dialog, as in Chrome.
     dialog?.close()
     activeTab = tab
+    tab.lastActive = Date()
     ui.setContentsView(tab.page)
     pushPageState()
     pushTabs()
@@ -415,6 +449,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
     tab.loadTimer?.invalidate()
     tab.loadStart = Date()
     tab.page.show(url: tab.url, loaded: false)
+    // The browser drops a page's text once it's left.
+    app?.tabIndex.setPageText("", forTabWithID: tab.id)
     tabDidChange(tab)
     tab.loadTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true)
     { [weak self, weak tab] _ in
@@ -443,6 +479,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
     tab.loadStart = nil
     tab.page.show(url: tab.url, loaded: true)
     tabDidChange(tab)
+    app?.tabIndex.setPageText(
+      MockPages.page(for: tab.url)?.text ?? "", forTabWithID: tab.id)
   }
 
   private func tabDidChange(_ tab: MockTab) {
@@ -466,12 +504,40 @@ final class MockBrowser: NSObject, FiberWindowActions {
         loading: tab.isLoading, newTabPage: isNewTabPage))
   }
 
+  /// The window's tabs, as the UI shows them.
+  var tabStates: [FiberTabState] {
+    tabs.map {
+      FiberTabState(
+        id: $0.id, title: $0.page.title, url: Self.displayURL($0.url),
+        favicon: nil, loading: $0.isLoading, lastActiveTime: $0.lastActive)
+    }
+  }
+
   private func pushTabs() {
-    ui.setTabs(
-      tabs.map {
-        FiberTabState(
-          id: $0.id, title: $0.page.title, favicon: nil, loading: $0.isLoading)
-      }, activeTabID: activeTab.id)
+    ui.setTabs(tabStates, activeTabID: activeTab.id)
+    app?.tabsDidChange()
+  }
+
+  /// `url` as Chrome shows it: no "https://", "www." or lone "/".
+  private static func displayURL(_ url: String) -> String {
+    var display = url
+    for prefix in ["https://", "http://", "www."]
+    where display.hasPrefix(prefix) {
+      display.removeFirst(prefix.count)
+    }
+    if display.last == "/",
+      display.firstIndex(of: "/") == display.indices.last
+    {
+      display.removeLast()
+    }
+    return display
+  }
+
+  /// Opens the command palette with `query` typed in it.
+  func openCommandPalette(typing query: String) {
+    ui.showCommandPalette()
+    (ui.window.firstResponder as? NSTextView)?.insertText(
+      query, replacementRange: NSRange(location: NSNotFound, length: 0))
   }
 
   private func close() {
@@ -485,7 +551,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
 }
 
 @MainActor
-private final class MockTab: Equatable {
+final class MockTab: Equatable {
   private static let loadDuration: TimeInterval = 0.8
   private static var lastID = 0
 
@@ -497,6 +563,7 @@ private final class MockTab: Equatable {
   var snapshots: [Int: NSImage] = [:]
   var loadStart: Date?
   var loadTimer: Timer?
+  var lastActive = Date()
 
   init() {
     Self.lastID += 1

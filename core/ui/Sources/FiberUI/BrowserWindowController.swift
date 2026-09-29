@@ -2,10 +2,13 @@ import AppKit
 import FiberBridge
 
 @objc @implementation extension FiberWindowFactory {
-  class func window(withFrame frame: NSRect, actions: any FiberWindowActions)
-    -> any FiberWindow
-  {
-    BrowserWindowController(frame: frame, actions: actions)
+  class func window(
+    withFrame frame: NSRect, actions: any FiberWindowActions,
+    tabIndex: any FiberTabIndex
+  ) -> any FiberWindow {
+    BrowserWindowController(
+      frame: frame, actions: actions,
+      tabIndex: tabIndex as? TabIndex ?? TabIndex())
   }
 }
 
@@ -42,7 +45,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   static var all: [BrowserWindowController] {
     NSApp.windows.compactMap { ($0 as? BrowserWindow)?.controller }
   }
-  var omnibox: any FiberOmnibox { commandPalette }
+  var omnibox: any FiberOmnibox { omnibar }
   var extensions: any FiberExtensions { extensionsController }
 
   private let browserWindow: BrowserWindow
@@ -50,7 +53,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let toolbar = Toolbar()
   private let tabPicker = TabPicker()
   private let tabSidebar = TabSidebar()
-  private let commandPalette = CommandPalette()
+  private let omnibar = Omnibar()
+  private let commandPalette: CommandPalette
   private lazy var extensionsController = ExtensionsController(
     bar: toolbar.extensionsBar,
     isBarShown: { [weak self] in self?.isToolbarVisible ?? false },
@@ -89,8 +93,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private weak var contentsView: NSView?
   private var isLoading = false
 
-  init(frame: NSRect, actions: any FiberWindowActions) {
+  init(frame: NSRect, actions: any FiberWindowActions, tabIndex: TabIndex) {
     self.actions = actions
+    commandPalette = CommandPalette(index: tabIndex, actions: actions)
     browserWindow = BrowserWindow(
       contentRect: NSRect(origin: .zero, size: Self.defaultWindowSize),
       styleMask: [
@@ -146,7 +151,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     newTabView.frame = pageView.bounds
     newTabView.autoresizingMask = [.width, .height]
     newTabView.isHidden = true
-    newTabView.onClick = { [weak self] in self?.showCommandPalette() }
+    newTabView.onClick = { [weak self] in self?.showOmnibar() }
     pageView.addSubview(newTabView)
 
     progressBar.frame = NSRect(
@@ -193,12 +198,22 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     content.addSubview(tabPicker)
 
-    // Over everything.
-    commandPalette.frame = content.bounds
-    commandPalette.autoresizingMask = [.width, .height]
-    commandPalette.onOpen = { [weak self] in self?.tabPicker.close() }
+    // Over everything, one at a time.
+    for palette in [omnibar.view, commandPalette.view] {
+      palette.frame = content.bounds
+      palette.autoresizingMask = [.width, .height]
+      content.addSubview(palette)
+    }
+    omnibar.onOpen = { [weak self] in
+      self?.tabPicker.close()
+      self?.commandPalette.close()
+    }
+    omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
+    commandPalette.onOpen = { [weak self] in
+      self?.tabPicker.close()
+      self?.omnibar.close()
+    }
     commandPalette.onDismiss = { [weak self] in self?.closeCommandPalette() }
-    content.addSubview(commandPalette)
 
     // Over everything; what the window waits on goes over it.
     veil.dimView.frame = content.bounds
@@ -329,8 +344,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     if view === contentsView {
       return
     }
-    // It was for the tab being switched away from. (The browser opens it
-    // again on a New Tab page.)
+    // They were for the tab being switched away from. (The browser opens the
+    // omnibar again on a New Tab page.)
+    omnibar.close()
     commandPalette.close()
     historySwipe.reset()
     contentsView?.removeFromSuperview()
@@ -359,6 +375,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
     tabPicker.setTabs(tabs, activeTabID: activeTabID)
     tabSidebar.setTabs(tabs, activeTabID: activeTabID)
+    commandPalette.setWindowTabs(tabs, activeTabID: activeTabID)
   }
 
   func setLoading(_ loading: Bool, progress: Double) {
@@ -377,6 +394,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     areControlsVisible = visible
     if !visible {
       tabPicker.close()
+      closeOmnibar()
       closeCommandPalette()
       extensionsController.closeMenu()
     }
@@ -430,6 +448,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     self.prompt = prompt
     tabPicker.close()
+    closeOmnibar()
     closeCommandPalette()
 
     let content = window.contentView!
@@ -499,9 +518,36 @@ final class BrowserWindowController: NSObject, FiberWindow {
     historySwipe.finish()
   }
 
-  /// Opens the command palette, where the browser puts the page's URL.
-  private func showCommandPalette() {
-    commandPalette.focus()
+  /// Opens the omnibar, where the browser puts the page's URL.
+  private func showOmnibar() {
+    omnibar.focus()
+  }
+
+  private func closeOmnibar() {
+    guard omnibar.isOpen else {
+      return
+    }
+    omnibar.close()
+    actions.focusPage()
+  }
+
+  /// Not while a prompt waits on the user, or a page is fullscreen.
+  fileprivate var canShowCommandPalette: Bool {
+    prompt == nil && areControlsVisible
+  }
+
+  func showCommandPalette() {
+    if canShowCommandPalette {
+      commandPalette.open()
+    }
+  }
+
+  fileprivate func toggleCommandPalette() {
+    if commandPalette.isOpen {
+      closeCommandPalette()
+    } else {
+      showCommandPalette()
+    }
   }
 
   private func closeCommandPalette() {
@@ -534,7 +580,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   @objc private func addressClicked(_ sender: Any?) {
-    showCommandPalette()
+    showOmnibar()
   }
 }
 
@@ -588,7 +634,7 @@ extension BrowserWindowController: NSWindowDelegate {
 /// Sends menu actions that nothing in the responder chain handles to the
 /// window's actions, so the main menu acts on this window's browser while
 /// it's key. Show Toolbar (-toggleToolbarShown:) shows Fiber's toolbar.
-private final class BrowserWindow: NSWindow {
+private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
   weak var menuActionTarget: (any FiberWindowActions)?
   weak var controller: BrowserWindowController?
 
@@ -596,13 +642,21 @@ private final class BrowserWindow: NSWindow {
     controller?.toggleToolbar()
   }
 
+  func toggleCommandPalette(_ sender: Any?) {
+    controller?.toggleCommandPalette()
+  }
+
   override func validateMenuItem(_ item: NSMenuItem) -> Bool {
-    guard item.action == #selector(toggleToolbarShown(_:)) else {
+    switch item.action {
+    case #selector(toggleToolbarShown(_:)):
+      let isVisible = controller?.isToolbarVisible ?? false
+      item.title = isVisible ? "Hide Toolbar" : "Show Toolbar"
+      return controller != nil
+    case #selector(toggleCommandPalette(_:)):
+      return controller?.canShowCommandPalette ?? false
+    default:
       return super.validateMenuItem(item)
     }
-    let isVisible = controller?.isToolbarVisible ?? false
-    item.title = isVisible ? "Hide Toolbar" : "Show Toolbar"
-    return controller != nil
   }
 
   // NSWindow's private factory for its frame view, which lays out the

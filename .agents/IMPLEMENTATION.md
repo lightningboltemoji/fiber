@@ -2,7 +2,8 @@
 
 A high-level map of how Fiber is built and why. The rules it follows are in
 [PRINCIPLES.md](PRINCIPLES.md); detailed designs live in their own docs
-([MEDIA.md](MEDIA.md)) and in the code. Commands are in `README.md`.
+([MEDIA.md](MEDIA.md), [PALETTE.md](PALETTE.md)) and in the code. Commands
+are in `README.md`.
 
 Fiber forks Chromium's `//chrome` layer rather than embedding a web engine,
 because full Chrome extension support is a hard requirement. (CEF rules that
@@ -26,7 +27,7 @@ chrome/ content/ components/
 |---|---|---|---|
 | `browser/` | C++ (`.mm` where it calls the bridge) | Implements Chrome's interfaces (`BrowserWindow`, `LocationBar`, dialog views…), watches Chrome's models, owns Fiber's own per-profile models. | Creates or lays out views. |
 | `bridge/` | Objective-C headers | Declares the protocols and immutable value types the other two talk through. | Mentions C++ or Chromium. |
-| `ui/` | Swift | Windows, toolbar, tabs, command palette, prompts, design system. | Imports anything but the bridge and Apple frameworks. |
+| `ui/` | Swift | Windows, toolbar, tabs, omnibar, command palette, prompts, design system. | Imports anything but the bridge and Apple frameworks. |
 
 `browser/` exists only because Chrome's extension points are C++ classes with
 virtual methods, which Swift can't subclass. It translates between Chrome and
@@ -92,7 +93,8 @@ Each surface Fiber replaces, and where it lives:
 |---|---|---|
 | Browser window, toolbar, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift`, `Toolbar.swift` |
 | Tabs (picker on the window's edge, sidebar with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift` |
-| Omnibox, as a command palette | `browser/omnibox/` | `CommandPalette.swift`, `SuggestionList.swift` |
+| Omnibox, as the omnibar | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift` |
+| Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
 | Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |

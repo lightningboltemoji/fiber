@@ -1,6 +1,8 @@
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 
 #include "base/memory/raw_ptr.h"
+#include "base/notreached.h"
+#include "base/strings/sys_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 #import "ui/base/cocoa/cocoa_base_utils.h"
@@ -12,6 +14,16 @@ namespace {
 WindowOpenDisposition DispositionFromEvent(NSEvent* event) {
   return event ? ui::WindowOpenDispositionFromNSEvent(event)
                : WindowOpenDisposition::CURRENT_TAB;
+}
+
+int CommandID(FiberCommand command) {
+  switch (command) {
+    case FiberCommandNewTab:
+      return IDC_NEW_TAB;
+    case FiberCommandPrint:
+      return IDC_PRINT;
+  }
+  NOTREACHED();
 }
 
 }  // namespace
@@ -65,6 +77,28 @@ WindowOpenDisposition DispositionFromEvent(NSEvent* event) {
 - (void)selectTabWithID:(NSInteger)tabID {
   if (_owner) {
     _owner->SelectTab(static_cast<int32_t>(tabID));
+  }
+}
+
+- (void)revealText:(NSString*)text inTabWithID:(NSInteger)tabID {
+  if (_owner) {
+    _owner->RevealText(static_cast<int32_t>(tabID),
+                       base::SysNSStringToUTF16(text));
+  }
+}
+
+- (BOOL)canRunCommand:(FiberCommand)command {
+  return _owner && _owner->IsCommandEnabled(CommandID(command));
+}
+
+- (void)runCommand:(FiberCommand)command {
+  [self executeCommand:CommandID(command)
+           disposition:WindowOpenDisposition::CURRENT_TAB];
+}
+
+- (void)commandPaletteDidOpen {
+  if (_owner) {
+    _owner->OnCommandPaletteOpened();
   }
 }
 

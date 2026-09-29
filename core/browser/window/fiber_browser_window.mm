@@ -24,7 +24,6 @@
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "chrome/common/webui_url_constants.h"
-#include "components/favicon/content/content_favicon_driver.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "components/omnibox/browser/location_bar_model.h"
 #include "components/tabs/public/tab_interface.h"
@@ -39,15 +38,16 @@
 #include "content/public/common/url_constants.h"
 #include "fiber/browser/downloads/downloads_wait.h"
 #include "fiber/browser/extensions/fiber_extensions_toolbar.h"
+#include "fiber/browser/palette/tab_index_source.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
 #include "fiber/browser/swipe/page_snapshots.h"
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
+#include "fiber/browser/window/tab_state.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/color/color_provider_utils.h"
-#include "ui/gfx/image/image.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 #include "ui/native_theme/native_theme.h"
 
@@ -181,10 +181,12 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
   ui::mojom::WindowShowState show_state;
   chrome::GetSavedWindowBoundsAndShowState(browser_, &bounds, &show_state);
   actions_ = [[FiberBrowserWindowActions alloc] initWithOwner:this];
+  tab_index_source_ = TabIndexSource::AddWindow(this);
   ui_ = [FiberWindowFactory
       windowWithFrame:bounds.IsEmpty() ? NSZeroRect
                                        : gfx::ScreenRectToNSRect(bounds)
-              actions:actions_];
+              actions:actions_
+             tabIndex:tab_index_source_->index()];
   location_bar_ = std::make_unique<FiberLocationBar>(this, ui_.omnibox);
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
   extensions_toolbar_ =
@@ -201,6 +203,8 @@ FiberBrowserWindow::~FiberBrowserWindow() {
   std::erase(AllWindows(), this);
   browser_->GetFeatures().TearDownPreBrowserWindowDestruction();
   Observe(nullptr);
+  tab_index_source_ = nullptr;
+  TabIndexSource::RemoveWindow(this);
   [actions_ detachOwner];
   [GetNSWindow() close];
 }
@@ -265,16 +269,35 @@ void FiberBrowserWindow::FocusWebContents() {
 
 void FiberBrowserWindow::SelectTab(int32_t tab_id) {
   tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
-  if (!tab) {
+  FiberBrowserWindow* window =
+      tab ? FromBrowser(tab->GetBrowserWindowInterface()) : nullptr;
+  if (!window || window->GetProfile() != GetProfile()) {
     return;
   }
-  // The tab may have moved to another window since the UI last heard.
-  TabStripModel* model = browser_->GetTabStripModel();
+  TabStripModel* model = window->browser_->GetTabStripModel();
   int index = model->GetIndexOfTab(tab);
-  if (index != TabStripModel::kNoTab) {
-    model->ActivateTabAt(index,
-                         TabStripUserGestureDetails(
-                             TabStripUserGestureDetails::GestureType::kMouse));
+  if (index == TabStripModel::kNoTab) {
+    return;
+  }
+  model->ActivateTabAt(index,
+                       TabStripUserGestureDetails(
+                           TabStripUserGestureDetails::GestureType::kMouse));
+  if (window != this) {
+    window->Activate();
+  }
+}
+
+void FiberBrowserWindow::RevealText(int32_t tab_id,
+                                    const std::u16string& text) {
+  SelectTab(tab_id);
+  if (tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get()) {
+    tab_index_source_->RevealText(tab->GetContents(), text);
+  }
+}
+
+void FiberBrowserWindow::OnCommandPaletteOpened() {
+  if (content::WebContents* contents = GetActiveWebContents()) {
+    tab_index_source_->ReadPageText(contents);
   }
 }
 
@@ -330,23 +353,15 @@ void FiberBrowserWindow::UpdateTabs() {
   NSMutableArray<FiberTabState*>* tabs =
       [NSMutableArray arrayWithCapacity:model->count()];
   for (int i = 0; i < model->count(); ++i) {
-    tabs::TabInterface* tab = model->GetTabAtIndex(i);
-    content::WebContents* contents = tab->GetContents();
-    favicon::ContentFaviconDriver* favicon_driver =
-        favicon::ContentFaviconDriver::FromWebContents(contents);
-    NSImage* favicon = favicon_driver && favicon_driver->FaviconIsValid()
-                           ? favicon_driver->GetFavicon().AsNSImage()
-                           : nil;
-    [tabs addObject:[[FiberTabState alloc]
-                        initWithID:tab->GetHandle().raw_value()
-                             title:base::SysUTF16ToNSString(contents->GetTitle())
-                           favicon:favicon
-                           loading:contents->ShouldShowLoadingUI()]];
+    [tabs addObject:TabStateFor(model->GetTabAtIndex(i))];
   }
   tabs::TabInterface* active = model->GetActiveTab();
   [ui_ setTabs:tabs
       activeTabID:active ? active->GetHandle().raw_value()
                          : tabs::TabHandle::NullValue];
+  if (tab_index_source_) {
+    tab_index_source_->TabsChanged();
+  }
 }
 
 // BrowserWindow:
@@ -674,7 +689,10 @@ std::unique_ptr<content::EyeDropper> FiberBrowserWindow::OpenEyeDropper(
 
 void FiberBrowserWindow::ShowCaretBrowsingDialog() {}
 
-void FiberBrowserWindow::CreateTabSearchBubble() {}
+void FiberBrowserWindow::CreateTabSearchBubble() {
+  // Search Tabs: the command palette, in place of Chrome's Tab Search.
+  [ui_ showCommandPalette];
+}
 
 void FiberBrowserWindow::CloseTabSearchBubble() {}
 

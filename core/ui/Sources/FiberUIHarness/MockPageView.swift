@@ -122,10 +122,16 @@ final class MockPageView: NSView {
     let path = URL(string: url)?.path() ?? ""
     title =
       url == MockBrowser.newTabURL
-      ? "New Tab" : "\(host)\(path == "/" ? "" : path)"
+      ? "New Tab"
+      : MockPages.page(for: url)?.title ?? "\(host)\(path == "/" ? "" : path)"
     titleLabel.stringValue = loaded ? title : "Loading…"
     urlLabel.stringValue = url
     needsDisplay = true
+  }
+
+  /// What find in page would do: select `text`, if the page has it.
+  func find(_ text: String) {
+    resultLabel.stringValue = "Found “\(text)” in the page"
   }
 
   @objc private func alert(_ sender: Any?) {
