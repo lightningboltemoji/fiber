@@ -1,0 +1,178 @@
+# Builds and publishes Fiber.app on air.local, a self-hosted runner (label `fiber`): a cold Release
+# build of Chromium takes hours, past a hosted runner's limit, so the runner keeps it warm.
+#
+#   push to main    →  the `tip` prerelease, at a fixed asset name so its URL never changes.
+#   push a `v*` tag →  that version, once, and its Homebrew cask. The tag is v<core/branding/VERSION>.
+#
+# The repository is public and the runner is a real machine: nothing a pull request can trigger
+# belongs on it, so no workflow here runs on `pull_request`.
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Never cancel: a half-published release is worse than a queued one.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: [self-hosted, fiber]
+    # A new CHROMIUM_VERSION, or a patch to a widely included header, rebuilds most of Chromium.
+    timeout-minutes: 1440
+    # Its secrets reach only `main` and `v*` tags.
+    environment: production
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      TAP_APP_CLIENT_ID: ${{ secrets.TAP_APP_CLIENT_ID }}
+
+    steps:
+      # `clean: false` keeps what git ignores between runs: the Chromium checkout with its
+      # out/Release, and depot_tools. Full history for the tags.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          clean: false
+
+      # Everything that can reject this build happens before the build.
+      - name: Guard the tag
+        if: github.ref_type == 'tag'
+        run: |
+          set -euo pipefail
+          want="v$(make print-version)"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::core/branding/VERSION says this release is $want, not $GITHUB_REF_NAME."
+            exit 1
+          fi
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::error::$GITHUB_REF_NAME is already released. Bump core/branding/VERSION and tag that."
+            exit 1
+          fi
+          git fetch --no-tags --quiet origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main. Push the commit, then tag it."
+            exit 1
+          fi
+
+      # Only when CHROMIUM_VERSION moves: a sync reverts and reapplies every patch, and so rebuilds
+      # everything they touch.
+      - name: Sync Chromium
+        run: |
+          set -euo pipefail
+          want="$(tr -d '[:space:]' < CHROMIUM_VERSION)"
+          have="$(git -C chromium/src describe --tags --exact-match 2>/dev/null || true)"
+          if [ "$have" != "$want" ]; then
+            make sync
+          fi
+
+      - name: Build
+        run: |
+          rm -rf dist
+          make app
+
+      - name: Version and channel
+        run: |
+          set -euo pipefail
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/Fiber.app/Contents/Info.plist)"
+          echo "FIBER_VERSION=$version" >> "$GITHUB_ENV"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "ZIP_NAME=Fiber-$version.zip" >> "$GITHUB_ENV"
+          else
+            echo "ZIP_NAME=Fiber-tip.zip" >> "$GITHUB_ENV"
+          fi
+          echo "built $version"
+
+      - name: Archive
+        run: make zip
+
+      # Force-move the tag and edit in place; recreating the release would notify every releases
+      # watcher on every push to main.
+      - name: Publish tip
+        if: github.ref_type != 'tag'
+        run: |
+          set -euo pipefail
+          notes="**Not a stable release**. Rebuilt on every push to \`main\`.
+
+          \`$FIBER_VERSION\` from commit $GITHUB_SHA"
+          git tag --force tip
+          git push --force origin refs/tags/tip
+          if gh release view tip >/dev/null 2>&1; then
+            gh release edit tip --prerelease --title tip --notes "$notes"
+          else
+            gh release create tip --prerelease --title tip --notes "$notes"
+          fi
+          gh release upload tip "dist/$ZIP_NAME" --clobber
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            --title "$GITHUB_REF_NAME" "dist/$ZIP_NAME"
+
+      # An installation token scoped to the tap, expiring in an hour and revoked when the job ends.
+      - name: Mint a token for the tap
+        id: tap
+        if: github.ref_type == 'tag' && env.TAP_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.TAP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: homebrew-tap
+          permission-contents: write
+
+      # The release is already published when this runs, so a failure here leaves a good release
+      # with a stale cask: re-run the job, don't re-tag. A skipped step has no outputs, so the
+      # token is the whole gate.
+      - name: Bump the Homebrew cask
+        if: steps.tap.outputs.token != ''
+        env:
+          TAP_TOKEN: ${{ steps.tap.outputs.token }}
+          TAP_APP_SLUG: ${{ steps.tap.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          # This machine has the tap installed; the bump starts from the remote's main.
+          brew tap lightningboltemoji/tap
+          dir="$(brew --repository lightningboltemoji/tap)"
+          git -C "$dir" fetch --quiet origin main
+          git -C "$dir" reset --quiet --hard origin/main
+
+          # Authored as the app's bot account, whose numeric id makes the noreply address resolve to
+          # it. A failing `gh api` prints its error to stdout, hence `|| uid=""`.
+          uid="$(gh api "/users/$TAP_APP_SLUG%5Bbot%5D" --jq .id 2>/dev/null)" || uid=""
+          export HOMEBREW_GIT_NAME="${TAP_APP_SLUG}[bot]"
+          export HOMEBREW_GIT_EMAIL="${uid:+$uid+}${TAP_APP_SLUG}[bot]@users.noreply.github.com"
+
+          # The cask's version is the app's as CSV (0.1.0,155.8059.12): only Fiber's half is in
+          # the tag, and the URL needs both.
+          sha="$(shasum -a 256 "dist/$ZIP_NAME" | cut -d' ' -f1)"
+          brew bump-cask-pr --write-only --commit --no-audit --no-style \
+            --version "${FIBER_VERSION/c/,}" --sha256 "$sha" lightningboltemoji/tap/fiber
+
+          # Both, because they catch disjoint things: audit passes a cask whose `desc` style fails,
+          # and `--online` is what fetches the published URL and verifies the checksum against it.
+          brew style --cask lightningboltemoji/tap/fiber
+          brew audit --cask --online lightningboltemoji/tap/fiber
+
+          # No credential helper, or the token would land in this machine's keychain.
+          git -C "$dir" -c credential.helper= push \
+            "https://x-access-token:$TAP_TOKEN@github.com/lightningboltemoji/homebrew-tap.git" HEAD:main
+
+      - name: Summary
+        run: |
+          set -euo pipefail
+          {
+            echo "### Fiber \`$FIBER_VERSION\`"
+            echo
+            echo '```'
+            shasum -a 256 "dist/$ZIP_NAME"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

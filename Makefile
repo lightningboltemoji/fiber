@@ -76,9 +76,12 @@ app:
 	ditto $(RELEASE)/$(APP_NAME).app $(BUNDLE)
 	@echo "built $(BUNDLE), version $$($(BUNDLE_VERSION))"
 
-# `ditto`, not `zip`: a bundle carries symlinks and xattrs that plain zip mangles.
+# `ditto`, not `zip`: a bundle carries symlinks and xattrs that plain zip mangles. CI's tip build
+# sets ZIP_NAME, for an archive whose URL doesn't change.
+ZIP_NAME ?= $(APP_NAME)-$$($(BUNDLE_VERSION))$(VERSION_SUFFIX).zip
+
 zip:
-	@zip="$(DIST)/$(APP_NAME)-$$($(BUNDLE_VERSION))$(VERSION_SUFFIX).zip" && \
+	@zip="$(DIST)/$(ZIP_NAME)" && \
 	rm -f "$$zip" && \
 	ditto -c -k --keepParent $(BUNDLE) "$$zip" && \
 	shasum -a 256 "$$zip"

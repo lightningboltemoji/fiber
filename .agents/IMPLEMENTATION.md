@@ -142,6 +142,10 @@ doesn't assume every tab has a live page. How spaces map onto Chrome's
   built on (`0.1.0c155.8059.12`); Chrome's internal version stays Chromium's
   (`branding/version.gni`). `branding/BRANDING` sets the product name and
   bundle ID, and `make icon` regenerates the app icon's sources.
+- `.github/workflows/release.yml` publishes each push to `main` as the `tip`
+  prerelease, and a `v<VERSION>` tag as that release and its Homebrew cask. It
+  runs on a self-hosted runner that keeps its Chromium checkout and
+  `out/Release` between runs, so a build is usually a relink.
 
 ## Upgrading
 
