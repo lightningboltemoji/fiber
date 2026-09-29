@@ -14,11 +14,6 @@ class WebContents;
 
 namespace fiber {
 
-// Called from Chrome's JavaScript dialog factory, whose views dialogs need a
-// views window to attach to (see patches/chromium/
-// chrome-browser-ui-views-javascript_tab_modal_dialog_view_views.cc.patch).
-bool IsInFiberWindow(content::WebContents* web_contents);
-
 // Shows a JavaScript alert, confirm, prompt, or beforeunload dialog for the tab
 // `web_contents` as a sheet on its Fiber window. See
 // javascript_dialogs::TabModalDialogManagerDelegate::CreateNewDialog().

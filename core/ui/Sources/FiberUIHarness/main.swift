@@ -1,7 +1,8 @@
 // Runs Fiber's UI against a mock browser that uses the bridge exactly as
 // //fiber/browser does, without Chromium. Flags: `--tabs N` (made-up sites),
 // `--downloads N` (which quitting waits for), `--ask-before-leaving`,
-// `--palette QUERY` (the command palette, open with QUERY typed).
+// `--palette QUERY` (the command palette, open with QUERY typed),
+// `--extension-window` (a window an extension opened, as its bubble).
 
 import AppKit
 import FiberBridge
@@ -25,6 +26,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     NSApp.mainMenu = makeMainMenu()
     openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
     NSApp.activate()
+    if CommandLine.arguments.contains("--extension-window") {
+      browsers.last?.simulateExtensionWindow(nil)
+    }
     if let query = launchPaletteQuery {
       // Once the pages have loaded, so there's text to find.
       DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
@@ -192,6 +196,10 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         item(
           "Simulate Extension Install",
           #selector(MockBrowser.simulateExtensionInstall(_:)), "e"),
+        // What an extension opening a window of its own does.
+        item(
+          "Simulate Extension Window",
+          #selector(MockBrowser.simulateExtensionWindow(_:)), "E"),
       ])
     return main
   }

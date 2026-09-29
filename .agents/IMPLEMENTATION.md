@@ -97,15 +97,21 @@ Each surface Fiber replaces, and where it lives:
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
-| Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |
+| Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth) | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |
 | Page context menus | `browser/context_menu/` | `ContextMenu.swift` |
 | Extensions toolbar, menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
+| Windows extensions open (`chrome.windows.create` popups), as bubbles over the page | `browser/extensions/fiber_extension_window.mm` | `ExtensionWindowBubble.swift` |
 | Swiping between pages | `browser/swipe/` | `HistorySwipe.swift` |
 | The page's scrollbar, clear of the tab picker | `renderer/hooks/` | |
 | Media codecs | `media/` | |
 
-Where Fiber has no replacement yet: DevTools, app and picture-in-picture
-windows keep Chrome's UI; extensions' keyboard shortcuts, site access
+Where Fiber has no replacement yet: DevTools, web app and picture-in-picture
+windows keep Chrome's UI; quiet permission requests (Chrome's location bar
+chip) are ignored, passkey and security key requests and Sign in with Google
+(FedCM) fail, screen sharing is refused, offers to save an address, card or
+IBAN go unanswered, and the hung page dialog doesn't show
+(`hooks/permission_prompt.h`, `hooks/webauthn_dialog.h`,
+`hooks/autofill_prompts.h`); extensions' keyboard shortcuts, site access
 requests, disabled-extension alert and side panels are missing; and the
 component updater, push messaging, autofill crowdsourcing and Google account
 checks still call home.

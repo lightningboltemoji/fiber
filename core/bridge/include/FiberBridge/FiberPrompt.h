@@ -10,7 +10,7 @@ typedef NS_ENUM(NSInteger, FiberPromptButtonRole) {
   // a moment: for what a page could trick the user into accepting (adding an
   // extension, say), as Chrome guards its own dialogs' buttons.
   FiberPromptButtonRoleConfirm,
-  // Escape presses it.
+  // Escape presses it. Without one, Escape dismisses the prompt.
   FiberPromptButtonRoleCancel,
   FiberPromptButtonRoleOther,
 };
@@ -46,17 +46,44 @@ NS_SWIFT_SENDABLE
 
 @end
 
+// A text field in a prompt (a username, say), named by its placeholder.
+NS_SWIFT_SENDABLE
+@interface FiberPromptField : NSObject
+
+- (instancetype)initWithPlaceholder:(NSString*)placeholder
+                               text:(NSString*)text
+                             secure:(BOOL)secure NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+
+@property(readonly, copy) NSString* placeholder;
+// What it holds at first.
+@property(readonly, copy) NSString* text;
+// Hides what's typed, for a password.
+@property(readonly) BOOL secure;
+
+@end
+
 // What a prompt says: from the top, an icon, a title with a line over it and a
-// message under it, a list, and a row of buttons.
+// message under it, a list, text fields, a checkbox, and a row of buttons.
 NS_SWIFT_SENDABLE
 @interface FiberPromptContent : NSObject
 
+// Without fields or a checkbox.
 - (instancetype)initWithIcon:(nullable NSImage*)icon
                      eyebrow:(NSString*)eyebrow
                        title:(NSString*)title
                      message:(NSString*)message
                  listHeading:(NSString*)listHeading
                    listItems:(NSArray<FiberPromptListItem*>*)listItems
+                     buttons:(NSArray<FiberPromptButton*>*)buttons;
+- (instancetype)initWithIcon:(nullable NSImage*)icon
+                     eyebrow:(NSString*)eyebrow
+                       title:(NSString*)title
+                     message:(NSString*)message
+                 listHeading:(NSString*)listHeading
+                   listItems:(NSArray<FiberPromptListItem*>*)listItems
+                      fields:(NSArray<FiberPromptField*>*)fields
+               checkboxTitle:(NSString*)checkboxTitle
                      buttons:(NSArray<FiberPromptButton*>*)buttons
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -71,6 +98,11 @@ NS_SWIFT_SENDABLE
 // Over the list, like "It can:". Empty for none.
 @property(readonly, copy) NSString* listHeading;
 @property(readonly, copy) NSArray<FiberPromptListItem*>* listItems;
+// The first takes the keyboard focus, and Return in any presses the default
+// button.
+@property(readonly, copy) NSArray<FiberPromptField*>* fields;
+// Empty for none. It starts unchecked.
+@property(readonly, copy) NSString* checkboxTitle;
 // In order, left to right.
 @property(readonly, copy) NSArray<FiberPromptButton*>* buttons;
 
@@ -82,14 +114,19 @@ NS_SWIFT_UI_ACTOR
 @protocol FiberPromptActions <NSObject>
 
 - (void)promptDidPressButtonWithID:(NSInteger)buttonID;
-// The prompt ended without an answer: -close was called, another prompt took
-// its place, or its window closed.
+// The prompt ended without an answer: Escape dismissed it, -close was called,
+// another prompt took its place, or its window closed.
 - (void)promptDidDismiss;
 
 @end
 
 NS_SWIFT_UI_ACTOR
 @protocol FiberPrompt <NSObject>
+
+// The fields' text, in order, and whether the checkbox is checked: as they
+// stand, or as they were when the prompt ended.
+@property(readonly, copy) NSArray<NSString*>* fieldValues;
+@property(readonly) BOOL checkboxChecked;
 
 // Ends the prompt. Its actions get -promptDidDismiss.
 - (void)close;

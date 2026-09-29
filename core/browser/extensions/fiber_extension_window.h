@@ -1,95 +1,64 @@
-#ifndef FIBER_BROWSER_WINDOW_FIBER_BROWSER_WINDOW_H_
-#define FIBER_BROWSER_WINDOW_FIBER_BROWSER_WINDOW_H_
+#ifndef FIBER_BROWSER_EXTENSIONS_FIBER_EXTENSION_WINDOW_H_
+#define FIBER_BROWSER_EXTENSIONS_FIBER_EXTENSION_WINDOW_H_
 
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
-#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "extensions/browser/extension_icon_image.h"
 #include "ui/base/accelerators/accelerator.h"
-#include "ui/color/color_provider_source.h"
-#include "ui/gfx/native_ui_types.h"
+#include "ui/base/window_open_disposition.h"
 
-@class FiberBrowserWindowActions;
-@class NSView;
-@class NSWindow;
+@class FiberExtensionWindowActionsBridge;
 @protocol FiberExtensionWindow;
-@protocol FiberExtensionWindowActions;
-@protocol FiberWindow;
 
 namespace fiber {
 
-class DownloadsWait;
-class FiberExtensionsToolbar;
-class HistorySwipeNavigation;
-class FiberLocationBar;
-class FiberStatusBubble;
-class TabIndexSource;
+class ExtensionWindowLocationBar;
+class FiberBrowserWindow;
 
-// Chrome's BrowserWindow for Fiber's native windows (//fiber/ui, created
-// through FiberWindowFactory), in place of Chrome's views-based BrowserView.
-// Owned by the Browser, which deletes it via DeleteBrowserWindow() once closed.
-class FiberBrowserWindow : public BrowserWindow,
-                           public ExclusiveAccessContext,
-                           public ui::AcceleratorProvider,
-                           public ui::ColorProviderSource,
-                           public TabStripModelObserver,
-                           public content::WebContentsObserver {
+// Chrome's BrowserWindow for a window an extension opened itself
+// (chrome.windows.create): a bubble over a browser window's page, which it
+// closes with. Extensions still see a window, minimized while collapsed.
+class FiberExtensionWindow : public BrowserWindow,
+                             public ExclusiveAccessContext,
+                             public ui::AcceleratorProvider,
+                             public extensions::IconImage::Observer,
+                             public content::WebContentsObserver {
  public:
-  explicit FiberBrowserWindow(BrowserWindowInterface* browser);
-  FiberBrowserWindow(const FiberBrowserWindow&) = delete;
-  FiberBrowserWindow& operator=(const FiberBrowserWindow&) = delete;
+  // Whether `browser` is a window an extension opened: a popup whose app is
+  // an extension.
+  static bool IsExtensionWindow(BrowserWindowInterface* browser);
+  // The browser window whose page such a window's bubble goes over: the last
+  // active one of its profile, if any.
+  static FiberBrowserWindow* HostFor(BrowserWindowInterface* browser);
+  // `browser`'s window, if it's an extension's.
+  static FiberExtensionWindow* FromBrowser(BrowserWindowInterface* browser);
+  // Whether an extension's window over `host` is the active one.
+  static bool IsActiveOver(const FiberBrowserWindow* host);
 
-  // The window a page is in: for a page in an extension's window, the browser
-  // window its bubble is over.
-  static FiberBrowserWindow* FromWebContents(
-      content::WebContents* web_contents);
-  static FiberBrowserWindow* FromNativeWindow(gfx::NativeWindow window);
-  static FiberBrowserWindow* FromBrowser(BrowserWindowInterface* browser);
+  FiberExtensionWindow(BrowserWindowInterface* browser,
+                       FiberBrowserWindow* host);
+  FiberExtensionWindow(const FiberExtensionWindow&) = delete;
+  FiberExtensionWindow& operator=(const FiberExtensionWindow&) = delete;
 
-  BrowserWindowInterface* browser() const { return browser_; }
-  base::WeakPtr<FiberBrowserWindow> GetWeakPtr() {
-    return weak_factory_.GetWeakPtr();
-  }
+  // Null once the browser window it's over is gone.
+  FiberBrowserWindow* host() const { return host_.get(); }
 
-  // Shows a window an extension opened, as a bubble over this one's page.
-  id<FiberExtensionWindow> AddExtensionWindow(
-      id<FiberExtensionWindowActions> actions);
-  // Whether `view` is in the active tab's page, not an extension window's.
-  bool IsInActivePage(NSView* view) const;
-
-  // Makes `web_contents` the active tab, if it's one of this window's.
-  void ActivateTab(content::WebContents* web_contents);
-
-  // Called by FiberBrowserWindowActions for what the user does in the window.
+  // Called by its actions.
+  void OnCloseRequested();
+  void OnExpanded();
+  void OnActivationChanged(bool active);
+  // Commands for its page run on its browser; the rest on the browser
+  // window's.
   void ExecuteCommand(int command, WindowOpenDisposition disposition);
   bool IsCommandEnabled(int command) const;
-  void FocusWebContents();
-  // Selects the tab, in whichever of the profile's windows has it, and brings
-  // that window forward.
-  void SelectTab(int32_t tab_id);
-  // Selects the tab, and finds `text` in its page.
-  void RevealText(int32_t tab_id, const std::u16string& text);
-  void OnCommandPaletteOpened();
-  void OnWindowCloseRequested();
-  void OnWindowActivationChanged(bool active);
-  void OnWindowFullscreenChanged();
-
-  // Sends the UI what it shows of the active tab's page (the toolbar, the
-  // window title).
-  void UpdatePageState();
-
-  // Swiping between the active tab's pages, for FiberHistorySwiper. Each
-  // mirrors a FiberWindow history swipe method (see FiberWindow.h).
-  void BeginHistorySwipe(bool back);
-  void UpdateHistorySwipe(double progress);
-  void ReleaseHistorySwipe(void (^settled)(BOOL landed));
-  void EndHistorySwipe(bool navigating);
 
   // BrowserWindow:
   gfx::NativeWindow GetNativeWindow() const override;
@@ -101,6 +70,7 @@ class FiberBrowserWindow : public BrowserWindow,
       const content::WebContents* contents) const override;
   ui::NativeTheme* GetNativeTheme() override;
   const ui::ThemeProvider* GetThemeProvider() const override;
+  const ui::ColorProvider* GetColorProvider() const override;
   int GetTopControlsHeight() const override;
   void SetTopControlsGestureScrollInProgress(bool in_progress) override;
   std::vector<StatusBubble*> GetStatusBubbles() override;
@@ -237,57 +207,41 @@ class FiberBrowserWindow : public BrowserWindow,
   bool GetAcceleratorForCommandId(int command_id,
                                   ui::Accelerator* accelerator) const override;
 
-  // ui::ColorProviderSource (GetColorProvider() is also a BrowserWindow
-  // method):
-  const ui::ColorProvider* GetColorProvider() const override;
-  ui::ColorProviderKey GetColorProviderKey() const override;
-  ui::RendererColorMap GetRendererColorMap(
-      ui::ColorProviderKey::ColorMode color_mode,
-      ui::ColorProviderKey::ForcedColors forced_colors) const override;
+  // extensions::IconImage::Observer:
+  void OnExtensionIconImageChanged(extensions::IconImage* image) override;
 
-  // TabStripModelObserver:
-  void OnTabStripModelChanged(TabStripModel* tab_strip_model,
-                              const TabStripModelChange& change,
-                              const TabStripSelectionChange& selection) override;
-  void OnTabChangedAt(tabs::TabInterface* tab,
-                      TabChangeType change_type) override;
-
-  // content::WebContentsObserver (observes the active tab):
-  void LoadProgressChanged(double progress) override;
-  void DidStopLoading() override;
-  void DidStartNavigation(
-      content::NavigationHandle* navigation_handle) override;
+  // content::WebContentsObserver (observes its page):
+  void PrimaryPageChanged(content::Page& page) override;
 
  protected:
   // BrowserWindow:
   void DeleteBrowserWindow() override;
 
  private:
-  ~FiberBrowserWindow() override;
+  ~FiberExtensionWindow() override;
 
-  NSWindow* GetNSWindow() const;
   content::WebContents* GetActiveWebContents() const;
-  void UpdateLoadProgress();
-  // Sends the UI the tab list, in tab strip order.
-  void UpdateTabs();
-  // Focuses the active tab as Chrome would on switching to it.
-  void RestoreFocus();
+  void OnHostDidClose(BrowserWindowInterface* host);
+  // Shows the page's site above it unless it's one of the extension's own.
+  void UpdateSite();
+  void FocusPage();
 
   const raw_ptr<BrowserWindowInterface> browser_;
-  FiberBrowserWindowActions* __strong actions_;
-  id<FiberWindow> __strong ui_;
-  std::unique_ptr<FiberLocationBar> location_bar_;
-  std::unique_ptr<FiberStatusBubble> status_bubble_;
-  std::unique_ptr<FiberExtensionsToolbar> extensions_toolbar_;
-  // The profile's, shared with its other windows.
-  raw_ptr<TabIndexSource> tab_index_source_;
-  // Set while closing the window waits for its downloads.
-  base::WeakPtr<DownloadsWait> downloads_wait_;
-  // After a history swipe lands, until the page it went to shows.
-  std::unique_ptr<HistorySwipeNavigation> history_swipe_navigation_;
-  base::WeakPtrFactory<FiberBrowserWindow> weak_factory_{this};
+  const std::string extension_id_;
+  base::WeakPtr<FiberBrowserWindow> host_;
+  FiberExtensionWindowActionsBridge* __strong actions_;
+  id<FiberExtensionWindow> __strong ui_;
+  std::unique_ptr<ExtensionWindowLocationBar> location_bar_;
+  std::unique_ptr<extensions::IconImage> icon_;
+  // The page's size, as the extension asked.
+  gfx::Size contents_size_;
+  // Shown, as a bubble with or without its panel.
+  bool shown_ = false;
+  // The browser counts it as active: its page has focus in the main window.
+  bool active_ = false;
+  base::CallbackListSubscription host_did_close_subscription_;
 };
 
 }  // namespace fiber
 
-#endif  // FIBER_BROWSER_WINDOW_FIBER_BROWSER_WINDOW_H_
+#endif  // FIBER_BROWSER_EXTENSIONS_FIBER_EXTENSION_WINDOW_H_

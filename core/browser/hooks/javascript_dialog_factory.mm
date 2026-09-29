@@ -12,10 +12,6 @@
 
 namespace fiber {
 
-bool IsInFiberWindow(content::WebContents* web_contents) {
-  return FiberBrowserWindow::FromWebContents(web_contents) != nullptr;
-}
-
 base::WeakPtr<javascript_dialogs::TabModalDialogView> ShowJavaScriptDialog(
     content::WebContents* web_contents,
     const std::u16string& title,

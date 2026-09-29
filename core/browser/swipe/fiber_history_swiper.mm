@@ -76,9 +76,13 @@ constexpr CGFloat kVerticalScrollDistance = 10;
   history_swiper::NavigationDirection direction =
       _scrollDelta.width > 0 ? history_swiper::kBackwards
                              : history_swiper::kForwards;
+  // Only the window's page swipes, not an extension window's over it.
+  fiber::FiberBrowserWindow* window =
+      fiber::FiberBrowserWindow::FromNativeWindow(
+          gfx::NativeWindow(event.window));
   if (![_delegate canNavigateInDirection:direction onWindow:event.window] ||
-      !fiber::FiberBrowserWindow::FromNativeWindow(
-          gfx::NativeWindow(event.window))) {
+      !window ||
+      !window->IsInActivePage([_delegate viewThatWantsHistoryOverlay])) {
     _ruledOut = YES;
     return NO;
   }

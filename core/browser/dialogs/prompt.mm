@@ -7,6 +7,7 @@
 #import "FiberBridge/FiberPrompt.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
+#include "base/strings/sys_string_conversions.h"
 
 // Forwards how the prompt ended to its fiber::Prompt.
 @interface FiberPromptActionsBridge : NSObject <FiberPromptActions>
@@ -63,6 +64,18 @@ Prompt::Prompt(Callback callback)
 Prompt::~Prompt() {
   [actions_ detachOwner];
   [ui_ close];
+}
+
+std::vector<std::u16string> Prompt::GetFieldValues() const {
+  std::vector<std::u16string> values;
+  for (NSString* value in ui_.fieldValues) {
+    values.push_back(base::SysNSStringToUTF16(value));
+  }
+  return values;
+}
+
+bool Prompt::IsCheckboxChecked() const {
+  return ui_.checkboxChecked;
 }
 
 void Prompt::OnEnded(std::optional<int> button_id) {

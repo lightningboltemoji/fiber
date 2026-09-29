@@ -37,6 +37,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 #include "fiber/browser/downloads/downloads_wait.h"
+#include "fiber/browser/extensions/fiber_extension_window.h"
 #include "fiber/browser/extensions/fiber_extensions_toolbar.h"
 #include "fiber/browser/palette/tab_index_source.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
@@ -136,6 +137,10 @@ FiberBrowserWindow* FiberBrowserWindow::FromWebContents(
       tab ? tab->GetBrowserWindowInterface() : nullptr;
   if (!browser) {
     return nullptr;
+  }
+  if (FiberExtensionWindow* extension_window =
+          FiberExtensionWindow::FromBrowser(browser)) {
+    return extension_window->host();
   }
   BrowserWindow* window = BrowserWindow::FromBrowser(browser);
   for (FiberBrowserWindow* fiber_window : AllWindows()) {
@@ -301,6 +306,17 @@ void FiberBrowserWindow::OnCommandPaletteOpened() {
   }
 }
 
+id<FiberExtensionWindow> FiberBrowserWindow::AddExtensionWindow(
+    id<FiberExtensionWindowActions> actions) {
+  return [ui_.extensions extensionWindowWithActions:actions];
+}
+
+bool FiberBrowserWindow::IsInActivePage(NSView* view) const {
+  content::WebContents* contents = GetActiveWebContents();
+  return contents &&
+         [view isDescendantOf:contents->GetNativeView().GetNativeNSView()];
+}
+
 void FiberBrowserWindow::ActivateTab(content::WebContents* web_contents) {
   TabStripModel* model = browser_->GetTabStripModel();
   const int index =
@@ -316,6 +332,10 @@ void FiberBrowserWindow::OnWindowCloseRequested() {
 }
 
 void FiberBrowserWindow::OnWindowActivationChanged(bool active) {
+  // Chrome lets go of a closing browser, which can't become active again.
+  if (active && browser_->IsDeleteScheduled()) {
+    return;
+  }
   if (active) {
     BrowserActiveStateManager::From(browser_)->DidBecomeActive();
   } else {
@@ -778,7 +798,8 @@ void FiberBrowserWindow::Activate() {
 void FiberBrowserWindow::Deactivate() {}
 
 bool FiberBrowserWindow::IsActive() const {
-  return GetNSWindow().mainWindow;
+  // An extension's window over it may have focus instead.
+  return GetNSWindow().mainWindow && !FiberExtensionWindow::IsActiveOver(this);
 }
 
 gfx::Rect FiberBrowserWindow::GetBounds() const {

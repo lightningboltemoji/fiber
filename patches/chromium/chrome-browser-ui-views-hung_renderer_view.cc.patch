@@ -1,0 +1,27 @@
+diff --git a/chrome/browser/ui/views/hung_renderer_view.cc b/chrome/browser/ui/views/hung_renderer_view.cc
+index f15b9d43d5..bdfe0991b0 100644
+--- a/chrome/browser/ui/views/hung_renderer_view.cc
++++ b/chrome/browser/ui/views/hung_renderer_view.cc
+@@ -36,6 +36,7 @@
+ #include "content/public/browser/render_view_host.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/result_codes.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/base/mojom/dialog_button.mojom.h"
+@@ -259,6 +260,14 @@ void HungRendererDialogView::Show(
+     return;
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host views dialogs. The page is left to
++  // recover, or to be closed.
++  if (fiber::IsInFiberWindow(contents)) {
++    return;
++  }
++#endif
++
+   if (IsShowingForWebContents(contents)) {
+     return;
+   }

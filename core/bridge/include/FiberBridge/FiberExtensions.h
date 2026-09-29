@@ -83,8 +83,55 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
-// A window's extensions: the extensions menu, and the buttons of those pinned
-// beside it, in the toolbar.
+// Menu actions nothing between its page and the panel handles come here too,
+// so the main menu acts on the extension's window while its page has focus.
+NS_SWIFT_UI_ACTOR
+@protocol FiberExtensionWindowActions <NSObject>
+
+// The user clicked the bubble's close button. The browser closes the window
+// when it's ready, which may be never: its page's unload handler can keep it.
+- (void)extensionWindowShouldClose;
+// The user opened the panel, whose page takes focus.
+- (void)extensionWindowDidExpand;
+// Its page took focus in the main window, or the window with it became main:
+// the extension's window is the active one, in place of the browser window's.
+- (void)extensionWindowDidBecomeActive;
+- (void)extensionWindowDidResignActive;
+
+@end
+
+// A window an extension opened (chrome.windows.create): a bubble with the
+// extension's icon over a browser window's page, and the window's page in a
+// panel beside it. The user drags the bubble, and clicks it for the panel.
+NS_SWIFT_UI_ACTOR
+@protocol FiberExtensionWindow <NSObject>
+
+// Shows `view`, the window's page, in the panel. Nil empties it.
+- (void)setContentsView:(nullable NSView*)view;
+// The page's size, as the extension asked. The panel shrinks where the
+// browser window's page hasn't room for it.
+- (void)setContentSize:(NSSize)size;
+- (void)setIcon:(nullable NSImage*)icon;
+// The extension's name.
+- (void)setTitle:(NSString*)title;
+// The page's site, shown above it while it isn't one of the extension's own
+// pages. Empty for none.
+- (void)setSite:(NSString*)site;
+// Whether the panel is open.
+@property(readonly) BOOL isExpanded;
+// The page's frame, in screen coordinates, whether or not the panel is open.
+@property(readonly) NSRect pageFrame;
+// Shows the bubble with the panel open, closing the window's others.
+- (void)expand;
+// Shows the bubble with the panel closed.
+- (void)collapse;
+// Removes the bubble. Its actions get nothing more.
+- (void)close;
+
+@end
+
+// A window's extensions: the extensions menu, the buttons of those pinned
+// beside it, in the toolbar, and bubbles for the windows they open.
 NS_SWIFT_UI_ACTOR
 @protocol FiberExtensions <NSObject>
 
@@ -107,6 +154,10 @@ NS_SWIFT_UI_ACTOR
     popupForExtensionWithID:(NSString*)extensionID
                contentsView:(NSView*)contentsView
                     actions:(id<FiberExtensionPopupActions>)actions;
+// A window an extension opened, as a bubble over the page. It shows once
+// -expand or -collapse is called.
+- (id<FiberExtensionWindow>)extensionWindowWithActions:
+    (id<FiberExtensionWindowActions>)actions;
 
 @end
 

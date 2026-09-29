@@ -154,6 +154,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
     extensions.simulateInstall()
   }
 
+  @objc func simulateExtensionWindow(_ sender: Any?) {
+    extensions.openWindow()
+  }
+
   @objc func toggleControls(_ sender: Any?) {
     controlsVisible.toggle()
     ui.setControlsVisible(controlsVisible)

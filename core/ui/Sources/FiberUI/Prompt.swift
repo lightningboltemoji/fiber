@@ -25,6 +25,19 @@ import FiberBridge
   }
 }
 
+@objc @implementation extension FiberPromptField {
+  let placeholder: String
+  let text: String
+  let secure: Bool
+
+  init(placeholder: String, text: String, secure: Bool) {
+    self.placeholder = placeholder
+    self.text = text
+    self.secure = secure
+    super.init()
+  }
+}
+
 @objc @implementation extension FiberPromptContent {
   let icon: NSImage?
   let eyebrow: String
@@ -32,11 +45,25 @@ import FiberBridge
   let message: String
   let listHeading: String
   let listItems: [FiberPromptListItem]
+  let fields: [FiberPromptField]
+  let checkboxTitle: String
   let buttons: [FiberPromptButton]
+
+  convenience init(
+    icon: NSImage?, eyebrow: String, title: String, message: String,
+    listHeading: String, listItems: [FiberPromptListItem],
+    buttons: [FiberPromptButton]
+  ) {
+    self.init(
+      icon: icon, eyebrow: eyebrow, title: title, message: message,
+      listHeading: listHeading, listItems: listItems, fields: [],
+      checkboxTitle: "", buttons: buttons)
+  }
 
   init(
     icon: NSImage?, eyebrow: String, title: String, message: String,
     listHeading: String, listItems: [FiberPromptListItem],
+    fields: [FiberPromptField], checkboxTitle: String,
     buttons: [FiberPromptButton]
   ) {
     self.icon = icon
@@ -45,6 +72,8 @@ import FiberBridge
     self.message = message
     self.listHeading = listHeading
     self.listItems = listItems
+    self.fields = fields
+    self.checkboxTitle = checkboxTitle
     self.buttons = buttons
     super.init()
   }
@@ -67,6 +96,7 @@ final class Prompt: NSObject, FiberPrompt {
   private let actions: any FiberPromptActions
   private weak var controller: BrowserWindowController?
   private var prompt: VeilPrompt?
+  private let form: PromptForm?
   private var isDone = false
 
   init(
@@ -75,13 +105,18 @@ final class Prompt: NSObject, FiberPrompt {
   ) {
     self.actions = actions
     controller = BrowserWindowController.controller(for: window)
+    form =
+      content.fields.isEmpty && content.checkboxTitle.isEmpty
+      ? nil
+      : PromptForm(fields: content.fields, checkboxTitle: content.checkboxTitle)
     super.init()
+    let list =
+      content.listItems.isEmpty
+      ? nil : PromptList(heading: content.listHeading, items: content.listItems)
     let prompt = VeilPrompt(
       icon: content.icon, eyebrow: content.eyebrow, title: content.title,
       message: content.message,
-      accessory: content.listItems.isEmpty
-        ? nil
-        : PromptList(heading: content.listHeading, items: content.listItems),
+      accessory: Self.accessory([list, form].compactMap { $0 }),
       buttons: content.buttons.map { button in
         .init(title: button.title, role: VeilPrompt.Button.Role(button.role)) {
           [weak self] in
@@ -91,6 +126,12 @@ final class Prompt: NSObject, FiberPrompt {
     prompt.onRemoved = { [weak self] in
       self?.finish(removing: false) { $0.promptDidDismiss() }
     }
+    prompt.onEscape = { [weak self] in
+      self?.finish { $0.promptDidDismiss() }
+    }
+    form?.onSubmit = { [weak prompt] in prompt?.pressDefaultButton() }
+    form?.onCancel = { [weak prompt] in prompt?.pressEscape() }
+    prompt.initialFirstResponder = form?.firstField
     self.prompt = prompt
     guard let controller else {
       // Nowhere to ask; after returning, since the answer can end the
@@ -103,8 +144,24 @@ final class Prompt: NSObject, FiberPrompt {
     controller.present(prompt)
   }
 
+  var fieldValues: [String] { form?.values ?? [] }
+  var checkboxChecked: Bool { form?.isChecked ?? false }
+
   func close() {
     finish { $0.promptDidDismiss() }
+  }
+
+  private static let accessorySpacing: CGFloat = 20
+
+  /// The views between the message and the buttons, one over the next.
+  private static func accessory(_ views: [NSView]) -> NSView? {
+    guard views.count > 1 else {
+      return views.first
+    }
+    let stack = NSStackView(views: views)
+    stack.orientation = .vertical
+    stack.spacing = accessorySpacing
+    return stack
   }
 
   /// Takes the prompt down, unless it's already gone, and reports how it
@@ -201,5 +258,109 @@ private final class PromptList: NSStackView {
     label.textColor = color
     label.isSelectable = false
     return label
+  }
+}
+
+/// A prompt's text fields and checkbox: a username and password, say.
+@MainActor
+private final class PromptForm: NSStackView, NSTextFieldDelegate {
+  private static let fieldWidth: CGFloat = 320
+  private static let checkboxMaxWidth: CGFloat = 400
+  private static let fieldSpacing: CGFloat = 10
+  private static let checkboxSpacing: CGFloat = 16
+  private static let checkboxLabelSpacing: CGFloat = 6
+
+  /// Return and Escape in a field.
+  var onSubmit: (() -> Void)?
+  var onCancel: (() -> Void)?
+
+  private let textFields: [NSTextField]
+  private let checkbox: NSButton?
+
+  var firstField: NSTextField? { textFields.first }
+  var values: [String] { textFields.map(\.stringValue) }
+  var isChecked: Bool { checkbox?.state == .on }
+
+  init(fields: [FiberPromptField], checkboxTitle: String) {
+    textFields = fields.map { field in
+      let textField =
+        field.secure
+        ? NSSecureTextField(string: field.text) : NSTextField(string: field.text)
+      textField.placeholderString = field.placeholder
+      textField.bezelStyle = .roundedBezel
+      textField.controlSize = .large
+      textField.font = .systemFont(ofSize: NSFont.systemFontSize(for: .large))
+      return textField
+    }
+    checkbox =
+      checkboxTitle.isEmpty
+      ? nil : NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    super.init(frame: .zero)
+    orientation = .vertical
+    alignment = .centerX
+    spacing = Self.fieldSpacing
+
+    for (index, textField) in textFields.enumerated() {
+      textField.delegate = self
+      textField.nextKeyView =
+        index + 1 < textFields.count
+        ? textFields[index + 1] : checkbox ?? textFields.first
+      addArrangedSubview(textField)
+      textField.widthAnchor.constraint(equalToConstant: Self.fieldWidth)
+        .isActive = true
+    }
+    if let checkbox {
+      checkbox.nextKeyView = textFields.first
+      let row = Self.makeCheckboxRow(checkbox, title: checkboxTitle)
+      if let last = textFields.last {
+        setCustomSpacing(Self.checkboxSpacing, after: last)
+      }
+      addArrangedSubview(row)
+    }
+  }
+
+  /// `checkbox` with `title` beside it, wrapped rather than cut short, as a
+  /// button's title would be; clicking the title toggles the checkbox.
+  private static func makeCheckboxRow(_ checkbox: NSButton, title: String)
+    -> NSView
+  {
+    checkbox.setAccessibilityLabel(title)
+    let label = NSTextField(wrappingLabelWithString: title)
+    label.font = .systemFont(ofSize: NSFont.systemFontSize)
+    label.textColor = .white.withAlphaComponent(0.85)
+    label.isSelectable = false
+    label.setAccessibilityElement(false)
+    label.addGestureRecognizer(
+      NSClickGestureRecognizer(
+        target: checkbox, action: #selector(NSButton.performClick(_:))))
+    label.widthAnchor.constraint(lessThanOrEqualToConstant: checkboxMaxWidth)
+      .isActive = true
+    let row = NSStackView(views: [checkbox, label])
+    row.orientation = .horizontal
+    row.alignment = .firstBaseline
+    row.spacing = checkboxLabelSpacing
+    return row
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  // A field editor takes Return and Escape before the prompt sees them.
+  func control(
+    _ control: NSControl, textView: NSTextView,
+    doCommandBy commandSelector: Selector
+  ) -> Bool {
+    switch commandSelector {
+    case #selector(NSResponder.insertNewline(_:)):
+      onSubmit?()
+      return true
+    case #selector(NSResponder.cancelOperation(_:)):
+      onCancel?()
+      return true
+    default:
+      return false
+    }
   }
 }

@@ -1,0 +1,26 @@
+diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
+index 8dc00b5c1e..40d8cd1a7d 100644
+--- a/chrome/browser/ui/webid/identity_dialog_controller.cc
++++ b/chrome/browser/ui/webid/identity_dialog_controller.cc
+@@ -39,6 +39,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck
+ #include "chrome/browser/ui/views/webid/fedcm_account_selection_view_desktop.h"  // nogncheck
+ #include "components/tabs/public/tab_interface.h"  // nogncheck
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #endif
+ 
+ using content::webid::FederatedLoginResult;
+@@ -619,6 +620,13 @@ bool IdentityDialogController::TrySetAccountView() {
+                   BrowserWindowInterface::Type::TYPE_DEVTOOLS) {
+     return false;
+   }
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host FedCM's views UI, so it fails, as in
++  // DevTools.
++  if (fiber::IsInFiberWindow(rp_web_contents_)) {
++    return false;
++  }
++#endif
+   account_view_ = std::make_unique<webid::FedCmAccountSelectionView>(this, tab);
+ #endif
+   account_view_->SetCanShowUi(ShouldShowFedCmUi());

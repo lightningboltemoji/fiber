@@ -54,7 +54,7 @@ struct TabPickerView: View {
 
 /// A soft shadow around a rounded rect, like a window's, that stays outside
 /// it so it doesn't darken the glass on top.
-private struct PanelShadow: View {
+struct PanelShadow: View {
   let cornerRadius: CGFloat
 
   var body: some View {

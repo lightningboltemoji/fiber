@@ -56,7 +56,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let omnibar = Omnibar()
   private let commandPalette: CommandPalette
   private lazy var extensionsController = ExtensionsController(
-    bar: toolbar.extensionsBar,
+    bar: toolbar.extensionsBar, bubbles: extensionBubbles,
     isBarShown: { [weak self] in self?.isToolbarVisible ?? false },
     hiddenMenuButtonRect: { [weak self] in
       guard let self, let content = self.window.contentView else {
@@ -65,6 +65,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return (content, self.toolbar.extensionsMenuButtonRect(in: content))
     })
   private let newTabView = NewTabView()
+  /// Over the page and the toolbar, under the tab picker.
+  private let extensionBubbles = ExtensionBubbles()
+  /// Whose browser the user is in: the window's, or an extension window's,
+  /// while its page has focus.
+  private var activeBrowser = ActiveBrowser.none
   /// Holds `pageView`; the veil blurs it, and swiping between pages moves it.
   private let pageArea = NSView()
   /// The page and the New Tab page over it, with its corners rounded like the
@@ -188,6 +193,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     content.addSubview(tabSidebar)
     updateToolbar(animated: false)
+
+    extensionBubbles.frame = content.bounds
+    extensionBubbles.autoresizingMask = [.width, .height]
+    extensionBubbles.onFocusPage = { [weak self] in self?.actions.focusPage() }
+    extensionBubbles.onRemove = { [weak self] in self?.updateActiveBrowser() }
+    content.addSubview(extensionBubbles)
 
     tabPicker.frame = NSRect(
       x: content.bounds.width - TabPicker.width, y: 0, width: TabPicker.width,
@@ -399,6 +410,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       extensionsController.closeMenu()
     }
     tabPicker.isHidden = !visible
+    extensionBubbles.isHidden = !visible
     updatePageCorners()
     updateToolbar(animated: false)
   }
@@ -465,7 +477,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       }
     }
     window.makeKeyAndOrderFront(nil)
-    window.makeFirstResponder(prompt)
+    window.makeFirstResponder(prompt.initialFirstResponder ?? prompt)
   }
 
   /// Takes `prompt` down, if it's still up, returning focus to where it was.
@@ -475,7 +487,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     self.prompt = nil
-    if window.firstResponder === prompt {
+    if let responder = window.firstResponder as? NSView,
+      responder.isDescendant(of: prompt)
+    {
       window.makeFirstResponder(responderBeforePrompt)
     }
     NSAnimationContext.runAnimationGroup { context in
@@ -558,6 +572,56 @@ final class BrowserWindowController: NSObject, FiberWindow {
     actions.focusPage()
   }
 
+  // MARK: Active browser
+
+  private enum ActiveBrowser {
+    case none
+    case window
+    case extensionWindow(ExtensionWindowBubble)
+
+    func isSame(as other: ActiveBrowser) -> Bool {
+      switch (self, other) {
+      case (.none, .none), (.window, .window):
+        true
+      case (.extensionWindow(let a), .extensionWindow(let b)):
+        a === b
+      default:
+        false
+      }
+    }
+  }
+
+  /// Tells the browsers which of them the user is in, as focus moves between
+  /// the page and extension windows' pages, and the window becomes or stops
+  /// being main.
+  fileprivate func updateActiveBrowser() {
+    let next: ActiveBrowser =
+      if !window.isMainWindow {
+        .none
+      } else if let bubble = extensionBubbles.bubble(
+        containing: window.firstResponder)
+      {
+        .extensionWindow(bubble)
+      } else {
+        .window
+      }
+    guard !next.isSame(as: activeBrowser) else {
+      return
+    }
+    let previous = activeBrowser
+    activeBrowser = next
+    switch previous {
+    case .none: break
+    case .window: actions.windowDidResignMain()
+    case .extensionWindow(let bubble): bubble.didResignActive()
+    }
+    switch next {
+    case .none: break
+    case .window: actions.windowDidBecomeMain()
+    case .extensionWindow(let bubble): bubble.didBecomeActive()
+    }
+  }
+
   // MARK: Toolbar actions
 
   // Each passes on the current event, whose modifier keys decide where the
@@ -596,7 +660,7 @@ extension BrowserWindowController: NSWindowDelegate {
   }
 
   func windowDidBecomeMain(_ notification: Notification) {
-    actions.windowDidBecomeMain()
+    updateActiveBrowser()
   }
 
   func windowWillClose(_ notification: Notification) {
@@ -609,7 +673,7 @@ extension BrowserWindowController: NSWindowDelegate {
   }
 
   func windowDidResignMain(_ notification: Notification) {
-    actions.windowDidResignMain()
+    updateActiveBrowser()
   }
 
   func windowWillEnterFullScreen(_ notification: Notification) {
@@ -640,6 +704,14 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
 
   override func toggleToolbarShown(_ sender: Any?) {
     controller?.toggleToolbar()
+  }
+
+  // Focus moving into or out of an extension window's page changes which
+  // browser is active.
+  override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+    let changed = super.makeFirstResponder(responder)
+    controller?.updateActiveBrowser()
+    return changed
   }
 
   func toggleCommandPalette(_ sender: Any?) {

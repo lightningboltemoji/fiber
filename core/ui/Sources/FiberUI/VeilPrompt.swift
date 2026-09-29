@@ -56,6 +56,13 @@ final class VeilPrompt: NSView {
   /// owner: another took its place, or its window closed.
   var onRemoved: (() -> Void)?
 
+  /// Called when Escape is pressed and no button has the cancel role.
+  var onEscape: (() -> Void)?
+
+  /// What takes the keyboard focus when the prompt is presented, if not the
+  /// prompt: a text field in its accessory, say.
+  var initialFirstResponder: NSView?
+
   private let stack = NSStackView()
   private let titleLabel: NSTextField
   private let messageLabel: NSTextField
@@ -215,6 +222,19 @@ final class VeilPrompt: NSView {
     buttons.first { $0.0 === sender }?.1.action()
   }
 
+  func pressDefaultButton() {
+    press(.default)
+  }
+
+  /// Presses the cancel button, or, without one, calls onEscape.
+  func pressEscape() {
+    if buttons.contains(where: { $0.1.role == .cancel }) {
+      press(.cancel)
+    } else {
+      onEscape?()
+    }
+  }
+
   private func press(_ role: Button.Role) {
     guard let (button, _) = buttons.first(where: { $0.1.role == role }) else {
       return
@@ -246,7 +266,7 @@ final class VeilPrompt: NSView {
     case 36, 76:  // Return, Enter
       press(.default)
     case 53:  // Escape
-      press(.cancel)
+      pressEscape()
     default:
       // Tab and Space reach a focused button through the window; anything
       // else is dropped, rather than reaching the page.
@@ -254,9 +274,29 @@ final class VeilPrompt: NSView {
     }
   }
 
-  /// The menu's shortcuts wait until the prompt is answered.
+  /// The menu's shortcuts wait until the prompt is answered, but for editing
+  /// the text in its fields.
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
-    true
+    if let editor = window?.firstResponder as? NSText,
+      editor.isDescendant(of: self),
+      let action = Self.editingAction(for: event)
+    {
+      NSApp.sendAction(action, to: nil, from: self)
+    }
+    return true
+  }
+
+  private static func editingAction(for event: NSEvent) -> Selector? {
+    let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    switch (event.charactersIgnoringModifiers?.lowercased(), modifiers) {
+    case ("x", .command): return #selector(NSText.cut(_:))
+    case ("c", .command): return #selector(NSText.copy(_:))
+    case ("v", .command): return #selector(NSText.paste(_:))
+    case ("a", .command): return #selector(NSText.selectAll(_:))
+    case ("z", .command): return Selector(("undo:"))
+    case ("z", [.command, .shift]): return Selector(("redo:"))
+    default: return nil
+    }
   }
 
   // It covers the window, so clicks and scrolls anywhere but its buttons stop

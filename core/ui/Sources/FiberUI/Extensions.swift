@@ -34,13 +34,15 @@ import FiberBridge
 }
 
 /// A window's extensions: the menu (ExtensionsMenu) from the toolbar's puzzle
-/// piece, the pinned extensions' buttons (ExtensionsBar), and their popups
-/// (ExtensionPopup), which open from the puzzle piece when unpinned.
+/// piece, the pinned extensions' buttons (ExtensionsBar), their popups
+/// (ExtensionPopup), which open from the puzzle piece when unpinned, and the
+/// bubbles for the windows they open (ExtensionBubbles).
 @MainActor
 final class ExtensionsController: NSObject, FiberExtensions {
   var actions: (any FiberExtensionsActions)?
 
   private let bar: ExtensionsBar
+  private let bubbles: ExtensionBubbles
   private let isBarShown: () -> Bool
   /// Where the bar's menu button is, in the window's content view, for
   /// popups while the toolbar is hidden.
@@ -53,10 +55,12 @@ final class ExtensionsController: NSObject, FiberExtensions {
   private var closingClick: (button: String, timestamp: TimeInterval)?
 
   init(
-    bar: ExtensionsBar, isBarShown: @escaping () -> Bool,
+    bar: ExtensionsBar, bubbles: ExtensionBubbles,
+    isBarShown: @escaping () -> Bool,
     hiddenMenuButtonRect: @escaping () -> (NSView, NSRect)?
   ) {
     self.bar = bar
+    self.bubbles = bubbles
     self.isBarShown = isBarShown
     self.hiddenMenuButtonRect = hiddenMenuButtonRect
     super.init()
@@ -124,6 +128,12 @@ final class ExtensionsController: NSObject, FiberExtensions {
     }
     self.popup = popup
     return popup
+  }
+
+  func extensionWindow(with actions: any FiberExtensionWindowActions)
+    -> any FiberExtensionWindow
+  {
+    bubbles.add(actions: actions)
   }
 
   func windowWillClose() {

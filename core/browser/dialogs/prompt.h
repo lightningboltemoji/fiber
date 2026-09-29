@@ -3,6 +3,8 @@
 
 #include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "base/functional/callback.h"
 #include "ui/gfx/native_ui_types.h"
@@ -32,6 +34,11 @@ class Prompt {
   Prompt(const Prompt&) = delete;
   Prompt& operator=(const Prompt&) = delete;
   ~Prompt();
+
+  // The text of `content`'s fields, in order, and whether its checkbox is
+  // checked: as they stand, or as they were when the prompt ended.
+  std::vector<std::u16string> GetFieldValues() const;
+  bool IsCheckboxChecked() const;
 
   // Called by the prompt's actions.
   void OnEnded(std::optional<int> button_id);

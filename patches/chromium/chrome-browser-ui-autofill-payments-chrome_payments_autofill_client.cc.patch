@@ -1,0 +1,69 @@
+diff --git a/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc b/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc
+index 028b4ba389..4930f244cb 100644
+--- a/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc
++++ b/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc
+@@ -132,6 +132,8 @@
+ // TODO(crbug.com/407105162): Remove nogncheck when crbug.com/40147906 is fixed.
+ #include "components/tabs/public/tab_interface.h"  // nogncheck
+ #include "components/webauthn/content/browser/internal_authenticator_impl.h"
++#include "fiber/browser/hooks/autofill_prompts.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
+ // TODO(crbug.com/407106692): Refactor for Platform-Specific Code Separation.
+@@ -328,6 +330,13 @@ void ChromePaymentsAutofillClient::ShowSaveCreditCardLocally(
+     bridge->RequestShowContent(ui_info, std::move(save_card_delegate));
+   }
+ #else   // !BUILDFLAG(IS_ANDROID)
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host views bubbles; see fiber::Ignore*Prompt.
++  if (fiber::IsInFiberWindow(web_contents())) {
++    fiber::IgnoreSaveCardPrompt(std::move(callback));
++    return;
++  }
++#endif
+   SaveCardBubbleControllerImpl::CreateForWebContents(web_contents());
+   SaveCardBubbleControllerImpl::FromWebContents(web_contents())
+       ->OfferLocalSave(card, options, std::move(callback));
+@@ -369,6 +378,13 @@ void ChromePaymentsAutofillClient::ShowSaveCreditCardToCloud(
+     bridge->RequestShowContent(ui_info, std::move(save_card_delegate));
+   }
+ #else
++#if BUILDFLAG(IS_MAC)
++  // Fiber: see ShowSaveCreditCardLocally().
++  if (fiber::IsInFiberWindow(web_contents())) {
++    fiber::IgnoreUploadCardPrompt(std::move(callback));
++    return;
++  }
++#endif
+   // Hide virtual card confirmation bubble showing for a different card.
+   HideVirtualCardEnrollBubbleAndIconIfVisible();
+ 
+@@ -561,6 +577,13 @@ void ChromePaymentsAutofillClient::ConfirmSaveIbanLocally(
+     bridge->RequestShowContent(ui_info, std::move(save_iban_delegate));
+   }
+ #else
++#if BUILDFLAG(IS_MAC)
++  // Fiber: see ShowSaveCreditCardLocally().
++  if (fiber::IsInFiberWindow(web_contents())) {
++    fiber::IgnoreSaveIbanPrompt(std::move(callback));
++    return;
++  }
++#endif
+   // Do lazy initialization of IbanBubbleControllerImpl.
+   IbanBubbleControllerImpl::CreateForWebContents(web_contents());
+   IbanBubbleControllerImpl::FromWebContents(web_contents())
+@@ -586,6 +609,13 @@ void ChromePaymentsAutofillClient::ConfirmUploadIbanToCloud(
+                                                             web_contents()));
+   }
+ #else
++#if BUILDFLAG(IS_MAC)
++  // Fiber: see ShowSaveCreditCardLocally().
++  if (fiber::IsInFiberWindow(web_contents())) {
++    fiber::IgnoreSaveIbanPrompt(std::move(callback));
++    return;
++  }
++#endif
+   // Do lazy initialization of IbanBubbleControllerImpl.
+   IbanBubbleControllerImpl::CreateForWebContents(web_contents());
+   IbanBubbleControllerImpl::FromWebContents(web_contents())

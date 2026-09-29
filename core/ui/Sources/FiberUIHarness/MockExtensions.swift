@@ -32,6 +32,7 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
   ]
   private var popup: (any FiberExtensionPopup)?
   private var popupActions: PopupActions?
+  private var windows: [MockExtensionWindow] = []
   private var prompt: (any FiberPrompt)?
   private var promptActions: PromptActions?
   private var countTimer: Timer?
@@ -142,6 +143,19 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
         MainActor.assumeIsolated { self?.didInstall() }
       }
     }
+  }
+
+  /// What a password manager does to sign in: opens a window of its own.
+  func openWindow() {
+    let mock = mocks[windows.count % mocks.count]
+    let window = MockExtensionWindow(
+      ui: ui, name: mock.name, color: mock.color,
+      icon: Self.icon(mock.symbol, mock.color, size: 32),
+      site: windows.count % 2 == 1 ? "accounts.example.com" : ""
+    ) { [weak self] closed in
+      self?.windows.removeAll { $0 === closed }
+    }
+    windows.append(window)
   }
 
   // MARK: Private
@@ -320,6 +334,114 @@ private final class MockPopupPage: NSView {
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
       stack.topAnchor.constraint(equalTo: topAnchor, constant: 20),
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  override var isFlipped: Bool { true }
+
+  @objc private func closeClicked(_ sender: Any?) {
+    onClose()
+  }
+}
+
+/// Plays the part of an extension's window: its browser, and its page.
+@MainActor
+private final class MockExtensionWindow: NSObject, FiberExtensionWindowActions {
+  // Set once `self` exists to be the bubble's actions.
+  private var bubble: (any FiberExtensionWindow)!
+  private let page: MockWindowPage
+  private let onClose: (MockExtensionWindow) -> Void
+
+  init(
+    ui: any FiberExtensions, name: String, color: NSColor, icon: NSImage?,
+    site: String, onClose: @escaping (MockExtensionWindow) -> Void
+  ) {
+    page = MockWindowPage(name: name, color: color)
+    self.onClose = onClose
+    super.init()
+    page.onClose = { [weak self] in self?.close() }
+    bubble = ui.extensionWindow(with: self)
+    bubble.setTitle(name)
+    bubble.setIcon(icon)
+    bubble.setSite(site)
+    bubble.setContentSize(NSSize(width: 380, height: 520))
+    bubble.setContentsView(page)
+    bubble.expand()
+    focusPage()
+  }
+
+  // MARK: FiberExtensionWindowActions
+
+  func extensionWindowShouldClose() {
+    close()
+  }
+
+  func extensionWindowDidExpand() {
+    focusPage()
+  }
+
+  func extensionWindowDidBecomeActive() {
+    print("Active: \(page.name)'s window")
+  }
+
+  func extensionWindowDidResignActive() {
+    print("Inactive: \(page.name)'s window")
+  }
+
+  // Command-W while its page has focus closes it, as closing its only tab
+  // does in Chrome.
+  @objc func closeTab(_ sender: Any?) {
+    close()
+  }
+
+  // MARK: Private
+
+  private func close() {
+    bubble.close()
+    onClose(self)
+  }
+
+  private func focusPage() {
+    page.window?.makeFirstResponder(page.field)
+  }
+}
+
+/// Stands in for an extension's own window's page, like a password manager's
+/// sign-in.
+@MainActor
+private final class MockWindowPage: NSView {
+  let name: String
+  let field = NSTextField()
+  var onClose: () -> Void = {}
+
+  init(name: String, color: NSColor) {
+    self.name = name
+    super.init(frame: .zero)
+    let title = NSTextField(labelWithString: "Sign in to \(name)")
+    title.font = .systemFont(ofSize: 20, weight: .semibold)
+    title.textColor = color
+    field.placeholderString = "Email address"
+    let password = NSSecureTextField()
+    password.placeholderString = "Master password"
+    let close = NSButton(
+      title: "Close Window", target: self, action: #selector(closeClicked(_:)))
+    let stack = NSStackView(views: [title, field, password, close])
+    stack.orientation = .vertical
+    stack.alignment = .leading
+    stack.spacing = 12
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(stack)
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 24),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+      stack.topAnchor.constraint(equalTo: topAnchor, constant: 28),
+      field.widthAnchor.constraint(equalTo: stack.widthAnchor),
+      password.widthAnchor.constraint(equalTo: stack.widthAnchor),
     ])
   }
 
