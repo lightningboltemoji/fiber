@@ -1,0 +1,33 @@
+diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.cc b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.cc
+index 2039dea36a..a6115d6a77 100644
+--- a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.cc
++++ b/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.h"
+ 
+ #include "base/memory/ptr_util.h"
++#include "build/build_config.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/location_bar/location_bar.h"
+ #include "chrome/browser/ui/location_bar/location_bar_override_data.h"
+@@ -16,6 +17,7 @@
+ #include "components/web_modal/web_contents_modal_dialog_manager.h"
+ #include "content/public/browser/render_widget_host_view.h"
+ #include "content/public/browser/web_contents.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #include "ui/views/focus/focus_manager.h"
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/widget/widget.h"
+@@ -45,6 +47,12 @@ bool ChromeWebContentsViewFocusHelper::Focus() {
+   tabs::TabInterface* tab =
+       tabs::TabInterface::MaybeGetFromContents(&GetWebContents());
+   SadTabHelper* sad_tab_helper = tab ? SadTabHelper::From(tab) : nullptr;
++#if BUILDFLAG(IS_MAC)
++  // Fiber: a Fiber window's sad tab is Fiber's, not a SadTabController.
++  if (fiber::IsInFiberWindow(&GetWebContents())) {
++    sad_tab_helper = nullptr;
++  }
++#endif
+   if (sad_tab_helper) {
+     SadTabController* sad_tab =
+         static_cast<SadTabController*>(sad_tab_helper->sad_tab());

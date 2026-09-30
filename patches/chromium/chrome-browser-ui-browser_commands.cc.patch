@@ -1,0 +1,26 @@
+diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
+index 19b58e1126..a5cd8bee56 100644
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -199,6 +199,7 @@
+ #include "content/public/common/url_constants.h"
+ #include "content/public/common/url_utils.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #include "pdf/buildflags.h"
+ #include "printing/buildflags/buildflags.h"
+ #include "rlz/buildflags/buildflags.h"
+@@ -1485,6 +1486,13 @@ void CloseTab(BrowserWindowInterface* browser) {
+ #endif
+ 
+   ToastController* toast_controller = ToastController::From(browser);
++#if BUILDFLAG(IS_MAC)
++  // Fiber: a Fiber window shows no toasts, so none asks first before a pinned
++  // tab closes.
++  if (fiber::IsFiberBrowser(browser)) {
++    toast_controller = nullptr;
++  }
++#endif
+   if (!toast_controller) {
+     CloseSelectedTabAndRecordTabCountMetric(browser);
+     return;

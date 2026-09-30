@@ -1,0 +1,36 @@
+diff --git a/chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.cc b/chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.cc
+index 3484f0a193..160e90cbd0 100644
+--- a/chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.cc
++++ b/chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.h"
+ 
++#include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+@@ -15,6 +16,8 @@
+ #include "components/permissions/permission_util.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "components/tabs/public/tab_interface.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
++#include "fiber/browser/hooks/file_system_access_prompt.h"
+ #include "ui/base/interaction/element_identifier.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+@@ -229,6 +232,14 @@ void ShowFileSystemAccessRestorePermissionDialog(
+     const FileSystemAccessPermissionRequestManager::RequestData& request,
+     base::OnceCallback<void(permissions::PermissionAction)> callback,
+     content::WebContents* web_contents) {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host views bubbles; Fiber asks instead.
++  if (fiber::IsInFiberWindow(web_contents)) {
++    fiber::ShowFileSystemAccessRestorePrompt(request, std::move(callback),
++                                             web_contents);
++    return;
++  }
++#endif
+   FileSystemAccessRestorePermissionBubbleView::CreateAndShow(
+       request, std::move(callback), web_contents);
+ }

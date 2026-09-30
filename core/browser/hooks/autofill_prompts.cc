@@ -57,4 +57,8 @@ void IgnoreSaveIbanPrompt(
       std::move(callback)));
 }
 
+void IgnoreMandatoryReauthPrompt(base::RepeatingClosure close_callback) {
+  PostAnswer(std::move(close_callback));
+}
+
 }  // namespace fiber

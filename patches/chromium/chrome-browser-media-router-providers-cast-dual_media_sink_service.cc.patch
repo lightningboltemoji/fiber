@@ -1,0 +1,28 @@
+diff --git a/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc b/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc
+index 99d7e35de0..332d368f59 100644
+--- a/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc
++++ b/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc
+@@ -5,7 +5,9 @@
+ #include "chrome/browser/media/router/providers/cast/dual_media_sink_service.h"
+ 
+ #include "base/functional/bind.h"
++#include "base/notreached.h"
+ #include "base/time/default_tick_clock.h"
++#include "build/build_config.h"
+ #include "chrome/browser/media/router/discovery/dial/dial_media_sink_service.h"
+ #include "chrome/browser/media/router/discovery/dial/dial_media_sink_service_impl.h"
+ #include "chrome/browser/media/router/discovery/mdns/cast_media_sink_service.h"
+@@ -25,7 +27,13 @@ DualMediaSinkService* g_dual_media_sink_service = nullptr;
+ DualMediaSinkService* DualMediaSinkService::GetInstance() {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+   if (!g_dual_media_sink_service) {
++#if BUILDFLAG(IS_MAC)
++    // Fiber: cut, as kMediaRouter is off
++    // (//fiber/browser/hooks/feature_overrides.cc).
++    NOTREACHED();
++#else
+     g_dual_media_sink_service = new DualMediaSinkService();
++#endif
+   }
+   return g_dual_media_sink_service;
+ }

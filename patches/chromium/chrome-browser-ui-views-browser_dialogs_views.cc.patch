@@ -1,0 +1,29 @@
+diff --git a/chrome/browser/ui/views/browser_dialogs_views.cc b/chrome/browser/ui/views/browser_dialogs_views.cc
+index 9a83accd58..4ad6776695 100644
+--- a/chrome/browser/ui/views/browser_dialogs_views.cc
++++ b/chrome/browser/ui/views/browser_dialogs_views.cc
+@@ -17,6 +17,8 @@
+ #include "chrome/browser/ui/views/task_manager_view.h"
+ #include "components/constrained_window/constrained_window_views.h"
+ #include "components/permissions/chooser_controller.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
++#include "fiber/browser/hooks/dialog_models.h"
+ #include "ui/base/interaction/element_identifier.h"
+ #include "ui/views/bubble/bubble_dialog_model_host.h"
+ #include "ui/views/interaction/element_tracker_views.h"
+@@ -59,6 +61,15 @@ void HideTaskManager() {
+ 
+ views::Widget* ShowBrowserModal(BrowserWindowInterface* browser,
+                                 std::unique_ptr<ui::DialogModel> dialog_model) {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host views dialogs; Fiber asks instead, with
++  // no widget to return.
++  if (fiber::IsFiberWindow(browser->GetWindow()->GetNativeWindow())) {
++    fiber::ShowWindowModalDialog(std::move(dialog_model),
++                                 browser->GetWindow()->GetNativeWindow());
++    return nullptr;
++  }
++#endif
+   return constrained_window::ShowBrowserModal(
+       std::move(dialog_model), browser->GetWindow()->GetNativeWindow());
+ }

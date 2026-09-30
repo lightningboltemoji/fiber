@@ -1,0 +1,25 @@
+diff --git a/chrome/browser/media/webrtc/desktop_media_picker_controller.cc b/chrome/browser/media/webrtc/desktop_media_picker_controller.cc
+index e609845089..6dd6d89347 100644
+--- a/chrome/browser/media/webrtc/desktop_media_picker_controller.cc
++++ b/chrome/browser/media/webrtc/desktop_media_picker_controller.cc
+@@ -26,6 +26,7 @@
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/web_contents.h"
+ #include "desktop_media_picker.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #include "media/audio/audio_features.h"
+ #include "media/base/media_switches.h"
+ #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
+@@ -144,7 +145,11 @@ void DesktopMediaPickerController::OnInitialMediaListFound() {
+ }
+ 
+ void DesktopMediaPickerController::ShowPickerDialog() {
+-  picker_ = picker_factory_->CreatePicker(nullptr);
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host views dialogs; unsupported, as below.
++  if (!fiber::IsInFiberWindow(params_.web_contents))
++#endif
++    picker_ = picker_factory_->CreatePicker(nullptr);
+   if (!picker_) {
+     OnPickerDialogResults(
+         "Desktop Capture API is not yet implemented for this platform.", {});

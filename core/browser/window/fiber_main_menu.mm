@@ -39,6 +39,11 @@ void InstallMainMenuItems() {
   [basic_print.menu removeItem:basic_print];
   FindItemWithTag(NSApp.mainMenu, IDC_PRINT).keyEquivalentModifierMask =
       NSEventModifierFlagCommand | NSEventModifierFlagOption;
+  // Fiber has no Task Manager, and Chrome's is a views window. With no window
+  // open, AppController would still show it.
+  NSMenuItem* task_manager =
+      FindItemWithTag(NSApp.mainMenu, IDC_TASK_MANAGER_MAIN_MENU);
+  [task_manager.menu removeItem:task_manager];
 
   // Titled and enabled by the window as it validates them.
   NSMenuItem* show_toolbar =

@@ -65,6 +65,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return (content, self.toolbar.extensionsMenuButtonRect(in: content))
     })
   private let newTabView: NewTabView
+  private let sadTabView = SadTabView()
   /// Over the page and the toolbar, under the tab picker.
   private let extensionBubbles = ExtensionBubbles()
   /// Whose browser the user is in: the window's, or an extension window's,
@@ -72,8 +73,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var activeBrowser = ActiveBrowser.none
   /// Holds `pageView`; the veil blurs it, and swiping between pages moves it.
   private let pageArea = NSView()
-  /// The page and the New Tab page over it, with its corners rounded like the
-  /// window's.
+  /// The page and what the window draws over it (the New Tab page, a sad tab),
+  /// with its corners rounded like the window's.
   private let pageView = NSView()
   /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
   /// draws over the (empty) page.
@@ -168,6 +169,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
     newTabView.isHidden = true
     newTabView.onClick = { [weak self] in self?.showOmnibar() }
     pageView.addSubview(newTabView)
+    sadTabView.frame = pageView.bounds
+    sadTabView.autoresizingMask = [.width, .height]
+    sadTabView.isHidden = true
+    sadTabView.onButton = { [weak self] in self?.actions.pressSadTabButton() }
+    sadTabView.onHelp = { [weak self] in self?.actions.openSadTabHelp() }
+    pageView.addSubview(sadTabView)
 
     progressBar.frame = NSRect(
       x: 0, y: content.bounds.height - Self.progressBarHeight,
@@ -437,7 +444,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
-    newTabView.isHidden = !isNewTabPage
+    newTabView.isHidden = !isNewTabPage || state.sadTab != nil
+    if let sadTab = state.sadTab {
+      sadTabView.show(sadTab)
+    }
+    sadTabView.isHidden = state.sadTab == nil
     toolbar.setAddress(state.displayURL)
     toolbar.backButton.isEnabled = state.canGoBack
     toolbar.forwardButton.isEnabled = state.canGoForward

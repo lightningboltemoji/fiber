@@ -35,4 +35,13 @@ bool IsInFiberWindow(content::WebContents* web_contents) {
          FiberBrowserWindow::FromWebContents(web_contents) != nullptr;
 }
 
+bool IsFiberWindow(gfx::NativeWindow window) {
+  return window && FiberBrowserWindow::FromNativeWindow(window) != nullptr;
+}
+
+bool IsFiberBrowser(BrowserWindowInterface* browser) {
+  return FiberBrowserWindow::FromBrowser(browser) ||
+         FiberExtensionWindow::FromBrowser(browser);
+}
+
 }  // namespace fiber

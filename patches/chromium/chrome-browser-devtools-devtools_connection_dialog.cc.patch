@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/devtools/devtools_connection_dialog.cc b/chrome/browser/devtools/devtools_connection_dialog.cc
+index 87243b09b8..2904df8592 100644
+--- a/chrome/browser/devtools/devtools_connection_dialog.cc
++++ b/chrome/browser/devtools/devtools_connection_dialog.cc
+@@ -75,7 +75,10 @@ DevToolsConnectionDialog::DevToolsConnectionDialog(
+           .SetInitiallyFocusedField(kCancelButtonId)
+           .OverrideDefaultButton(ui::mojom::DialogButton::kNone)
+           .Build());
+-  dialog_widget_ = widget->GetWeakPtr();
++  // Fiber: a dialog in a Fiber window has no widget.
++  if (widget) {
++    dialog_widget_ = widget->GetWeakPtr();
++  }
+ }
+ 
+ DevToolsConnectionDialog::~DevToolsConnectionDialog() = default;

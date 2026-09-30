@@ -1,0 +1,33 @@
+diff --git a/chrome/browser/ui/views/storage/storage_pressure_bubble_view.cc b/chrome/browser/ui/views/storage/storage_pressure_bubble_view.cc
+index 6d34db8f7b..81c71f7192 100644
+--- a/chrome/browser/ui/views/storage/storage_pressure_bubble_view.cc
++++ b/chrome/browser/ui/views/storage/storage_pressure_bubble_view.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/views/storage/storage_pressure_bubble_view.h"
+ 
+ #include "base/feature_list.h"
++#include "build/build_config.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/navigator/browser_navigator.h"
+@@ -17,6 +18,7 @@
+ #include "chrome/grit/generated_resources.h"
+ #include "components/url_formatter/url_formatter.h"
+ #include "content/public/common/content_features.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/base/mojom/dialog_button.mojom.h"
+@@ -42,6 +44,12 @@ void StoragePressureBubbleView::ShowBubble(const url::Origin& origin) {
+   if (!bwi) {
+     return;
+   }
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host views bubbles; the notice goes unshown.
++  if (fiber::IsFiberWindow(bwi->GetWindow()->GetNativeWindow())) {
++    return;
++  }
++#endif
+ 
+   auto* browser_view = BrowserView::GetBrowserViewForBrowser(bwi);
+   auto* control = browser_view->toolbar_button_provider()->GetAppMenuControl();

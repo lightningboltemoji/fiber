@@ -87,6 +87,12 @@ final class MockBrowser: NSObject, FiberWindowActions {
     finishLoading(activeTab)
   }
 
+  func pressSadTabButton() {
+    reload(with: nil)
+  }
+
+  func openSadTabHelp() {}
+
   func focusPage() {
     ui.window.makeFirstResponder(activeTab.page)
   }
@@ -519,7 +525,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
         displayURL: isNewTabPage ? "" : host, title: tab.page.title,
         canGoBack: tab.index > 0,
         canGoForward: tab.index < tab.history.count - 1,
-        loading: tab.isLoading, newTabPage: isNewTabPage))
+        loading: tab.isLoading, newTabPage: isNewTabPage, sadTab: nil))
   }
 
   /// The window's tabs, as the UI shows them.

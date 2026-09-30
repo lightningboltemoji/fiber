@@ -9,6 +9,7 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
+#include "chrome/browser/ui/sad_tab.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -84,8 +85,10 @@ class FiberBrowserWindow : public BrowserWindow,
   void OnWindowFullscreenChanged();
 
   // Sends the UI what it shows of the active tab's page (the toolbar, the
-  // window title).
+  // window title, a sad tab).
   void UpdatePageState();
+  // The button or help link of the active tab's sad tab was pressed.
+  void PerformSadTabAction(SadTab::Action action);
 
   // Swiping between the active tab's pages, for FiberHistorySwiper. Each
   // mirrors a FiberWindow history swipe method (see FiberWindow.h).

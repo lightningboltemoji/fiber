@@ -4,10 +4,10 @@
 #include "components/autofill/core/browser/foundations/autofill_client.h"
 #include "components/autofill/core/browser/payments/payments_autofill_client.h"
 
-// Chrome's offers to save what was typed into a form (an address, a card, an
-// IBAN) are views bubbles, which Fiber windows can't host. Until Fiber has its
-// own, each offer in a Fiber window is answered soon, as ignored: nothing is
-// saved. Called from ChromeAutofillClient and ChromePaymentsAutofillClient.
+// Chrome's offers about what was typed into a form (to save an address, a
+// card, an IBAN) are views bubbles. Until Fiber has its own, each offer in a
+// Fiber window is answered soon, as ignored: nothing changes. Called from
+// ChromeAutofillClient and ChromePaymentsAutofillClient.
 namespace fiber {
 
 void IgnoreSaveAddressPrompt(
@@ -24,6 +24,9 @@ void IgnoreUploadCardPrompt(
 void IgnoreSaveIbanPrompt(
     autofill::payments::PaymentsAutofillClient::SaveIbanPromptCallback
         callback);
+
+// The offer to ask for Touch ID or the Mac's password before filling a card.
+void IgnoreMandatoryReauthPrompt(base::RepeatingClosure close_callback);
 
 }  // namespace fiber
 

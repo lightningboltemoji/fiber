@@ -1,0 +1,25 @@
+diff --git a/chrome/browser/media/webrtc/desktop_capture_access_handler.cc b/chrome/browser/media/webrtc/desktop_capture_access_handler.cc
+index 6edfb10582..909b34741f 100644
+--- a/chrome/browser/media/webrtc/desktop_capture_access_handler.cc
++++ b/chrome/browser/media/webrtc/desktop_capture_access_handler.cc
+@@ -45,6 +45,7 @@
+ #include "extensions/common/constants.h"
+ #include "extensions/common/extension.h"
+ #include "extensions/common/switches.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #include "media/base/media_switches.h"
+ #include "services/network/public/cpp/is_potentially_trustworthy.h"
+ #include "third_party/blink/public/common/mediastream/media_stream_request.h"
+@@ -538,7 +539,11 @@ void DesktopCaptureAccessHandler::ProcessChangeSourceRequest(
+   if (pending_request->request.requested_video_device_ids.empty() ||
+       pending_request->request.requested_video_device_ids.front().empty()) {
+     // Passing nullptr selects the default picker (DesktopMediaPickerImpl).
+-    pending_request->picker = picker_factory_->CreatePicker(nullptr);
++#if BUILDFLAG(IS_MAC)
++    // Fiber: Fiber windows can't host views dialogs; unsupported, as below.
++    if (!fiber::IsInFiberWindow(web_contents))
++#endif
++      pending_request->picker = picker_factory_->CreatePicker(nullptr);
+     if (!pending_request->picker) {
+       std::move(pending_request->callback)
+           .Run(blink::mojom::StreamDevicesSet(),

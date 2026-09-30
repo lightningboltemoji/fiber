@@ -1,0 +1,14 @@
+diff --git a/chrome/browser/media/router/chrome_media_router_factory.cc b/chrome/browser/media/router/chrome_media_router_factory.cc
+index cd46c00538..e786238034 100644
+--- a/chrome/browser/media/router/chrome_media_router_factory.cc
++++ b/chrome/browser/media/router/chrome_media_router_factory.cc
+@@ -82,6 +82,9 @@ ChromeMediaRouterFactory::BuildServiceInstanceForBrowserContext(
+   std::unique_ptr<MediaRouterBase> media_router = nullptr;
+ #if BUILDFLAG(IS_ANDROID)
+   media_router = std::make_unique<MediaRouterAndroid>();
++#elif BUILDFLAG(IS_MAC)
++  // Fiber: cut, as kMediaRouter is off
++  // (//fiber/browser/hooks/feature_overrides.cc).
+ #else
+   media_router = std::make_unique<MediaRouterDesktop>(context);
+ #endif  // BUILDFLAG(IS_ANDROID)

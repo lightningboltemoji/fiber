@@ -1,0 +1,25 @@
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 3741ba7671..4a1fad240d 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -139,6 +139,7 @@
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "extensions/common/extension_urls.h"
++#include "fiber/browser/hooks/commands.h"
+ #include "printing/buildflags/buildflags.h"
+ #include "ui/accessibility/accessibility_features.h"
+ #include "ui/actions/actions.h"
+@@ -632,6 +633,12 @@ bool BrowserCommandController::SupportsCommand(int id) const {
+ }
+ 
+ bool BrowserCommandController::IsCommandEnabled(int id) const {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: not the commands whose UI a Fiber window doesn't have.
++  if (!fiber::IsCommandSupported(browser_, id)) {
++    return false;
++  }
++#endif
+   return command_updater_->IsCommandEnabled(id);
+ }
+ 

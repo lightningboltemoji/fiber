@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "chrome/browser/ui/browser_window_deleter.h"
+#include "ui/gfx/native_ui_types.h"
 
 class BrowserWindow;
 class BrowserWindowInterface;
@@ -23,6 +24,11 @@ std::unique_ptr<BrowserWindow, BrowserWindowDeleter> CreateBrowserWindow(
 // For Chrome's factories whose views UI needs a views window to attach to:
 // whether the tab `web_contents`, which may be null, is in a Fiber window.
 bool IsInFiberWindow(content::WebContents* web_contents);
+// Whether `window`, which may be null, is a Fiber window.
+bool IsFiberWindow(gfx::NativeWindow window);
+// Whether `browser`'s window is Fiber's: a browser window, or an extension's
+// window as a bubble over one.
+bool IsFiberBrowser(BrowserWindowInterface* browser);
 
 }  // namespace fiber
 

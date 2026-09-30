@@ -87,9 +87,14 @@ Chromium it hooks and depending on nothing that part couldn't:
   serves. Their favicons are ones Fiber picks, which its UI draws in the color of the
   text (`hooks/web_ui_favicons.mm`, `BuiltInPageFavicon.swift`). With no
   updater, the About page says nothing about updates.
-- Fiber's defaults differ from Chrome's through `hooks/feature_overrides.cc`
-  and `hooks/profile_pref_defaults.cc`, with the field trial testing config
-  off (`args.gni`). The goal is no requests to Google the user didn't ask for.
+- Fiber's defaults differ from Chrome's through `hooks/feature_overrides.cc`,
+  `hooks/profile_pref_defaults.cc` and `hooks/local_state_pref_defaults.cc`,
+  with the field trial testing config off (`args.gni`). The goal is no
+  requests to Google the user didn't ask for, and no way into what Fiber
+  doesn't have.
+- Commands whose UI Fiber doesn't have yet are disabled for Fiber windows in
+  Chrome's own command controller (`hooks/commands.cc`), so however one comes
+  (the menu, the command palette, an extension), it doesn't reach views.
 - For non-views UI, upstream's experimental `WebUIBrowserWindow`
   (`chrome/browser/ui/webui_browser/`) is the reference, and its
   `IsWebUIBrowserEnabled()` checks mark code in Chrome that assumes views.
@@ -107,24 +112,39 @@ Each surface Fiber replaces, and where it lives:
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
 | Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `Toolbar.swift`, `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
-| Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth) | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |
+| Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth), a site's files from an earlier visit (File System Access), and Chrome's `ui::DialogModel` dialogs (confirming a folder upload, File System Access's questions, Name Window, extensions' notices) | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |
 | Page context menus | `browser/context_menu/` | `ContextMenu.swift` |
 | Extensions toolbar, menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
 | Windows extensions open (`chrome.windows.create` popups), as bubbles over the page | `browser/extensions/fiber_extension_window.mm` | `ExtensionWindowBubble.swift` |
 | Swiping between pages | `browser/swipe/` | `HistorySwipe.swift` |
+| A page whose renderer crashed or was killed (Chrome's sad tab), drawn over it | `browser/window/fiber_sad_tab.mm` | `SadTabView.swift` |
 | The page's scrollbar, clear of the tab picker | `renderer/hooks/` | |
 | Media codecs | `media/` | |
 
-Where Fiber has no replacement yet: DevTools, web app and picture-in-picture
-windows keep Chrome's UI; quiet permission requests (Chrome's location bar
-chip) are ignored, passkey and security key requests and Sign in with Google
-(FedCM) fail, screen sharing is refused, offers to save an address, card or
-IBAN go unanswered, and the hung page dialog doesn't show
-(`hooks/permission_prompt.h`, `hooks/webauthn_dialog.h`,
-`hooks/autofill_prompts.h`); extensions' keyboard shortcuts, site access
-requests, disabled-extension alert and side panels are missing; and the
-component updater, push messaging, autofill crowdsourcing and Google account
-checks still call home.
+Where Fiber has no replacement yet ([UNIMPLEMENTED.md](UNIMPLEMENTED.md) has
+the rest, and what's still broken):
+
+- **Chrome's UI, kept:** DevTools, web app and picture-in-picture windows.
+- **Refused, for the page:** passkeys, security keys and Sign in with Google
+  (FedCM) fail; screen sharing and an extension's screen capture are refused;
+  a site asking for a USB, HID, serial or Bluetooth device, or to choose a
+  saved password, gets none; quiet permission requests (Chrome's location bar
+  chip) are ignored (`hooks/permission_prompt.h`, `hooks/webauthn_dialog.h`,
+  and patches marked `Fiber:` in Chrome's views code).
+- **Not offered:** installing a page as an app; Save and fill on card forms;
+  Task Manager, pinning, tab groups, split view and side panels
+  (`hooks/commands.cc`); adding a profile, and the Profile Picker at startup
+  (`hooks/local_state_pref_defaults.cc`); Chrome's sharing hub, leaving the
+  Share menu (`hooks/profile_pref_defaults.cc`); Payment Request, digital
+  credentials, and Cast with the Presentation API
+  (`hooks/feature_overrides.cc`, with most of their code cut by patches).
+- **Unanswered, or not shown:** offers to save an address, card or IBAN, or to
+  ask for Touch ID before filling a card (`hooks/autofill_prompts.h`); the hung
+  page dialog, Safety Tips and the low storage notice.
+- **Missing:** extensions' keyboard shortcuts, site access requests,
+  disabled-extension alert and side panels.
+- **Still calling home:** the component updater, push messaging, autofill
+  crowdsourcing and Google account checks.
 
 ## Tabs and spaces
 

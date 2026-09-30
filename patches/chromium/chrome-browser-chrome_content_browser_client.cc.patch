@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
-index 19045777b3..f878794c54 100644
+index 19045777b3..941d7c025d 100644
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -5050,11 +5050,9 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
@@ -16,3 +16,14 @@ index 19045777b3..f878794c54 100644
  
    // chrome: & friends.
    handler->AddHandlerPair(&ChromeContentBrowserClient::HandleWebUI,
+@@ -8464,7 +8462,9 @@ ChromeContentBrowserClient::CreateDigitalIdentityProvider() {
+ #if BUILDFLAG(IS_ANDROID)
+   return std::make_unique<DigitalIdentityProviderAndroid>();
+ #else
+-  return std::make_unique<DigitalIdentityProviderDesktop>();
++  // Fiber: digital credentials are off
++  // (//fiber/browser/hooks/feature_overrides.cc) and cut.
++  return nullptr;
+ #endif
+ }
+ 

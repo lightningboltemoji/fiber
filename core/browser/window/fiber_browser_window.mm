@@ -7,7 +7,7 @@
 #include "base/no_destructor.h"
 #include "base/notimplemented.h"
 #include "base/strings/sys_string_conversions.h"
-#include "chrome/app/chrome_command_ids.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
+#include "chrome/browser/ui/sad_tab_helper.h"
 #include "chrome/browser/ui/status_bubble.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -36,6 +37,7 @@
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/result_codes.h"
 #include "content/public/common/url_constants.h"
 #include "fiber/browser/downloads/downloads_wait.h"
 #include "fiber/browser/extensions/fiber_extension_window.h"
@@ -47,6 +49,7 @@
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
 #include "fiber/browser/window/tab_state.h"
+#include "ui/base/l10n/l10n_util_mac.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/color/color_provider_utils.h"
@@ -62,24 +65,29 @@ std::vector<FiberBrowserWindow*>& AllWindows() {
   return *windows;
 }
 
-// Commands whose UI Fiber doesn't have yet. Chrome's implementations assume
-// its views UI and would crash or show nothing.
-bool IsCommandSupported(int command) {
-  switch (command) {
-    case IDC_FIND:
-    case IDC_FIND_NEXT:
-    case IDC_FIND_PREVIOUS:
-    case IDC_FIND_AND_EDIT_MENU:
-    case IDC_SHOW_APP_MENU:
-    case IDC_SHOW_AVATAR_MENU:
-    case IDC_FOCUS_TOOLBAR:
-    case IDC_FOCUS_BOOKMARKS:
-    case IDC_FOCUS_NEXT_PANE:
-    case IDC_FOCUS_PREVIOUS_PANE:
-      return false;
-    default:
-      return true;
+// Chrome's sad tab for `contents`, if its renderer is gone.
+SadTab* SadTabFor(content::WebContents* contents) {
+  tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
+  SadTabHelper* helper = tab ? SadTabHelper::From(tab) : nullptr;
+  return helper ? helper->sad_tab() : nullptr;
+}
+
+// Chrome's words for `sad_tab`, as SadTabView (views) has them.
+FiberSadTab* SadTabState(SadTab& sad_tab) {
+  NSMutableArray<NSString*>* suggestions = [NSMutableArray array];
+  for (int message_id : sad_tab.GetSubMessages()) {
+    [suggestions addObject:l10n_util::GetNSString(message_id)];
   }
+  return [[FiberSadTab alloc]
+      initWithTitle:l10n_util::GetNSString(sad_tab.GetTitle())
+            message:l10n_util::GetNSString(sad_tab.GetInfoMessage())
+        suggestions:suggestions
+          errorCode:l10n_util::GetNSStringF(
+                        sad_tab.GetErrorCodeFormatString(),
+                        base::UTF8ToUTF16(content::CrashExitCodeToString(
+                            sad_tab.GetCrashedErrorCode())))
+        buttonTitle:l10n_util::GetNSString(sad_tab.GetButtonTitle())
+          helpTitle:l10n_util::GetNSString(sad_tab.GetHelpLinkTitle())];
 }
 
 // Fiber's New Tab page (chrome://newtab): the page the tab shows, or before
@@ -264,8 +272,8 @@ void FiberBrowserWindow::ExecuteCommand(int command,
 }
 
 bool FiberBrowserWindow::IsCommandEnabled(int command) const {
-  return IsCommandSupported(command) &&
-         chrome::IsCommandEnabled(browser_, command);
+  // Including whether Fiber supports it (see hooks/commands.h).
+  return chrome::IsCommandEnabled(browser_, command);
 }
 
 void FiberBrowserWindow::FocusWebContents() {
@@ -532,6 +540,7 @@ void FiberBrowserWindow::UpdatePageState() {
             model->GetURL()));
   }
   content::NavigationController& navigation = active->GetController();
+  SadTab* sad_tab = SadTabFor(active);
   [ui_ setPageState:[[FiberPageState alloc]
                         initWithDisplayURL:display_url
                                      title:base::SysUTF16ToNSString(
@@ -539,7 +548,16 @@ void FiberBrowserWindow::UpdatePageState() {
                                  canGoBack:navigation.CanGoBack()
                               canGoForward:navigation.CanGoForward()
                                    loading:active->IsLoading()
-                                newTabPage:IsNewTabPage(active)]];
+                                newTabPage:IsNewTabPage(active)
+                                    sadTab:sad_tab ? SadTabState(*sad_tab)
+                                                   : nil]];
+}
+
+void FiberBrowserWindow::PerformSadTabAction(SadTab::Action action) {
+  content::WebContents* active = GetActiveWebContents();
+  if (SadTab* sad_tab = active ? SadTabFor(active) : nullptr) {
+    sad_tab->PerformAction(action);
+  }
 }
 
 bool FiberBrowserWindow::UpdateToolbarSecurityState() {

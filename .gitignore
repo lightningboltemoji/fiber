@@ -6,6 +6,7 @@
 /dist/
 
 .DS_Store
+__pycache__
 
 # SwiftPM build products for core/ui (see core/ui/Package.swift)
 /core/ui/.build/

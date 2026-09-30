@@ -33,6 +33,9 @@ NS_SWIFT_UI_ACTOR
 - (void)reloadWithEvent:(nullable NSEvent*)event;
 - (void)stopLoading;
 - (void)focusPage;
+// The active tab's sad tab (see FiberSadTab): its button, and its help link.
+- (void)pressSadTabButton;
+- (void)openSadTabHelp;
 // Selects the tab, in whichever of the profile's windows has it, and brings
 // that window forward. Does nothing if the tab is gone.
 - (void)selectTabWithID:(NSInteger)tabID;

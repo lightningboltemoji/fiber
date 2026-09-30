@@ -1,0 +1,14 @@
+diff --git a/chrome/browser/ui/cocoa/share_menu_controller.mm b/chrome/browser/ui/cocoa/share_menu_controller.mm
+index 8b50f511f8..9cb6538c51 100644
+--- a/chrome/browser/ui/cocoa/share_menu_controller.mm
++++ b/chrome/browser/ui/cocoa/share_menu_controller.mm
+@@ -207,6 +207,9 @@ bool CanShare() {
+   _windowForShare = browser->GetWindow()->GetNativeWindow().GetNativeNSWindow();
+   BrowserView* browserView = BrowserView::GetBrowserViewForBrowser(browser);
+   if (!browserView) {
++    // Fiber: a Fiber window has no BrowserView. The share goes ahead, without
++    // the page's frame and snapshot to animate from.
++    std::move(closure).Run();
+     return;
+   }
+ 

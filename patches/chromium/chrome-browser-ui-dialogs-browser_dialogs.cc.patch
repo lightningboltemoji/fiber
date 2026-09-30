@@ -1,0 +1,28 @@
+diff --git a/chrome/browser/ui/dialogs/browser_dialogs.cc b/chrome/browser/ui/dialogs/browser_dialogs.cc
+index 75e0992d6d..4963f503c1 100644
+--- a/chrome/browser/ui/dialogs/browser_dialogs.cc
++++ b/chrome/browser/ui/dialogs/browser_dialogs.cc
+@@ -6,6 +6,9 @@
+ 
+ #include "base/functional/callback_helpers.h"
+ #include "base/notimplemented.h"
++#include "build/build_config.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
++#include "fiber/browser/hooks/dialog_models.h"
+ 
+ #if defined(TOOLKIT_VIEWS)
+ #include "components/constrained_window/constrained_window_views.h"
+@@ -35,6 +38,13 @@ void ShowWindowNamePromptForTesting(BrowserWindowInterface* browser,
+ #if defined(TOOLKIT_VIEWS)
+ void ShowTabModal(std::unique_ptr<ui::DialogModel> dialog_model,
+                   content::WebContents* web_contents) {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Fiber windows can't host views dialogs; Fiber asks instead.
++  if (fiber::IsInFiberWindow(web_contents)) {
++    fiber::ShowTabModalDialog(std::move(dialog_model), web_contents);
++    return;
++  }
++#endif
+   constrained_window::ShowWebModal(std::move(dialog_model), web_contents);
+ }
+ #elif BUILDFLAG(IS_ANDROID)

@@ -1,0 +1,26 @@
+diff --git a/chrome/browser/banners/app_banner_manager_desktop.cc b/chrome/browser/banners/app_banner_manager_desktop.cc
+index 9c62df2ca8..5a49995dc1 100644
+--- a/chrome/browser/banners/app_banner_manager_desktop.cc
++++ b/chrome/browser/banners/app_banner_manager_desktop.cc
+@@ -35,6 +35,7 @@
+ #include "components/webapps/browser/installable/ml_installability_promoter.h"
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/common/constants.h"
++#include "fiber/browser/hooks/browser_window_factory.h"
+ #include "third_party/blink/public/common/manifest/manifest_util.h"
+ #include "third_party/blink/public/mojom/manifest/display_mode.mojom.h"
+ #include "third_party/blink/public/mojom/manifest/manifest.mojom.h"
+@@ -107,6 +108,13 @@ AppBannerManagerDesktop::AppBannerManagerDesktop(
+ AppBannerManagerDesktop::~AppBannerManagerDesktop() = default;
+ 
+ bool AppBannerManagerDesktop::CanRequestAppBanner() const {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: installing is Chrome's views dialog, so pages in a Fiber window
++  // aren't offered it.
++  if (fiber::IsInFiberWindow(app_banner_manager_->web_contents())) {
++    return false;
++  }
++#endif
+   return true;
+ }
+ 

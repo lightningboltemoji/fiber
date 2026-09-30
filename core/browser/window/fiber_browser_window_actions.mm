@@ -74,6 +74,18 @@ int CommandID(FiberCommand command) {
   }
 }
 
+- (void)pressSadTabButton {
+  if (_owner) {
+    _owner->PerformSadTabAction(SadTab::Action::kButton);
+  }
+}
+
+- (void)openSadTabHelp {
+  if (_owner) {
+    _owner->PerformSadTabAction(SadTab::Action::kHelpLink);
+  }
+}
+
 - (void)selectTabWithID:(NSInteger)tabID {
   if (_owner) {
     _owner->SelectTab(static_cast<int32_t>(tabID));

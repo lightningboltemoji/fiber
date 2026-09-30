@@ -16,6 +16,11 @@ void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry) {
   // preview.
   registry->SetDefaultPrefValue(prefs::kPrintPreviewDisabled,
                                 base::Value(true));
+  // Chrome's sharing hub (a QR code, sending to devices), a views bubble:
+  // off, and with it the command palette's "Share this page". Sharing goes
+  // through the Share menu.
+  registry->SetDefaultPrefValue(prefs::kDesktopSharingHubEnabled,
+                                base::Value(false));
 }
 
 }  // namespace fiber

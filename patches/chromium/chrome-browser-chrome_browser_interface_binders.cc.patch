@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/chrome_browser_interface_binders.cc b/chrome/browser/chrome_browser_interface_binders.cc
+index 2a4a67927d..5429236128 100644
+--- a/chrome/browser/chrome_browser_interface_binders.cc
++++ b/chrome/browser/chrome_browser_interface_binders.cc
+@@ -523,9 +523,8 @@ void PopulateChromeFrameBinders(
+       &badging::BadgeManager::BindFrameReceiverIfAllowed);
+   map->Add<blink::mojom::PersistentRendererPrefsService>(
+       &PersistentRendererPrefsManager::BindFrameReceiver);
+-  if (base::FeatureList::IsEnabled(features::kWebPayments)) {
+-    map->Add<payments::mojom::PaymentRequest>(&payments::CreatePaymentRequest);
+-  }
++  // Fiber: Payment Request is off (//fiber/browser/hooks/feature_overrides.cc)
++  // and cut.
+   if ((base::FeatureList::IsEnabled(blink::features::kWebAppInstallation) ||
+        base::FeatureList::IsEnabled(blink::features::kInstallElement)) &&
+       !render_frame_host->GetParentOrOuterDocument()) {
