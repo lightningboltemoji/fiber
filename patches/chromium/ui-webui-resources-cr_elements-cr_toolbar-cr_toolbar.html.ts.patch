@@ -1,0 +1,14 @@
+diff --git a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.html.ts b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.html.ts
+index dba2076962..3e9ce6c622 100644
+--- a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.html.ts
++++ b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.html.ts
+@@ -19,8 +19,7 @@ export function getHtml(this: CrToolbarElement) {
+     ` : ''}
+     <slot name="product-logo">
+       <picture>
+-        <source media="(prefers-color-scheme: dark)"
+-            srcset="//resources/images/chrome_logo_dark.svg">
++        <!-- Fiber: one logo, served by the browser, for dark pages too. -->
+         <img id="product-logo"
+             srcset="chrome://theme/current-channel-logo@1x 1x,
+                     chrome://theme/current-channel-logo@2x 2x"

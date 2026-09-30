@@ -165,11 +165,7 @@ source_set("browser") {
     "//ui/menus",
     "//ui/native_theme",
     "//ui/strings",
-    "//ui/webui/resources",
     "//url",
   ]
-  frameworks = [
-    "AppKit.framework",
-    "ImageIO.framework",
-  ]
+  frameworks = [ "AppKit.framework" ]
 }

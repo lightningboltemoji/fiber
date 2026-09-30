@@ -20,12 +20,12 @@ import FiberBridge
 @MainActor
 enum QuitHold {
   /// How long the user holds the shortcut to fill the veil from empty.
-  private static let holdDuration: TimeInterval = 0.65
+  private static let holdDuration: TimeInterval = 0.325
   /// How long a full veil takes to drain once the user lets go.
   private static let drainDuration: TimeInterval = 1.6
   /// How often the loop checks on the key while waiting for it to go up.
   private static let pollInterval: TimeInterval = 0.1
-  private static let fadeDuration: TimeInterval = 0.2
+  private static let fadeDuration: TimeInterval = 0.1
   /// A press older than this isn't happening now (see run(keyCode:…)).
   private static let staleEventAge: TimeInterval = 2
 

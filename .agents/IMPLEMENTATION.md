@@ -81,8 +81,10 @@ Chromium it hooks and depending on nothing that part couldn't:
 - Chrome's in-tab pages stay, but read as Fiber's. `url_formatter` shows
   `chrome://` as `fiber://` and reads `fiber://` back as `chrome://`, so Chrome
   and extensions only ever see `chrome://` (`branding/url_scheme.h`). Chrome's
-  product logos are Fiber's app icon (`hooks/resource_bundle_delegate.mm`).
-  Their favicons are ones Fiber picks, which its UI draws in the color of the
+  product logos are Fiber's mark (`hooks/resource_bundle_delegate.mm`). A page
+  loads `chrome://resources` from the renderer's own copy of Chrome's
+  resources, so its logos point at `chrome://theme`'s, which the browser
+  serves. Their favicons are ones Fiber picks, which its UI draws in the color of the
   text (`hooks/web_ui_favicons.mm`, `BuiltInPageFavicon.swift`). With no
   updater, the About page says nothing about updates.
 - Fiber's defaults differ from Chrome's through `hooks/feature_overrides.cc`

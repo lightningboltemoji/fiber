@@ -1,7 +1,6 @@
 #include "fiber/browser/hooks/resource_bundle_delegate.h"
 
 #import <Foundation/Foundation.h>
-#import <ImageIO/ImageIO.h>
 
 #include <cmath>
 #include <map>
@@ -9,115 +8,56 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
-#include "base/apple/bridging.h"
-#include "base/apple/scoped_cftyperef.h"
-#include "base/base64.h"
+#import "FiberBridge/FiberBuiltInPageFavicon.h"
+#include "base/apple/foundation_util.h"
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/no_destructor.h"
-#include "base/strings/strcat.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_view_util.h"
-#include "base/synchronization/lock.h"
 #include "chrome/grit/chrome_unscaled_resources.h"
 #include "chrome/grit/theme_resources.h"
 #include "components/grit/components_scaled_resources.h"
-#include "skia/ext/image_operations.h"
-#include "skia/ext/skia_utils_mac.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/resource/resource_scale_factor.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_rep.h"
-#include "ui/webui/resources/grit/webui_resources.h"
 
 namespace fiber {
 
 namespace {
 
-struct ProductLogo {
-  // In points.
-  int size;
-  // An SVG rather than a PNG.
-  bool svg = false;
-};
-
-// Chrome's product logos, which Fiber's app icon stands in for: among them
-// chrome://version's wordmark (IDR_PRODUCT_LOGO) and the white logo WebUI
-// toolbars show on dark pages.
-std::optional<ProductLogo> GetProductLogo(int resource_id) {
+// The size in points of each of Chrome's product logos, which Fiber's mark
+// stands in for, or 0 for any other resource. chrome://version's
+// (IDR_PRODUCT_LOGO, and its white variant for dark pages) is a wordmark.
+int ProductLogoSize(int resource_id) {
   switch (resource_id) {
     case IDR_PRODUCT_LOGO_16:
-      return ProductLogo{16};
+      return 16;
     case IDR_PRODUCT_LOGO_32:
     case IDR_PRODUCT_LOGO:
     case IDR_PRODUCT_LOGO_WHITE:
-      return ProductLogo{32};
+      return 32;
     case IDR_PRODUCT_LOGO_64:
-      return ProductLogo{64};
+      return 64;
     case IDR_PRODUCT_LOGO_128:
-      return ProductLogo{128};
+      return 128;
     case IDR_PRODUCT_LOGO_256:
-      return ProductLogo{256};
-    case IDR_WEBUI_IMAGES_CHROME_LOGO_DARK_SVG:
-      return ProductLogo{24, /*svg=*/true};
+      return 256;
     default:
-      return std::nullopt;
+      return 0;
   }
 }
 
-// The app's icon, `pixels` square, scaled from the smallest image in app.icns
-// at least that big. WebUI loads resources on the thread pool, so this uses
-// ImageIO, which any thread may, rather than AppKit.
-SkBitmap AppIconBitmap(int pixels) {
-  NSURL* url = [NSBundle.mainBundle URLForResource:@"app"
-                                     withExtension:@"icns"];
-  if (!url) {
-    return SkBitmap();
-  }
-  base::apple::ScopedCFTypeRef<CGImageSourceRef> source(
-      CGImageSourceCreateWithURL(base::apple::NSToCFPtrCast(url), nullptr));
-  if (!source) {
-    return SkBitmap();
-  }
-  std::optional<size_t> best;
-  int best_width = 0;
-  for (size_t i = 0; i < CGImageSourceGetCount(source.get()); ++i) {
-    NSDictionary* properties = base::apple::CFToNSOwnershipCast(
-        CGImageSourceCopyPropertiesAtIndex(source.get(), i, nullptr));
-    const int width = [properties[base::apple::CFToNSPtrCast(
-        kCGImagePropertyPixelWidth)] intValue];
-    if (!best || (width >= pixels
-                      ? best_width < pixels || width < best_width
-                      : width > best_width)) {
-      best = i;
-      best_width = width;
-    }
-  }
-  if (!best) {
-    return SkBitmap();
-  }
-  base::apple::ScopedCFTypeRef<CGImageRef> image(
-      CGImageSourceCreateImageAtIndex(source.get(), *best, nullptr));
-  SkBitmap bitmap = skia::CGImageToSkBitmap(image.get());
-  if (bitmap.isNull() || bitmap.width() == pixels) {
-    return bitmap;
-  }
-  return skia::ImageOperations::Resize(
-      bitmap, skia::ImageOperations::RESIZE_BEST, pixels, pixels);
-}
-
-std::optional<std::vector<uint8_t>> AppIconPNG(int pixels) {
-  SkBitmap bitmap = AppIconBitmap(pixels);
-  if (bitmap.isNull()) {
-    return std::nullopt;
-  }
-  return gfx::PNGCodec::EncodeBGRASkBitmap(bitmap,
-                                           /*discard_transparency=*/false);
+// Fiber's mark, `pixels` square, as the New Tab page's favicon draws it: in one
+// gray, which reads on light and dark pages alike.
+scoped_refptr<base::RefCountedMemory> MarkPNG(int pixels) {
+  return base::MakeRefCounted<base::RefCountedBytes>(
+      base::apple::NSDataToSpan([FiberBuiltInPageFavicon pngForHost:@"newtab"
+                                                          pixelSize:pixels]));
 }
 
 class ProductLogoDelegate : public ui::ResourceBundle::Delegate {
@@ -130,16 +70,17 @@ class ProductLogoDelegate : public ui::ResourceBundle::Delegate {
   }
 
   gfx::Image GetImageNamed(int resource_id) override {
-    std::optional<ProductLogo> logo = GetProductLogo(resource_id);
-    if (!logo || logo->svg) {
-      return gfx::Image();
-    }
     gfx::ImageSkia image;
-    for (int scale : {1, 2}) {
-      SkBitmap bitmap = AppIconBitmap(logo->size * scale);
-      if (!bitmap.isNull()) {
-        image.AddRepresentation(gfx::ImageSkiaRep(bitmap, scale));
+    for (ui::ResourceScaleFactor scale_factor :
+         {ui::k100Percent, ui::k200Percent}) {
+      scoped_refptr<base::RefCountedMemory> png =
+          LogoPNG(resource_id, scale_factor);
+      if (!png) {
+        return gfx::Image();
       }
+      image.AddRepresentation(gfx::ImageSkiaRep(
+          gfx::PNGCodec::Decode(base::span<const uint8_t>(*png)),
+          ui::GetScaleForResourceScaleFactor(scale_factor)));
     }
     return gfx::Image(image);
   }
@@ -149,33 +90,28 @@ class ProductLogoDelegate : public ui::ResourceBundle::Delegate {
   }
 
   bool HasDataResource(int resource_id) const override {
-    return GetProductLogo(resource_id).has_value();
+    return ProductLogoSize(resource_id) != 0;
   }
 
   scoped_refptr<base::RefCountedMemory> LoadDataResourceBytes(
       int resource_id,
       ui::ResourceScaleFactor scale_factor) override {
-    return LogoData(resource_id, scale_factor);
+    return LogoPNG(resource_id, scale_factor);
   }
 
   std::optional<std::string> LoadDataResourceString(int resource_id) override {
-    scoped_refptr<base::RefCountedMemory> data =
-        LogoData(resource_id, ui::kScaleFactorNone);
-    if (!data) {
-      return std::nullopt;
-    }
-    return std::string(base::as_string_view(base::span<const uint8_t>(*data)));
+    return std::nullopt;
   }
 
   bool GetRawDataResource(int resource_id,
                           ui::ResourceScaleFactor scale_factor,
                           std::string_view* value) const override {
-    scoped_refptr<base::RefCountedMemory> data =
-        LogoData(resource_id, scale_factor);
-    if (!data) {
+    scoped_refptr<base::RefCountedMemory> png =
+        LogoPNG(resource_id, scale_factor);
+    if (!png) {
       return false;
     }
-    *value = base::as_string_view(base::span<const uint8_t>(*data));
+    *value = base::as_string_view(base::span<const uint8_t>(*png));
     return true;
   }
 
@@ -185,50 +121,27 @@ class ProductLogoDelegate : public ui::ResourceBundle::Delegate {
   }
 
  private:
-  // A logo's file at `scale_factor` (1x for an unscaled PNG). An SVG wraps a
-  // PNG sharp at 3x. Kept, since GetRawDataResource() hands out views of it.
-  scoped_refptr<base::RefCountedMemory> LogoData(
+  // A product logo as a PNG at `scale_factor` (1x for an unscaled one). Kept,
+  // since GetRawDataResource() hands out views of it. The UI draws it, so off
+  // the main thread there's none; Chrome asks for its logos on the UI thread.
+  scoped_refptr<base::RefCountedMemory> LogoPNG(
       int resource_id,
       ui::ResourceScaleFactor scale_factor) const {
-    std::optional<ProductLogo> logo = GetProductLogo(resource_id);
-    if (!logo) {
+    const int size = ProductLogoSize(resource_id);
+    if (!size || !NSThread.isMainThread) {
       return nullptr;
     }
-    if (logo->svg) {
-      scale_factor = ui::kScaleFactorNone;
-    }
-    base::AutoLock lock(lock_);
-    scoped_refptr<base::RefCountedMemory>& data =
-        data_[{resource_id, scale_factor}];
-    if (data) {
-      return data;
-    }
-    const int pixels =
-        logo->svg ? logo->size * 3
-                  : static_cast<int>(std::lround(
-                        logo->size *
-                        ui::GetScaleForResourceScaleFactor(scale_factor)));
-    std::optional<std::vector<uint8_t>> png = AppIconPNG(pixels);
+    const int pixels = static_cast<int>(std::lround(
+        size * ui::GetScaleForResourceScaleFactor(scale_factor)));
+    scoped_refptr<base::RefCountedMemory>& png = pngs_[pixels];
     if (!png) {
-      return nullptr;
+      png = MarkPNG(pixels);
     }
-    if (logo->svg) {
-      const std::string size = base::NumberToString(logo->size);
-      data = base::MakeRefCounted<base::RefCountedString>(base::StrCat(
-          {"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"", size,
-           "\" height=\"", size, "\"><image width=\"", size, "\" height=\"",
-           size, "\" href=\"data:image/png;base64,", base::Base64Encode(*png),
-           "\"/></svg>"}));
-    } else {
-      data = base::MakeRefCounted<base::RefCountedBytes>(std::move(*png));
-    }
-    return data;
+    return png;
   }
 
-  mutable base::Lock lock_;
-  mutable std::map<std::pair<int, ui::ResourceScaleFactor>,
-                   scoped_refptr<base::RefCountedMemory>>
-      data_;
+  // By size in pixels.
+  mutable std::map<int, scoped_refptr<base::RefCountedMemory>> pngs_;
 };
 
 }  // namespace

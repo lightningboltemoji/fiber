@@ -1,0 +1,14 @@
+diff --git a/ui/webui/resources/cr_elements/cr_drawer/cr_drawer.html.ts b/ui/webui/resources/cr_elements/cr_drawer/cr_drawer.html.ts
+index 735615a4ba..c372a220a0 100644
+--- a/ui/webui/resources/cr_elements/cr_drawer/cr_drawer.html.ts
++++ b/ui/webui/resources/cr_elements/cr_drawer/cr_drawer.html.ts
+@@ -14,8 +14,7 @@ export function getHtml(this: CrDrawerElement) {
+     <div class="drawer-header">
+       <slot name="header-icon">
+         <picture>
+-          <source media="(prefers-color-scheme: dark)"
+-              srcset="//resources/images/chrome_logo_dark.svg">
++          <!-- Fiber: one logo, served by the browser, for dark pages too. -->
+           <img id="product-logo"
+               srcset="chrome://theme/current-channel-logo@1x 1x,
+                       chrome://theme/current-channel-logo@2x 2x"
