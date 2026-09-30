@@ -1,0 +1,38 @@
+diff --git a/chrome/browser/ui/views/profiles/first_run_flow_controller.cc b/chrome/browser/ui/views/profiles/first_run_flow_controller.cc
+index e6a815e2c0..2e62dc5936 100644
+--- a/chrome/browser/ui/views/profiles/first_run_flow_controller.cc
++++ b/chrome/browser/ui/views/profiles/first_run_flow_controller.cc
+@@ -1024,32 +1024,7 @@ void FirstRunFlowController::StartBrowsing() {
+ }
+ 
+ void FirstRunFlowController::Init() {
+-  if (switches::IsFirstRunDesktopRevampEnabled(
+-          IsProfileInSearchEngineChoiceRegion(profile_))) {
+-    if (base::FeatureList::IsEnabled(switches::kFirstRunDesktopRevampSound)) {
+-      sounds_manager_ = GetSoundsManagerFactory().Run(
+-          content::GetAudioServiceStreamFactoryBinder());
+-    }
+-    if (sounds_manager_) {
+-      sounds_manager_->Initialize(kLogoSoundKey, IDR_INTRO_SOUND_LOGO_FLAC,
+-                                  media::AudioCodec::kFLAC, /*loop=*/false);
+-      sounds_manager_->Initialize(kAmbientSoundKey,
+-                                  IDR_INTRO_SOUND_AMBIENT_FLAC,
+-                                  media::AudioCodec::kFLAC, /*loop=*/true);
+-      sounds_manager_->Initialize(kWelcomeBackSoundKey,
+-                                  IDR_INTRO_SOUND_WELCOME_BACK_FLAC,
+-                                  media::AudioCodec::kFLAC, /*loop=*/false);
+-      sounds_manager_->Initialize(kFeatureShowcaseAmbientSoundKey,
+-                                  IDR_INTRO_SOUND_FEATURE_SHOWCASE_AMBIENT_FLAC,
+-                                  media::AudioCodec::kFLAC, /*loop=*/true);
+-      sounds_manager_->Initialize(
+-          kFeatureShowcaseProgressSoundKey,
+-          IDR_INTRO_SOUND_FEATURE_SHOWCASE_PROGRESS_FLAC,
+-          media::AudioCodec::kFLAC, /*loop=*/false);
+-      sounds_manager_->Initialize(kAllSetSoundKey, IDR_INTRO_SOUND_ALL_SET_FLAC,
+-                                  media::AudioCodec::kFLAC, /*loop=*/false);
+-    }
+-  }
++  // Fiber: no sounds, which Fiber leaves out of browser_resources.grd.
+ 
+   if (switches::IsPreFirstRunDesktopRefreshEnabled()) {
+     RegisterStep(

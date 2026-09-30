@@ -47,6 +47,7 @@
 #include "fiber/browser/extensions/fiber_extensions_toolbar.h"
 #include "fiber/browser/hooks/startup_window.h"
 #include "fiber/browser/palette/tab_index_source.h"
+#include "fiber/browser/profiles/profile_switcher.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
 #include "fiber/browser/swipe/page_snapshots.h"
 #import "fiber/browser/window/fiber_browser_window_actions.h"
@@ -716,7 +717,9 @@ FiberBrowserWindow::GetWebContentsModalDialogHostFor(
 }
 
 void FiberBrowserWindow::ShowAvatarBubbleFromAvatarButton(
-    bool is_source_accelerator) {}
+    bool is_source_accelerator) {
+  ShowProfileSwitcher(browser_, ProfileSwitcherPage::kProfiles);
+}
 
 void FiberBrowserWindow::MaybeShowProfileSwitchIPH() {}
 

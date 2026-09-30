@@ -7,11 +7,8 @@
 namespace fiber {
 
 void SetLocalStatePrefDefaults(PrefRegistrySimple* registry) {
-  // Chrome's Profile Picker is a views window. Until Fiber has its own way,
-  // Profiles › Add Profile… doesn't show, and at startup, even with several
-  // profiles, the last used opens instead (1: "disabled").
-  registry->SetDefaultPrefValue(prefs::kBrowserAddPersonEnabled,
-                                base::Value(false));
+  // At startup, even with several profiles, the last used opens, rather than
+  // the profile switcher (1: "disabled").
   registry->SetDefaultPrefValue(
       prefs::kBrowserProfilePickerAvailabilityOnStartup, base::Value(1));
   // Chrome's first run is in the Profile Picker too, so it counts as done.

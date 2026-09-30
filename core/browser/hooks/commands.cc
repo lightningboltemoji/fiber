@@ -10,13 +10,12 @@ bool IsCommandSupported(BrowserWindowInterface* browser, int command) {
     return true;
   }
   switch (command) {
-    // Find, and the app and avatar menus and panes to focus.
+    // Find, and the app menu and panes to focus.
     case IDC_FIND:
     case IDC_FIND_NEXT:
     case IDC_FIND_PREVIOUS:
     case IDC_FIND_AND_EDIT_MENU:
     case IDC_SHOW_APP_MENU:
-    case IDC_SHOW_AVATAR_MENU:
     case IDC_FOCUS_TOOLBAR:
     case IDC_FOCUS_BOOKMARKS:
     case IDC_FOCUS_NEXT_PANE:
@@ -57,9 +56,6 @@ bool IsCommandSupported(BrowserWindowInterface* browser, int command) {
     case IDC_SHARING_HUB_SCREENSHOT:
     case IDC_INSTALL_PWA:
     case IDC_CREATE_SHORTCUT:
-    // The Profile Picker, a views window.
-    case IDC_ADD_NEW_PROFILE:
-    case IDC_MANAGE_CHROME_PROFILES:
       return false;
     default:
       return true;

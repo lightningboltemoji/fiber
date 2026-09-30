@@ -113,6 +113,7 @@ Each surface Fiber replaces, and where it lives:
 | Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `Toolbar.swift`, `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
 | Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth), a site's files from an earlier visit (File System Access), and Chrome's `ui::DialogModel` dialogs (confirming a folder upload, File System Access's questions, Name Window, extensions' notices) | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |
+| Profile switcher, in place of Chrome's Profile Picker and avatar menu (Profiles › Switch Profile…, ⇧⌘M): the profiles turning slowly around a hub over the veiled page, making one, and making one from a Chrome profile (its bookmarks, history, passwords and cookies). Fiber's avatars stand in for Chrome's wherever Chrome draws one | `browser/profiles/`, `hooks/resource_bundle_delegate.mm` | `ProfileSwitcher.swift`, `ProfileSwitcherView.swift`, `ProfileAvatar.swift` |
 | Page context menus | `browser/context_menu/` | `ContextMenu.swift` |
 | Extensions toolbar, menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
 | Windows extensions open (`chrome.windows.create` popups), as bubbles over the page | `browser/extensions/fiber_extension_window.mm` | `ExtensionWindowBubble.swift` |
@@ -133,10 +134,11 @@ the rest, and what's still broken):
   and patches marked `Fiber:` in Chrome's views code).
 - **Not offered:** installing a page as an app; Save and fill on card forms;
   Task Manager, pinning, tab groups, split view and side panels
-  (`hooks/commands.cc`); adding a profile, and the Profile Picker at startup
-  (`hooks/local_state_pref_defaults.cc`); Chrome's sharing hub, leaving the
-  Share menu (`hooks/profile_pref_defaults.cc`); Payment Request, digital
-  credentials, and Cast with the Presentation API
+  (`hooks/commands.cc`); the profile switcher at startup
+  (`hooks/local_state_pref_defaults.cc`), and signing in to a profile Chrome
+  locks until then (`browser/profiles/profile_picker.cc`); Chrome's sharing
+  hub, leaving the Share menu (`hooks/profile_pref_defaults.cc`); Payment
+  Request, digital credentials, and Cast with the Presentation API
   (`hooks/feature_overrides.cc`, with most of their code cut by patches).
 - **Unanswered, or not shown:** offers to save an address, card or IBAN, or to
   ask for Touch ID before filling a card (`hooks/autofill_prompts.h`); the hung

@@ -9,6 +9,7 @@
 #import "FiberJavaScriptDialog.h"
 #import "FiberOmnibox.h"
 #import "FiberPageState.h"
+#import "FiberProfileSwitcher.h"
 #import "FiberPrompt.h"
 #import "FiberQuitConfirmation.h"
 #import "FiberTabIndex.h"

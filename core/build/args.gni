@@ -35,3 +35,7 @@ dawn_use_swiftshader = false
 
 # The test locales (en-XA, ar-XB), which official builds leave out.
 enable_pseudolocales = false
+
+# PDFium's XFA forms, which Chrome builds but leaves off at runtime
+# (chrome_pdf::features::kPdfXfaSupport).
+pdf_enable_xfa = false

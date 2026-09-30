@@ -1,5 +1,5 @@
 diff --git a/chrome/BUILD.gn b/chrome/BUILD.gn
-index 8a60d7061b..2bf3c14c59 100644
+index 8a60d7061b..4ddf719946 100644
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
 @@ -53,6 +53,9 @@ if (is_android) {
@@ -42,7 +42,31 @@ index 8a60d7061b..2bf3c14c59 100644
    }
  
    bundle_data("chrome_resources") {
-@@ -1156,20 +1163,23 @@ if (is_win) {
+@@ -953,8 +960,10 @@ if (is_win) {
+     info_plist_target = ":chrome_helper_app_alerts_plist"
+     deps = [
+       ":chrome_app_icon",
+-      ":chrome_asset_catalog",
+       ":chrome_helper_app_alerts_resources",
++
++      # Fiber: the icon without the app's document badge.
++      "//fiber/branding:alert_helper_asset_catalog",
+     ]
+   }
+ 
+@@ -965,8 +974,10 @@ if (is_win) {
+     is_aperitif_helper = true
+     deps = [
+       ":chrome_app_icon",
+-      ":chrome_asset_catalog",
+       ":chrome_helper_app_alerts_resources",
++
++      # Fiber: the icon without the app's document badge.
++      "//fiber/branding:alert_helper_asset_catalog",
+     ]
+   }
+ 
+@@ -1156,20 +1167,23 @@ if (is_win) {
      }
    }
  
@@ -79,7 +103,7 @@ index 8a60d7061b..2bf3c14c59 100644
    }
  
    if (bundle_widevine_cdm) {
-@@ -1385,7 +1395,6 @@ if (is_win) {
+@@ -1385,7 +1399,6 @@ if (is_win) {
        ":chrome_framework_helpers",
        ":chrome_framework_resources",
        ":optimization_guide_library",
@@ -87,7 +111,7 @@ index 8a60d7061b..2bf3c14c59 100644
        ":widevine_cdm_library",
        "//chrome/browser/resources/media/mei_preload:component_bundle",
        "//chrome/browser/web_applications/isolated_web_apps/key_distribution/preload:component_bundle",
-@@ -1399,7 +1408,13 @@ if (is_win) {
+@@ -1399,7 +1412,13 @@ if (is_win) {
        bundle_deps += [ ":angle_binaries" ]
      }
  

@@ -65,6 +65,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
     }
   }
 
+  var window: NSWindow { ui.window }
+
   func show() {
     ui.window.makeKeyAndOrderFront(nil)
   }

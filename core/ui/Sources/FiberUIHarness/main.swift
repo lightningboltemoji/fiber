@@ -3,7 +3,8 @@
 // `--downloads N` (which quitting waits for), `--ask-before-leaving`,
 // `--palette QUERY` (the command palette, open with QUERY typed),
 // `--extension-window` (a window an extension opened, as its bubble),
-// `--incognito` (the first window is Incognito, on the New Tab page).
+// `--incognito` (the first window is Incognito, on the New Tab page),
+// `--profiles` (the profile switcher), `--new-profile` (its New Profile page).
 
 import AppKit
 import FiberBridge
@@ -22,6 +23,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   let tabIndex = FiberTabIndexFactory.tabIndex()
   let incognitoTabIndex = FiberTabIndexFactory.tabIndex()
   private lazy var downloads = MockDownloads(count: launchDownloadCount)
+  private lazy var profiles = MockProfiles(app: self)
   /// Set once the downloads are done, so the quit they held up goes ahead.
   private var isDoneWaiting = false
 
@@ -38,6 +40,11 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     NSApp.activate()
     if CommandLine.arguments.contains("--extension-window") {
       browsers.last?.simulateExtensionWindow(nil)
+    }
+    if CommandLine.arguments.contains("--profiles") {
+      switchProfile(nil)
+    } else if CommandLine.arguments.contains("--new-profile") {
+      addProfile(nil)
     }
     if let query = launchPaletteQuery {
       // Once the pages have loaded, so there's text to find.
@@ -151,6 +158,21 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     openWindow(urls: [MockBrowser.newTabURL], isIncognito: true)
   }
 
+  @objc private func switchProfile(_ sender: Any?) {
+    showSwitcher(page: .profiles)
+  }
+
+  @objc private func addProfile(_ sender: Any?) {
+    showSwitcher(page: .newProfile)
+  }
+
+  private func showSwitcher(page: FiberProfileSwitcherPage) {
+    guard let window = NSApp.keyWindow ?? browsers.last?.window else {
+      return
+    }
+    profiles.showSwitcher(in: window, page: page)
+  }
+
   private func makeMainMenu() -> NSMenu {
     let main = NSMenu()
     func submenu(_ title: String, _ items: [NSMenuItem]) {
@@ -221,6 +243,11 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
           "Simulate Extension Window",
           #selector(MockBrowser.simulateExtensionWindow(_:)), "E"),
       ])
+    let switchProfile = item("Switch Profile…", #selector(switchProfile(_:)), "M")
+    switchProfile.target = self
+    let addProfile = item("Add Profile…", #selector(addProfile(_:)))
+    addProfile.target = self
+    submenu("Profiles", [switchProfile, addProfile])
     return main
   }
 }

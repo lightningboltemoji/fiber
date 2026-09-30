@@ -6,7 +6,8 @@ assert(is_mac)
 
 # Fiber's app icon and document badge, as the Assets.car and app.icns the app
 # and its alert helpers bundle in place of Chromium's (see
-# patches/chromium/chrome-BUILD.gn.patch). icon/build.py generates the inputs.
+# patches/chromium/chrome-BUILD.gn.patch), and the alert helpers' own
+# Assets.car without the badge. icon/build.py generates the inputs.
 action("app_icon") {
   script = "compile_icon.py"
   inputs = [
@@ -16,6 +17,7 @@ action("app_icon") {
   outputs = [
     "$target_gen_dir/Assets.car",
     "$target_gen_dir/app.icns",
+    "$target_gen_dir/alert_helper/Assets.car",
   ]
 
   # Lists every file in the two packages, which icon/build.py may rename.
@@ -30,6 +32,13 @@ action("app_icon") {
     rebase_path("icon/AppIcon.icon", root_build_dir),
     rebase_path("icon/Assets.xcassets", root_build_dir),
   ]
+}
+
+# The alert helpers only post notifications, so they bundle the icon alone.
+bundle_data("alert_helper_asset_catalog") {
+  sources = [ "$target_gen_dir/alert_helper/Assets.car" ]
+  outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
+  public_deps = [ ":app_icon" ]
 }
 
 # Fiber's scheme for Chrome's pages, for url_formatter and the omnibox (see

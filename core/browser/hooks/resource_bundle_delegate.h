@@ -6,8 +6,9 @@
 namespace fiber {
 
 // Gives Fiber's mark for Chrome's product logos (the About page's, among
-// others). InitResourceBundleAndDetermineLocale() passes it to ResourceBundle
-// (see patches/chromium/chrome-browser-chrome_resource_bundle_helper.cc.patch).
+// others), and Fiber's avatars for Chrome's default profile avatars.
+// InitResourceBundleAndDetermineLocale() passes it to ResourceBundle (see
+// patches/chromium/chrome-browser-chrome_resource_bundle_helper.cc.patch).
 ui::ResourceBundle::Delegate* GetResourceBundleDelegate();
 
 }  // namespace fiber

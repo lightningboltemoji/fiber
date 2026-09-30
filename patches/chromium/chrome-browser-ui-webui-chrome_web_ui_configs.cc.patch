@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-index 62b07dca08..2eb6e4d3fe 100644
+index 62b07dca08..b5b76bcf53 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -66,6 +66,7 @@
@@ -10,7 +10,26 @@ index 62b07dca08..2eb6e4d3fe 100644
  #include "printing/buildflags/buildflags.h"
  #include "ui/webui/buildflags.h"
  
-@@ -329,9 +330,6 @@ void RegisterChromeWebUIConfigs() {
+@@ -275,7 +276,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<ActorInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ComponentsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ContextHubUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<ContextualTasksUIConfig>());
++  // Fiber: not chrome://contextual-tasks, which is off (kContextualTasks).
+   map.AddWebUIConfig(
+       std::make_unique<security_interstitials::ConnectionHelpUIConfig>());
+   map.AddWebUIConfig(
+@@ -288,8 +289,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<DownloadInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<FamilyLinkUserInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<FlagsUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<glic::GlicExperimentalOptInUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<glic::GlicUIConfig>());
++  // Fiber: not Glic's pages, which need a Google account.
+   map.AddWebUIConfig(std::make_unique<GCMInternalsUIConfig>());
+   map.AddWebUIConfig(
+       std::make_unique<
+@@ -329,9 +329,6 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
    map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
    map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
@@ -20,7 +39,33 @@ index 62b07dca08..2eb6e4d3fe 100644
  
  #if BUILDFLAG(ENABLE_WEBUI_CERTIFICATE_VIEWER)
    map.AddWebUIConfig(std::make_unique<CertificateViewerUIConfig>());
-@@ -382,11 +380,10 @@ void RegisterChromeWebUIConfigs() {
+@@ -350,15 +347,14 @@ void RegisterChromeWebUIConfigs() {
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+   map.AddWebUIConfig(std::make_unique<media_router::CastFeedbackUIConfig>());
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  map.AddWebUIConfig(std::make_unique<media_router::AccessCodeCastUIConfig>());
++  // Fiber: not Cast's access code dialog; Fiber turns the media router off.
+   map.AddWebUIConfig(std::make_unique<actor::ui::ActorOverlayUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AppServiceInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillMlInternalsUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<BookmarksSidePanelUIConfig>());
++  // Fiber: not side panels (here and below), which need a BrowserView.
+   map.AddWebUIConfig(std::make_unique<BookmarksUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ColorPipelineInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<CommentsSidePanelUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<CustomizeChromeUIConfig>());
+   map.AddWebUIConfig(
+       std::make_unique<
+           contextual_cueing_internals::ContextualCueingInternalsUIConfig>());
+@@ -369,7 +365,6 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<FeedbackUIConfig>());
+   map.AddWebUIConfig(std::make_unique<HistoryUIConfig>());
+   map.AddWebUIConfig(std::make_unique<HistorySidePanelUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<HistoryClustersSidePanelUIConfig>());
+   map.AddWebUIConfig(std::make_unique<InfobarInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<InspectUIConfig>());
+ #if BUILDFLAG(ENABLE_SESSION_SERVICE)
+@@ -382,38 +377,35 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(
        std::make_unique<
            multistep_filter_internals::MultistepFilterInternalsUIConfig>());
@@ -29,10 +74,76 @@ index 62b07dca08..2eb6e4d3fe 100644
 -  map.AddWebUIConfig(std::make_unique<NewTabPageThirdPartyUIConfig>());
 -#endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
 -  map.AddWebUIConfig(std::make_unique<NewTabUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<OmniboxEverywhereUIConfig>());
 +  // Fiber: Fiber's WebUIs, including its New Tab page in place of Chrome's
 +  // (chrome://newtab, chrome://new-tab-page and its footer, and
 +  // chrome://new-tab-page-third-party).
 +  fiber::AddWebUIConfigs(map);
-   map.AddWebUIConfig(std::make_unique<OmniboxEverywhereUIConfig>());
++  // Fiber: not chrome://omnibox-everywhere or chrome://organizer-panel, whose
++  // only hosts are off (kOmniboxEverywhere, kOrganizerPanel).
    map.AddWebUIConfig(std::make_unique<OmniboxPopupUIConfig>());
-   map.AddWebUIConfig(std::make_unique<OrganizerPanelUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<OrganizerPanelUIConfig>());
+   map.AddWebUIConfig(
+       std::make_unique<on_device_internals::OnDeviceInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<PageActionInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<PasswordManagerUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ProfileInternalsUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<ReadingListUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<SearchEngineChoiceUIConfig>());
++  // Fiber: not the reading list's and shopping's side panels, or the search
++  // engine choice screen, which only Chrome-branded builds show.
+   map.AddWebUIConfig(std::make_unique<settings::SettingsUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<ShoppingInsightsSidePanelUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SupportToolUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SyncConfirmationUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SystemInfoUIConfig>());
+   map.AddWebUIConfig(std::make_unique<tabs::TabGroupHomeUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<TabSearchUIConfig>());
++  // Fiber: not Tab Search, which Fiber's command palette replaces.
+   map.AddWebUIConfig(std::make_unique<TabsFromOtherDevicesUIConfig>());
+   map.AddWebUIConfig(std::make_unique<TermsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<UserEducationInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebAppInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebNNInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<IndigoInternalsUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<WebUIBrowserUIConfig>());
++  // Fiber: not Chrome's WebUI window and toolbar (kWebium, kInitialWebUI).
+   map.AddWebUIConfig(std::make_unique<WebuiGalleryUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebUIJsErrorUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<WebUIToolbarConfig>());
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_OPENBSD)
+@@ -466,9 +458,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<DiscardsUIConfig>());
+ #endif
+ 
+-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
+-  map.AddWebUIConfig(std::make_unique<UpdaterUIConfig>());
+-#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
++  // Fiber: not chrome://updater, since Fiber has no updater.
+ 
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS)
+   map.AddWebUIConfig(std::make_unique<BatchUploadUIConfig>());
+@@ -477,7 +467,7 @@ void RegisterChromeWebUIConfigs() {
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+   map.AddWebUIConfig(std::make_unique<CrossDeviceSigninQrBubbleUIConfig>());
+   map.AddWebUIConfig(std::make_unique<DiceWebSigninInterceptUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<FeatureShowcaseUIConfig>());
++  // Fiber: not chrome://feature-showcase, which only Chrome's First Run shows.
+   map.AddWebUIConfig(std::make_unique<SignoutConfirmationUIConfig>());
+ #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+ 
+@@ -490,9 +480,10 @@ void RegisterChromeWebUIConfigs() {
+ #endif
+ 
+ #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
+-  map.AddWebUIConfig(std::make_unique<DefaultBrowserModalUIConfig>());
++  // Fiber: not the default browser modal, which only Windows shows.
+   map.AddWebUIConfig(std::make_unique<ManagedUserProfileNoticeUIConfig>());
+-  map.AddWebUIConfig(std::make_unique<IntroUIConfig>());
++  // Fiber: not chrome://intro, which only Chrome's First Run and signing in
++  // from the Profile Picker show, and Fiber has neither.
+   map.AddWebUIConfig(std::make_unique<ProfileCustomizationUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ProfilePickerUIConfig>());
+   map.AddWebUIConfig(std::make_unique<SigninErrorUIConfig>());

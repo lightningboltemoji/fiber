@@ -4,7 +4,17 @@ import AppKit
 /// BrowserWindowController.present(_:)). While it's up it has the window's
 /// clicks, scrolls, keyboard focus and menu shortcuts, as a modal alert would.
 @MainActor
-final class VeilPrompt: NSView {
+protocol VeilContent: NSView {
+  /// Called if it goes without being answered or dismissed by its owner:
+  /// another took its place, or its window closed.
+  var onRemoved: (() -> Void)? { get }
+  /// What takes the keyboard focus when it's presented, if not itself.
+  var initialFirstResponder: NSView? { get }
+}
+
+/// A question over the veil: a title, a message, and a row of buttons.
+@MainActor
+final class VeilPrompt: NSView, VeilContent {
   struct Button {
     enum Role {
       /// Return presses it; it's tinted.
@@ -286,7 +296,7 @@ final class VeilPrompt: NSView {
     return true
   }
 
-  private static func editingAction(for event: NSEvent) -> Selector? {
+  static func editingAction(for event: NSEvent) -> Selector? {
     let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
     switch (event.charactersIgnoringModifiers?.lowercased(), modifiers) {
     case ("x", .command): return #selector(NSText.cut(_:))

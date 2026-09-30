@@ -57,6 +57,32 @@ void InstallMainMenuItems() {
   [view_menu insertItem:show_toolbar atIndex:0];
   [view_menu insertItem:command_palette atIndex:1];
   [view_menu insertItem:NSMenuItem.separatorItem atIndex:2];
+
+  // Opens Fiber's profile switcher. ProfileMenuController, which fills the
+  // Profiles menu later or already has, keeps its profiles above the first
+  // separator, so this goes below it, and has its own.
+  NSMenu* profiles_menu =
+      [NSApp.mainMenu itemWithTag:IDC_PROFILE_MAIN_MENU].submenu;
+  if (profiles_menu) {
+    NSMenuItem* switch_profile =
+        [[NSMenuItem alloc] initWithTitle:@"Switch Profile…"
+                                   action:@selector(commandDispatch:)
+                            keyEquivalent:@"m"];
+    switch_profile.keyEquivalentModifierMask =
+        NSEventModifierFlagCommand | NSEventModifierFlagShift;
+    switch_profile.tag = IDC_SHOW_AVATAR_MENU;
+    NSInteger separator = [profiles_menu.itemArray
+        indexOfObjectPassingTest:^BOOL(NSMenuItem* item, NSUInteger, BOOL*) {
+          return item.separatorItem;
+        }];
+    if (separator == NSNotFound) {
+      [profiles_menu addItem:NSMenuItem.separatorItem];
+      [profiles_menu addItem:switch_profile];
+    } else {
+      [profiles_menu insertItem:switch_profile atIndex:separator + 1];
+      [profiles_menu insertItem:NSMenuItem.separatorItem atIndex:separator + 2];
+    }
+  }
 }
 
 }  // namespace fiber

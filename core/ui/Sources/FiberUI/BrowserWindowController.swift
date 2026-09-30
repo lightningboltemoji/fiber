@@ -103,7 +103,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private lazy var veil = Veil(blurring: pageArea)
   private lazy var historySwipe = HistorySwipe(pageArea: pageArea, page: pageView)
   /// What the window is waiting on the user for, over the veil.
-  private var prompt: VeilPrompt?
+  private var prompt: (any VeilContent)?
   private weak var responderBeforePrompt: NSResponder?
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
@@ -557,7 +557,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Shows `prompt` over the veil, in place of any other (whose onRemoved is
   /// called), and brings the window forward: it may have faded out as the user
   /// quit.
-  func present(_ prompt: VeilPrompt) {
+  func present(_ prompt: any VeilContent) {
     if let replaced = self.prompt {
       replaced.removeFromSuperview()
       replaced.onRemoved?()
@@ -589,7 +589,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   /// Takes `prompt` down, if it's still up, returning focus to where it was.
   /// The veil lifts unless another prompt follows.
-  func dismiss(_ prompt: VeilPrompt) {
+  func dismiss(_ prompt: any VeilContent) {
     guard prompt === self.prompt else {
       return
     }
@@ -655,6 +655,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Not while a prompt waits on the user, or a page is fullscreen.
   fileprivate var canShowCommandPalette: Bool {
     prompt == nil && areControlsVisible
+  }
+
+  /// Not while a prompt waits on the user, which the switcher would replace.
+  var canShowProfileSwitcher: Bool {
+    prompt == nil
   }
 
   func showCommandPalette() {
