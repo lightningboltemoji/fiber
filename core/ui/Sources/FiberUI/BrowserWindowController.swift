@@ -266,6 +266,15 @@ final class BrowserWindowController: NSObject, FiberWindow {
       }
     }
     tabPicker.isPanelEnabled = !isVisible
+    if animated {
+      // In fullscreen, the traffic lights show with the menu bar instead.
+      let isFullScreen = window.styleMask.contains(.fullScreen)
+      animateLift(
+        of: views
+          + (isFullScreen
+            ? [] : windowControlButtons + [windowControlsBackground]),
+        lifted: !isVisible)
+    }
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animated ? (isVisible ? 0.18 : 0.25) : 0
       for view in views {
@@ -282,6 +291,44 @@ final class BrowserWindowController: NSObject, FiberWindow {
       }
     }
     updateWindowControls(animated: animated)
+  }
+
+  /// How much larger the toolbar is while lifted off the page: it settles
+  /// onto the page as it fades in, and lifts off as it fades out.
+  private static let toolbarLiftScale: CGFloat = 1.03
+
+  /// Scales `views` to the lifted size or back to their own, from wherever
+  /// they are now, about the window's center so they move as one sheet.
+  private func animateLift(of views: [NSView], lifted: Bool) {
+    guard let content = window.contentView else {
+      return
+    }
+    let center = NSPoint(x: content.bounds.midX, y: content.bounds.midY)
+    let scale = Self.toolbarLiftScale
+    for view in views {
+      guard let layer = view.layer, let superview = view.superview else {
+        continue
+      }
+      // A layer scales about its position; this moves that to the center.
+      let pivot = superview.convert(center, from: content)
+      let liftedTransform = CATransform3DConcat(
+        CATransform3DMakeScale(scale, scale, 1),
+        CATransform3DMakeTranslation(
+          (1 - scale) * (pivot.x - layer.position.x),
+          (1 - scale) * (pivot.y - layer.position.y), 0))
+      let inFlight =
+        layer.animation(forKey: "lift") == nil
+        ? nil : layer.presentation()?.transform
+      let animation = CASpringAnimation(perceptualDuration: 0.3, bounce: 0)
+      animation.keyPath = "transform"
+      animation.fromValue = NSValue(
+        caTransform3D: inFlight
+          ?? (lifted ? CATransform3DIdentity : liftedTransform))
+      animation.toValue = NSValue(
+        caTransform3D: lifted ? liftedTransform : CATransform3DIdentity)
+      animation.duration = animation.settlingDuration
+      layer.add(animation, forKey: "lift")
+    }
   }
 
   private var windowControlButtons: [NSButton] {
