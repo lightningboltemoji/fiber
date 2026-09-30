@@ -15,6 +15,8 @@ final class Omnibar: NSObject, FiberOmnibox {
     didSet { view.onDismiss = onDismiss }
   }
   var isOpen: Bool { view.isOpen }
+  /// The field's own field editor, which the window gives it.
+  let fieldEditor = URLFieldEditor()
 
   private var field: NSTextField { view.field }
   private let keywordChip = KeywordChip()

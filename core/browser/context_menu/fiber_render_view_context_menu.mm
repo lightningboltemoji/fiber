@@ -75,7 +75,7 @@ constexpr auto kShownCommands = base::MakeFixedFlatMap<int, std::string_view>({
     // A link.
     {IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, "plus.square.on.square"},
     {IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW, "macwindow.badge.plus"},
-    {IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD, "hand.raised"},
+    {IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD, "mustache"},
     {IDC_CONTENT_CONTEXT_COPYLINKLOCATION, "link"},
     {IDC_CONTENT_CONTEXT_SAVELINKAS, "square.and.arrow.down"},
     // An image or canvas.

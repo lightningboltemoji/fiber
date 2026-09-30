@@ -26,9 +26,12 @@ final class MockBrowser: NSObject, FiberWindowActions {
       }
   }
 
+  let isIncognito: Bool
   // Set once `self` exists to be the window's actions.
   private var ui: (any FiberWindow)!
   private weak var app: HarnessAppDelegate?
+  /// Its profile's.
+  private let tabIndex: any FiberTabIndex
   private(set) var tabs: [MockTab] = []
   private var activeTab: MockTab!
   private var dialog: (any FiberJavaScriptDialog)?
@@ -36,11 +39,14 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var omnibox: MockOmnibox!
   private var extensions: MockExtensions!
 
-  init(urls: [String], app: HarnessAppDelegate) {
+  init(urls: [String], isIncognito: Bool, app: HarnessAppDelegate) {
+    self.isIncognito = isIncognito
     self.app = app
+    tabIndex = isIncognito ? app.incognitoTabIndex : app.tabIndex
     super.init()
     ui = FiberWindowFactory.window(
-      withFrame: .zero, actions: self, tabIndex: app.tabIndex)
+      withFrame: .zero, actions: self, tabIndex: tabIndex,
+      incognito: isIncognito)
     omnibox = MockOmnibox(
       ui: ui.omnibox,
       currentURL: { [weak self] in
@@ -454,7 +460,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     tab.loadStart = Date()
     tab.page.show(url: tab.url, loaded: false)
     // The browser drops a page's text once it's left.
-    app?.tabIndex.setPageText("", forTabWithID: tab.id)
+    tabIndex.setPageText("", forTabWithID: tab.id)
     tabDidChange(tab)
     tab.loadTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true)
     { [weak self, weak tab] _ in
@@ -483,7 +489,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     tab.loadStart = nil
     tab.page.show(url: tab.url, loaded: true)
     tabDidChange(tab)
-    app?.tabIndex.setPageText(
+    tabIndex.setPageText(
       MockPages.page(for: tab.url)?.text ?? "", forTabWithID: tab.id)
   }
 

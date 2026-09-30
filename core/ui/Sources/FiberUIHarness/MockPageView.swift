@@ -46,6 +46,8 @@ final class MockPageView: NSView {
 
   override init(frame: NSRect) {
     super.init(frame: frame)
+    // Like Chrome's pages, which follow the app's appearance, not the window's.
+    appearance = NSApp.effectiveAppearance
     if CommandLine.arguments.contains("--ask-before-leaving") {
       leaveCheckbox.state = .on
     }

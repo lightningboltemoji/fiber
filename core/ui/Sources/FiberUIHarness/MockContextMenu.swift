@@ -31,7 +31,7 @@ final class MockContextMenu: NSObject, FiberContextMenuActions {
       : [
         actions.command("Open Link in New Tab", "plus.square.on.square"),
         actions.command("Open Link in New Window", "macwindow.badge.plus"),
-        actions.command("Open Link in Incognito Window", "hand.raised"),
+        actions.command("Open Link in Incognito Window", "mustache"),
         .separator,
         actions.command("Save Link As…", "square.and.arrow.down"),
         actions.command("Copy Link Address", "link"),

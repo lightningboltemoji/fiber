@@ -4,11 +4,11 @@ import FiberBridge
 @objc @implementation extension FiberWindowFactory {
   class func window(
     withFrame frame: NSRect, actions: any FiberWindowActions,
-    tabIndex: any FiberTabIndex
+    tabIndex: any FiberTabIndex, incognito: Bool
   ) -> any FiberWindow {
     BrowserWindowController(
       frame: frame, actions: actions,
-      tabIndex: tabIndex as? TabIndex ?? TabIndex())
+      tabIndex: tabIndex as? TabIndex ?? TabIndex(), isIncognito: incognito)
   }
 }
 
@@ -50,7 +50,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   private let browserWindow: BrowserWindow
   private let actions: any FiberWindowActions
-  private let toolbar = Toolbar()
+  private let toolbar: Toolbar
   private let tabPicker = TabPicker()
   private let tabSidebar = TabSidebar()
   private let omnibar = Omnibar()
@@ -64,7 +64,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       }
       return (content, self.toolbar.extensionsMenuButtonRect(in: content))
     })
-  private let newTabView = NewTabView()
+  private let newTabView: NewTabView
   /// Over the page and the toolbar, under the tab picker.
   private let extensionBubbles = ExtensionBubbles()
   /// Whose browser the user is in: the window's, or an extension window's,
@@ -98,9 +98,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private weak var contentsView: NSView?
   private var isLoading = false
 
-  init(frame: NSRect, actions: any FiberWindowActions, tabIndex: TabIndex) {
+  init(
+    frame: NSRect, actions: any FiberWindowActions, tabIndex: TabIndex,
+    isIncognito: Bool
+  ) {
     self.actions = actions
     commandPalette = CommandPalette(index: tabIndex, actions: actions)
+    toolbar = Toolbar(isIncognito: isIncognito)
+    newTabView = NewTabView(isIncognito: isIncognito)
     browserWindow = BrowserWindow(
       contentRect: NSRect(origin: .zero, size: Self.defaultWindowSize),
       styleMask: [
@@ -117,6 +122,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.menuActionTarget = actions
     window.minSize = Self.minWindowSize
     window.title = "Fiber"
+    // Like Safari's Private Browsing windows. The page keeps the system's
+    // appearance.
+    if isIncognito {
+      window.appearance = NSAppearance(named: .darkAqua)
+    }
     // The page fills the window, title bar area included, with the traffic
     // lights over it. The page title is kept for the Window menu and Mission
     // Control.
@@ -704,6 +714,12 @@ extension BrowserWindowController: NSWindowDelegate {
       actions.windowShouldClose()
     }
     return false
+  }
+
+  func windowWillReturnFieldEditor(_ sender: NSWindow, to client: Any?)
+    -> Any?
+  {
+    client as? NSTextField === omnibar.view.field ? omnibar.fieldEditor : nil
   }
 
   func windowDidBecomeMain(_ notification: Notification) {

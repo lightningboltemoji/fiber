@@ -26,9 +26,11 @@ final class Toolbar: NSView {
   private let addressCapsule = RimmedGlassView(rimWidth: Toolbar.rimWidth)
   private let extensionsCapsule = RimmedGlassView(rimWidth: Toolbar.rimWidth)
   private let endContent = NSStackView()
+  private let isIncognito: Bool
 
-  override init(frame: NSRect) {
-    super.init(frame: frame)
+  init(isIncognito: Bool) {
+    self.isIncognito = isIncognito
+    super.init(frame: .zero)
     for capsule in [addressCapsule, extensionsCapsule] {
       capsule.cornerRadius = Self.height / 2
       addSubview(capsule)
@@ -80,14 +82,28 @@ final class Toolbar: NSView {
     let paragraph = NSMutableParagraphStyle()
     paragraph.alignment = .center
     paragraph.lineBreakMode = .byTruncatingMiddle
-    addressButton.attributedTitle = NSAttributedString(
-      string: address.isEmpty ? "Search or enter address" : address,
-      attributes: [
-        .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
-        .foregroundColor: address.isEmpty
-          ? NSColor.tertiaryLabelColor : NSColor.labelColor,
-        .paragraphStyle: paragraph,
-      ])
+    let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+    let color = address.isEmpty ? NSColor.tertiaryLabelColor : .labelColor
+    let title = NSMutableAttributedString()
+    if isIncognito {
+      // Like Safari's Private Browsing. An attachment's symbol doesn't take
+      // the text's color.
+      let symbol = NSTextAttachment()
+      symbol.image = NSImage(
+        systemSymbolName: "mustache", accessibilityDescription: "Incognito"
+      )?.withSymbolConfiguration(
+        .init(pointSize: font.pointSize, weight: .medium)
+          .applying(.init(paletteColors: [color])))
+      title.append(NSAttributedString(attachment: symbol))
+      title.append(NSAttributedString(string: " "))
+    }
+    title.append(
+      NSAttributedString(
+        string: address.isEmpty ? "Search or enter address" : address))
+    title.addAttributes(
+      [.font: font, .foregroundColor: color, .paragraphStyle: paragraph],
+      range: NSRange(location: 0, length: title.length))
+    addressButton.attributedTitle = title
   }
 
   /// Turns Reload into Stop while the page loads.

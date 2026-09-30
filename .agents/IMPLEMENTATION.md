@@ -93,9 +93,10 @@ Each surface Fiber replaces, and where it lives:
 |---|---|---|
 | Browser window, toolbar, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift`, `Toolbar.swift` |
 | Tabs (picker on the window's edge, sidebar with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift` |
-| Omnibox, as the omnibar | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift` |
+| Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
+| Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `Toolbar.swift`, `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
 | Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth) | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |
 | Page context menus | `browser/context_menu/` | `ContextMenu.swift` |

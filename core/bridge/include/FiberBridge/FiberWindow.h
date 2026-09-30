@@ -121,10 +121,12 @@ NS_SWIFT_UI_ACTOR
 
 // `frame` is in screen coordinates; an empty frame centers a default-sized
 // window. The window isn't shown until its owner orders it front. `tabIndex`
-// is its profile's.
+// is its profile's. An `incognito` window's profile keeps no history, and its
+// cookies and site data go with its last window.
 + (id<FiberWindow>)windowWithFrame:(NSRect)frame
                            actions:(id<FiberWindowActions>)actions
-                          tabIndex:(id<FiberTabIndex>)tabIndex;
+                          tabIndex:(id<FiberTabIndex>)tabIndex
+                         incognito:(BOOL)incognito;
 
 - (instancetype)init NS_UNAVAILABLE;
 

@@ -191,7 +191,8 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
       windowWithFrame:bounds.IsEmpty() ? NSZeroRect
                                        : gfx::ScreenRectToNSRect(bounds)
               actions:actions_
-             tabIndex:tab_index_source_->index()];
+             tabIndex:tab_index_source_->index()
+            incognito:browser_->GetProfile()->IsIncognitoProfile()];
   location_bar_ = std::make_unique<FiberLocationBar>(this, ui_.omnibox);
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
   extensions_toolbar_ =

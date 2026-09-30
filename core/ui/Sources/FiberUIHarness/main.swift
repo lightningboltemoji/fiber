@@ -2,7 +2,8 @@
 // //fiber/browser does, without Chromium. Flags: `--tabs N` (made-up sites),
 // `--downloads N` (which quitting waits for), `--ask-before-leaving`,
 // `--palette QUERY` (the command palette, open with QUERY typed),
-// `--extension-window` (a window an extension opened, as its bubble).
+// `--extension-window` (a window an extension opened, as its bubble),
+// `--incognito` (the first window is Incognito, on the New Tab page).
 
 import AppKit
 import FiberBridge
@@ -16,15 +17,24 @@ app.run()
 @MainActor
 final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   private var browsers: [MockBrowser] = []
-  /// Every window's tabs, as one profile's.
+  /// Every window's tabs, as one profile's, and Incognito windows' as its
+  /// Incognito profile's.
   let tabIndex = FiberTabIndexFactory.tabIndex()
+  let incognitoTabIndex = FiberTabIndexFactory.tabIndex()
   private lazy var downloads = MockDownloads(count: launchDownloadCount)
   /// Set once the downloads are done, so the quit they held up goes ahead.
   private var isDoneWaiting = false
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.mainMenu = makeMainMenu()
-    openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
+    if CommandLine.arguments.contains("--incognito") {
+      openWindow(
+        urls: [MockBrowser.newTabURL]
+          + MockBrowser.sampleURLs(count: launchTabCount).dropFirst(),
+        isIncognito: true)
+    } else {
+      openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
+    }
     NSApp.activate()
     if CommandLine.arguments.contains("--extension-window") {
       browsers.last?.simulateExtensionWindow(nil)
@@ -106,8 +116,8 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     return max(count, 1)
   }
 
-  func openWindow(urls: [String]) {
-    let browser = MockBrowser(urls: urls, app: self)
+  func openWindow(urls: [String], isIncognito: Bool = false) {
+    let browser = MockBrowser(urls: urls, isIncognito: isIncognito, app: self)
     browsers.append(browser)
     tabsDidChange()
     browser.show()
@@ -119,7 +129,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func tabsDidChange() {
-    tabIndex.setTabs(browsers.flatMap(\.tabStates))
+    tabIndex.setTabs(browsers.filter { !$0.isIncognito }.flatMap(\.tabStates))
+    incognitoTabIndex.setTabs(
+      browsers.filter(\.isIncognito).flatMap(\.tabStates))
   }
 
   func browser(withTab tabID: Int) -> MockBrowser? {
@@ -133,6 +145,10 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
 
   @objc private func newWindow(_ sender: Any?) {
     openWindow(urls: [MockBrowser.homeURL])
+  }
+
+  @objc private func newIncognitoWindow(_ sender: Any?) {
+    openWindow(urls: [MockBrowser.newTabURL], isIncognito: true)
   }
 
   private func makeMainMenu() -> NSMenu {
@@ -154,10 +170,14 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       [item("Quit", #selector(NSApplication.terminate(_:)), "q")])
     let newWindow = item("New Window", #selector(newWindow(_:)), "n")
     newWindow.target = self
+    let newIncognitoWindow = item(
+      "New Incognito Window", #selector(newIncognitoWindow(_:)), "N")
+    newIncognitoWindow.target = self
     submenu(
       "File",
       [
         newWindow,
+        newIncognitoWindow,
         item("New Tab", #selector(MockBrowser.newTab(_:)), "t"),
         item("Open Location…", #selector(MockBrowser.openLocation(_:)), "l"),
         .separator(),
