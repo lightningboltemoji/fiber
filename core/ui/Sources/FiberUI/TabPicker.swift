@@ -161,6 +161,19 @@ final class TabPicker: NSView {
     convert(event.locationInWindow, from: nil)
   }
 
+  /// Whether a view in front of the picker, like the omnibar or a prompt,
+  /// takes `point`. The tracking area sees the pointer under it all the same.
+  private func isCovered(at point: CGPoint) -> Bool {
+    guard let superview, let index = superview.subviews.firstIndex(of: self)
+    else {
+      return false
+    }
+    let point = convert(point, to: superview)
+    return superview.subviews[(index + 1)...].contains {
+      $0.hitTest(point) != nil
+    }
+  }
+
   // MARK: Pointer
 
   override func hitTest(_ point: NSPoint) -> NSView? {
@@ -321,7 +334,9 @@ final class TabPicker: NSView {
   /// Opens the panel with the active tab level with `y`.
   private func open(anchoredAt y: CGFloat) {
     openTimer?.invalidate()
-    guard model.isPanelEnabled, !model.isExpanded, !model.tabs.isEmpty else {
+    guard model.isPanelEnabled, !model.isExpanded, !model.tabs.isEmpty,
+      !isCovered(at: CGPoint(x: hotZone.midX, y: y))
+    else {
       return
     }
     let row = model.activeRow

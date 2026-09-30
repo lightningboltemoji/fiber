@@ -16,6 +16,9 @@ final class PaletteView: NSView {
   private static let rimWidth: CGFloat = 6
   private static let fieldRowHeight: CGFloat = 56
   private static let footerHeight: CGFloat = 30
+  /// Between a hint's action and its key, and after its key.
+  private static let hintInnerSpacing: CGFloat = 6
+  private static let hintSpacing: CGFloat = 18
   static let horizontalInset: CGFloat = 18
 
   let field = NSTextField()
@@ -39,7 +42,7 @@ final class PaletteView: NSView {
   /// The footer's keys, like ("Open", "↩").
   var hints: [(action: String, key: String)] = [] {
     didSet {
-      hintsLabel.attributedStringValue = Self.hintsText(hints)
+      updateHints()
       content.needsLayout = true
     }
   }
@@ -51,7 +54,7 @@ final class PaletteView: NSView {
   private let panel = RimmedGlassView(rimWidth: PaletteView.rimWidth)
   private let content: PaletteContentView
   private let scrollView = NSScrollView()
-  private let hintsLabel = NSTextField(labelWithString: "")
+  private let hintsView = NSStackView()
 
   init(placeholder: String) {
     let icon = NSImageView(
@@ -62,7 +65,7 @@ final class PaletteView: NSView {
     content = PaletteContentView(
       fieldRow: FieldRowView(
         icon: icon, field: field, inset: Self.horizontalInset),
-      list: scrollView, hints: hintsLabel, fieldRowHeight: Self.fieldRowHeight,
+      list: scrollView, hints: hintsView, fieldRowHeight: Self.fieldRowHeight,
       footerHeight: Self.footerHeight, horizontalInset: Self.horizontalInset)
     super.init(frame: .zero)
     wantsLayer = true
@@ -85,6 +88,8 @@ final class PaletteView: NSView {
         .foregroundColor: NSColor.tertiaryLabelColor,
       ])
     field.cell?.sendsActionOnEndEditing = false
+
+    hintsView.spacing = Self.hintInnerSpacing
 
     scrollView.drawsBackground = false
     scrollView.hasVerticalScroller = true
@@ -190,30 +195,28 @@ final class PaletteView: NSView {
     return ["\r", "\u{3}"].contains(event.charactersIgnoringModifiers)
   }
 
-  private static func hintsText(_ hints: [(action: String, key: String)])
-    -> NSAttributedString
-  {
-    let text = NSMutableAttributedString()
-    for (index, (action, key)) in hints.enumerated() {
-      if index > 0 {
-        text.append(NSAttributedString(string: "     "))
-      }
-      text.append(
-        NSAttributedString(
-          string: "\(action)  ",
-          attributes: [
-            .font: NSFont.systemFont(ofSize: 11),
-            .foregroundColor: NSColor.secondaryLabelColor,
-          ]))
-      text.append(
-        NSAttributedString(
-          string: key,
-          attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor.tertiaryLabelColor,
-          ]))
+  /// A label for each color, so each is vibrant. AppKit won't make a label
+  /// with several vibrant, and on glass one can then draw its label colors as
+  /// flat grays, the faint ones darker than the glass.
+  private func updateHints() {
+    func label(_ string: String, weight: NSFont.Weight, color: NSColor)
+      -> NSTextField
+    {
+      let label = NSTextField(labelWithString: string)
+      label.font = .systemFont(ofSize: 11, weight: weight)
+      label.textColor = color
+      return label
     }
-    return text
+    for view in hintsView.arrangedSubviews {
+      view.removeFromSuperview()
+    }
+    for (action, key) in hints {
+      let keyLabel = label(key, weight: .medium, color: .tertiaryLabelColor)
+      hintsView.addArrangedSubview(
+        label(action, weight: .regular, color: .secondaryLabelColor))
+      hintsView.addArrangedSubview(keyLabel)
+      hintsView.setCustomSpacing(Self.hintSpacing, after: keyLabel)
+    }
   }
 }
 
