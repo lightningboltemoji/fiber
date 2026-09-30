@@ -1,0 +1,54 @@
+diff --git a/components/url_formatter/url_fixer.cc b/components/url_formatter/url_fixer.cc
+index d5d9a14c8d..93b4ef4052 100644
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -20,6 +20,7 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
+ #include "components/url_formatter/url_formatter.h"
++#include "fiber/branding/url_scheme.h"
+ #include "net/base/filename_util.h"
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "url/third_party/mozilla/url_parse.h"
+@@ -460,8 +461,10 @@ std::string SegmentURLInternal(std::string* text, url::Parsed* parts) {
+ 
+   // Proceed with about, chrome, and devtools schemes,
+   // but not file or nonstandard schemes.
++  // Fiber: and fiber, which is chrome.
+   if ((scheme != url::kAboutScheme) && (scheme != kChromeUIScheme) &&
+-      (scheme != kDevToolsScheme) && !url::IsStandard(scheme)) {
++      (scheme != fiber::kFiberUIScheme) && (scheme != kDevToolsScheme) &&
++      !url::IsStandard(scheme)) {
+     return scheme;
+   }
+ 
+@@ -613,12 +616,14 @@ GURL FixupURLInternal(const std::string& text,
+   }
+ 
+   // For some schemes whose layouts we understand, we rebuild the URL.
+-  bool chrome_url =
+-      (scheme == url::kAboutScheme) || (scheme == kChromeUIScheme);
++  // Fiber: fiber: is chrome:, as about: is.
++  bool chrome_url = (scheme == url::kAboutScheme) ||
++                    (scheme == kChromeUIScheme) ||
++                    (scheme == fiber::kFiberUIScheme);
+   bool devtools_url = (scheme == kDevToolsScheme);
+   if (chrome_url || devtools_url || url::IsStandard(scheme)) {
+     // Replace the about: scheme with the chrome: scheme.
+-    std::string url(scheme == url::kAboutScheme ? kChromeUIScheme : scheme);
++    std::string url(chrome_url ? kChromeUIScheme : scheme);
+     url.append(url::kStandardSchemeSeparator);
+ 
+     // We need to check whether the |username| is valid because it is our
+@@ -741,7 +746,10 @@ bool IsEquivalentScheme(const std::string& scheme1,
+                         const std::string& scheme2) {
+   return scheme1 == scheme2 ||
+          (scheme1 == url::kAboutScheme && scheme2 == kChromeUIScheme) ||
+-         (scheme1 == kChromeUIScheme && scheme2 == url::kAboutScheme);
++         (scheme1 == kChromeUIScheme && scheme2 == url::kAboutScheme) ||
++         // Fiber: fiber: is chrome:.
++         (scheme1 == fiber::kFiberUIScheme && scheme2 == kChromeUIScheme) ||
++         (scheme1 == kChromeUIScheme && scheme2 == fiber::kFiberUIScheme);
+ }
+ 
+ }  // namespace url_formatter

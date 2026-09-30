@@ -20,6 +20,7 @@
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/status_bubble.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/unload_controller.h"
@@ -298,6 +299,16 @@ void FiberBrowserWindow::RevealText(int32_t tab_id,
   SelectTab(tab_id);
   if (tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get()) {
     tab_index_source_->RevealText(tab->GetContents(), text);
+  }
+}
+
+void FiberBrowserWindow::CloseTab(int32_t tab_id) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  int index = model->GetIndexOfTab(tabs::TabHandle(tab_id).Get());
+  if (index != TabStripModel::kNoTab) {
+    model->CloseWebContentsAt(index,
+                              TabCloseTypes::CLOSE_USER_GESTURE |
+                                  TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
   }
 }
 

@@ -12,6 +12,7 @@ config("include_dir") {
 source_set("bridge") {
   public = [
     "include/FiberBridge/FiberBridge.h",
+    "include/FiberBridge/FiberBuiltInPageFavicon.h",
     "include/FiberBridge/FiberContextMenu.h",
     "include/FiberBridge/FiberDownloadsWait.h",
     "include/FiberBridge/FiberExtensions.h",

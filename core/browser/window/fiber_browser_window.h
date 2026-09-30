@@ -75,6 +75,9 @@ class FiberBrowserWindow : public BrowserWindow,
   void SelectTab(int32_t tab_id);
   // Selects the tab, and finds `text` in its page.
   void RevealText(int32_t tab_id, const std::u16string& text);
+  // Closes one of this window's tabs as the user would, so its page can ask
+  // first and it can be reopened.
+  void CloseTab(int32_t tab_id);
   void OnCommandPaletteOpened();
   void OnWindowCloseRequested();
   void OnWindowActivationChanged(bool active);

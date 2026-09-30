@@ -1,0 +1,28 @@
+diff --git a/components/url_formatter/url_formatter.cc b/components/url_formatter/url_formatter.cc
+index 2f6cb31790..b6d15f1cb2 100644
+--- a/components/url_formatter/url_formatter.cc
++++ b/components/url_formatter/url_formatter.cc
+@@ -20,6 +20,7 @@
+ #include "base/threading/thread_local_storage.h"
+ #include "build/build_config.h"
+ #include "components/url_formatter/spoof_checks/idn_spoof_checker.h"
++#include "fiber/branding/url_scheme.h"
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "third_party/icu/source/common/unicode/uidna.h"
+ #include "third_party/icu/source/common/unicode/utypes.h"
+@@ -626,6 +627,15 @@ std::u16string FormatUrlWithAdjustments(
+   std::u16string url_string;
+   url_string.insert(url_string.end(), spec.begin(), spec.begin() + scheme_size);
+   new_parsed->scheme = parsed.scheme;
++  // Fiber: chrome: shows as fiber:, which FixupURL() reads back as chrome:.
++  if (url.SchemeIs("chrome")) {
++    const std::u16string_view fiber_scheme = fiber::kFiberUIScheme16;
++    const size_t begin = static_cast<size_t>(parsed.scheme.begin);
++    const size_t len = static_cast<size_t>(parsed.scheme.len);
++    url_string.replace(begin, len, fiber_scheme);
++    adjustments->emplace_back(begin, len, fiber_scheme.size());
++    new_parsed->scheme.len = base::checked_cast<int>(fiber_scheme.size());
++  }
+ 
+   // Username & password.
+   if (((format_types & kFormatUrlOmitUsernamePassword) != 0) ||

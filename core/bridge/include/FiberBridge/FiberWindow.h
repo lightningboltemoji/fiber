@@ -39,6 +39,9 @@ NS_SWIFT_UI_ACTOR
 // Selects the tab, as -selectTabWithID: does, and finds `text` (from its page
 // text, see FiberTabIndex) in its page, leaving it selected.
 - (void)revealText:(NSString*)text inTabWithID:(NSInteger)tabID;
+// Closes one of the window's tabs, as its close button would: the page may
+// ask the user first.
+- (void)closeTabWithID:(NSInteger)tabID;
 - (BOOL)canRunCommand:(FiberCommand)command;
 - (void)runCommand:(FiberCommand)command;
 // The command palette opened. The active tab's page text may have changed

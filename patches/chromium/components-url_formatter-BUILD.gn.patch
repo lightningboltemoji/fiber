@@ -1,0 +1,14 @@
+diff --git a/components/url_formatter/BUILD.gn b/components/url_formatter/BUILD.gn
+index ff424657b5..b3f0fbcc69 100644
+--- a/components/url_formatter/BUILD.gn
++++ b/components/url_formatter/BUILD.gn
+@@ -41,6 +41,9 @@ static_library("url_formatter") {
+     "//components/url_formatter/spoof_checks/common_words:common_words_dafsa",
+     "//components/url_formatter/spoof_checks/top_domains:common",
+     "//components/url_formatter/spoof_checks/top_domains:generate_top_domains_trie",
++
++    # Fiber: fiber://, which url_formatter treats as chrome://.
++    "//fiber/branding:url_scheme",
+     "//net",
+     "//net:preload_decoder",
+     "//url",

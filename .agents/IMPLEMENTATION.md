@@ -78,6 +78,13 @@ Chromium it hooks and depending on nothing that part couldn't:
   the linker drops it, and confirm with `make size`.
 - Chrome's own Cocoa pieces (app delegate, main menu) stay Chrome's; Fiber
   hooks them rather than replacing them.
+- Chrome's in-tab pages stay, but read as Fiber's. `url_formatter` shows
+  `chrome://` as `fiber://` and reads `fiber://` back as `chrome://`, so Chrome
+  and extensions only ever see `chrome://` (`branding/url_scheme.h`). Chrome's
+  product logos are Fiber's app icon (`hooks/resource_bundle_delegate.mm`).
+  Their favicons are ones Fiber picks, which its UI draws in the color of the
+  text (`hooks/web_ui_favicons.mm`, `BuiltInPageFavicon.swift`). With no
+  updater, the About page says nothing about updates.
 - Fiber's defaults differ from Chrome's through `hooks/feature_overrides.cc`
   and `hooks/profile_pref_defaults.cc`, with the field trial testing config
   off (`args.gni`). The goal is no requests to Google the user didn't ask for.
@@ -171,7 +178,7 @@ patches/chromium/    our edits to Chromium, one patch per file
 scripts/             sync, patch, build, run, size
 core/                → //fiber
   build/             GN args, Swift template and flags
-  branding/          product name, version, app icon
+  branding/          product name, version, app icon, fiber:// scheme
   browser/           C++ Chrome integration, one directory per feature
     hooks/           the functions patches call
   renderer/          hooks in Blink

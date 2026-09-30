@@ -7,6 +7,7 @@ fiber_swift_source_set("ui") {
   module_name = "FiberUI"
   sources = [
     "Sources/FiberUI/BrowserWindowController.swift",
+    "Sources/FiberUI/BuiltInPageFavicon.swift",
     "Sources/FiberUI/CommandPalette.swift",
     "Sources/FiberUI/ContextMenu.swift",
     "Sources/FiberUI/DownloadsWait.swift",

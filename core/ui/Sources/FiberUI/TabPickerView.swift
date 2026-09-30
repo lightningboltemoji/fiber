@@ -36,7 +36,9 @@ struct TabPickerView: View {
       // uncovers the list as it grows.
       TabList(
         tabs: model.tabs, activeTabID: model.activeTabID,
-        highlightedTabID: model.highlightedTabID, onSelect: model.onSelect
+        highlightedTabID: model.highlightedTabID,
+        closeButton: model.closeButton, onSelect: model.onSelect,
+        onClose: model.onClose
       )
       .frame(width: panel.width, height: panel.height, alignment: .top)
       .mask(alignment: .topLeading) {

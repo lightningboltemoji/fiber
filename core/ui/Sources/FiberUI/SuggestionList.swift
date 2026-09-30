@@ -322,7 +322,7 @@ private final class SuggestionRow: NSView {
       isRowSelected ? .alternateSelectedControlTextColor : .secondaryLabelColor
     if let favicon = suggestion.favicon {
       icon.image = favicon
-      icon.contentTintColor = nil
+      icon.contentTintColor = favicon.isTemplate ? symbolColor : nil
     } else {
       icon.image = NSImage(
         systemSymbolName: Self.symbolName(for: suggestion.kind),

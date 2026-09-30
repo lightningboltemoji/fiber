@@ -32,6 +32,12 @@ action("app_icon") {
   ]
 }
 
+# Fiber's scheme for Chrome's pages, for url_formatter and the omnibox (see
+# url_scheme.h).
+source_set("url_scheme") {
+  sources = [ "url_scheme.h" ]
+}
+
 # The version the app shows (see version.gni), as a UTF-16 literal for
 # Chrome's About pages.
 buildflag_header("version_buildflags") {

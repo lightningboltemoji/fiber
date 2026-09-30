@@ -1,0 +1,47 @@
+diff --git a/components/omnibox/browser/builtin_provider.cc b/components/omnibox/browser/builtin_provider.cc
+index 04fb056ed1..63050b143e 100644
+--- a/components/omnibox/browser/builtin_provider.cc
++++ b/components/omnibox/browser/builtin_provider.cc
+@@ -16,6 +16,8 @@
+ #include "components/omnibox/browser/autocomplete_match_classification.h"
+ #include "components/omnibox/browser/autocomplete_provider_client.h"
+ #include "components/url_formatter/url_fixer.h"
++#include "components/url_formatter/url_formatter.h"
++#include "fiber/branding/url_scheme.h"
+ #include "third_party/metrics_proto/omnibox_focus_type.pb.h"
+ #include "third_party/metrics_proto/omnibox_input_type.pb.h"
+ #include "url/url_constants.h"
+@@ -49,9 +51,9 @@ void BuiltinProvider::DoBuiltinAutocompletion(const std::u16string& text) {
+   const size_t kAboutSchemeLength = strlen(url::kAboutScheme);
+   const std::u16string kAbout =
+       base::StrCat({url::kAboutScheme16, url::kStandardSchemeSeparator16});
++  // Fiber: the scheme url_formatter shows chrome: in.
+   const std::u16string embedderAbout = base::StrCat(
+-      {base::UTF8ToUTF16(client_->GetEmbedderRepresentationOfAboutScheme()),
+-       url::kStandardSchemeSeparator16});
++      {fiber::kFiberUIScheme16, url::kStandardSchemeSeparator16});
+ 
+   const int kUrl = ACMatchClassification::URL;
+   const int kMatch = kUrl | ACMatchClassification::MATCH;
+@@ -73,7 +75,9 @@ void BuiltinProvider::DoBuiltinAutocompletion(const std::u16string& text) {
+     // Include some common builtin URLs as the user types the scheme.
+     for (const std::u16string& url :
+          client_->GetBuiltinsToProvideAsUserTypes()) {
+-      AddBuiltinMatch(url, std::u16string(), styles);
++      // Fiber: as url_formatter shows it.
++      AddBuiltinMatch(url_formatter::FormatUrl(GURL(url)), std::u16string(),
++                      styles);
+     }
+   } else {
+     // Match input about: or |embedderAbout| URL input against builtin URLs.
+@@ -164,7 +168,9 @@ void BuiltinProvider::AddBuiltinMatch(const std::u16string& match_string,
+   match.suggest_type = omnibox::TYPE_NAVIGATION;
+   match.fill_into_edit = match_string;
+   match.inline_autocompletion = inline_completion;
+-  match.destination_url = GURL(match_string);
++  // Fiber: `match_string` is in the scheme url_formatter shows chrome: in.
++  match.destination_url =
++      url_formatter::FixupURL(base::UTF16ToUTF8(match_string), std::string());
+   match.contents = match_string;
+   match.contents_class = styles;
+   matches_.push_back(match);

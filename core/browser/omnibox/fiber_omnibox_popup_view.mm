@@ -20,6 +20,7 @@
 #include "components/omnibox/browser/searchbox_utils.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
+#include "fiber/browser/favicons/favicon_image.h"
 #include "ui/gfx/image/image.h"
 
 namespace fiber {
@@ -219,7 +220,7 @@ void FiberOmniboxPopupView::UpdateSuggestions() {
           base::BindOnce(&FiberOmniboxPopupView::OnFaviconFetched,
                          weak_ptr_factory_.GetWeakPtr()));
       if (!image.IsEmpty()) {
-        favicon = image.AsNSImage();
+        favicon = FaviconImage(image, match.destination_url);
       }
     }
 

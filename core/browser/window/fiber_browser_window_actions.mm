@@ -87,6 +87,12 @@ int CommandID(FiberCommand command) {
   }
 }
 
+- (void)closeTabWithID:(NSInteger)tabID {
+  if (_owner) {
+    _owner->CloseTab(static_cast<int32_t>(tabID));
+  }
+}
+
 - (BOOL)canRunCommand:(FiberCommand)command {
   return _owner && _owner->IsCommandEnabled(CommandID(command));
 }

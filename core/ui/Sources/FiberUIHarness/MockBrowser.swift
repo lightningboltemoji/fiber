@@ -104,6 +104,19 @@ final class MockBrowser: NSObject, FiberWindowActions {
     app?.browser(withTab: tabID)?.tabs.first { $0.id == tabID }?.page.find(text)
   }
 
+  func closeTab(withID tabID: Int) {
+    guard let tab = tabs.first(where: { $0.id == tabID }) else {
+      return
+    }
+    guard tab.page.asksBeforeLeaving else {
+      close(tab)
+      return
+    }
+    // Like Chrome, the tab comes forward to ask.
+    activate(tab)
+    confirmLeaving { [weak self] in self?.close(tab) }
+  }
+
   func canRun(_ command: FiberCommand) -> Bool {
     true
   }
@@ -144,12 +157,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   @objc func closeTab(_ sender: Any?) {
-    let tab = activeTab!
-    guard tab.page.asksBeforeLeaving else {
-      close(tab)
-      return
-    }
-    confirmLeaving { [weak self] in self?.close(tab) }
+    closeTab(withID: activeTab.id)
   }
 
   @objc func reloadPage(_ sender: Any?) {

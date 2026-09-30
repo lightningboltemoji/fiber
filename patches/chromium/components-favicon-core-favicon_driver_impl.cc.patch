@@ -1,0 +1,23 @@
+diff --git a/components/favicon/core/favicon_driver_impl.cc b/components/favicon/core/favicon_driver_impl.cc
+index 5419347488..ffef37fe9c 100644
+--- a/components/favicon/core/favicon_driver_impl.cc
++++ b/components/favicon/core/favicon_driver_impl.cc
+@@ -12,6 +12,7 @@
+ #include "components/favicon/core/favicon_driver_observer.h"
+ #include "components/favicon/core/favicon_handler.h"
+ #include "components/favicon/core/favicon_url.h"
++#include "fiber/browser/hooks/web_ui_favicons.h"
+ 
+ #if BUILDFLAG(IS_ANDROID)
+ #include "base/android/device_info.h"
+@@ -74,6 +75,10 @@ void FaviconDriverImpl::OnUpdateCandidates(
+     const GURL& page_url,
+     const std::vector<FaviconURL>& candidates,
+     const GURL& manifest_url) {
++  // Fiber: not the icons a page links, when Fiber draws its favicon.
++  if (fiber::HasFiberFavicon(page_url)) {
++    return;
++  }
+   for (const std::unique_ptr<FaviconHandler>& handler : handlers_) {
+     // We feed in the Web Manifest URL (if any) to the instance handling type
+     // kWebManifestIcon, because those compete which each other (i.e. manifest

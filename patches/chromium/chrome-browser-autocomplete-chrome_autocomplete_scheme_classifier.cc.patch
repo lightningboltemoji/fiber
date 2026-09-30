@@ -1,0 +1,23 @@
+diff --git a/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc b/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
+index 2f7ea50b69..5da33e1966 100644
+--- a/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
++++ b/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
+@@ -12,6 +12,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_io_data.h"
+ #include "components/custom_handlers/protocol_handler_registry.h"
++#include "components/url_formatter/url_fixer.h"
+ #include "content/public/common/url_constants.h"
+ #include "url/url_util.h"
+ 
+@@ -75,6 +76,10 @@ ChromeAutocompleteSchemeClassifier::GetInputTypeForScheme(
+        base::EqualsCaseInsensitiveASCII(scheme, url::kDataScheme))) {
+     return metrics::OmniboxInputType::URL;
+   }
++  // Fiber: fiber:, which url_formatter reads as chrome:.
++  if (url_formatter::IsEquivalentScheme(scheme, content::kChromeUIScheme)) {
++    return metrics::OmniboxInputType::URL;
++  }
+ 
+   // Also check for schemes registered via registerProtocolHandler(), which
+   // can be handled by web pages/apps.

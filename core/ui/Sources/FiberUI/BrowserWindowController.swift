@@ -201,6 +201,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabSidebar.onSelect = { [weak self] tabID in
       self?.actions.selectTab(withID: tabID)
     }
+    tabSidebar.onClose = { [weak self] tabID in
+      self?.actions.closeTab(withID: tabID)
+    }
     content.addSubview(tabSidebar)
     updateToolbar(animated: false)
 
@@ -216,6 +219,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabPicker.autoresizingMask = [.height, .minXMargin]
     tabPicker.onSelect = { [weak self] tabID in
       self?.actions.selectTab(withID: tabID)
+    }
+    tabPicker.onClose = { [weak self] tabID in
+      self?.actions.closeTab(withID: tabID)
     }
     content.addSubview(tabPicker)
 
@@ -629,6 +635,19 @@ final class BrowserWindowController: NSObject, FiberWindow {
     actions.focusPage()
   }
 
+  /// The browser focuses the page when something else navigates it (the
+  /// About item in the app menu, say), and the omnibar and command palette
+  /// give way, as Chrome's omnibox does.
+  fileprivate func firstResponderDidChange() {
+    guard let contentsView, let responder = window.firstResponder as? NSView,
+      responder.isDescendant(of: contentsView)
+    else {
+      return
+    }
+    omnibar.close()
+    commandPalette.close()
+  }
+
   // MARK: Active browser
 
   private enum ActiveBrowser {
@@ -774,6 +793,7 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
   override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
     let changed = super.makeFirstResponder(responder)
     controller?.updateActiveBrowser()
+    controller?.firstResponderDidChange()
     return changed
   }
 

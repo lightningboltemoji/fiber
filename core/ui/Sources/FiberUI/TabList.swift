@@ -15,9 +15,41 @@ enum TabListLayout {
   /// Scrolling past the first or last tab stretches no further than this.
   static let rubberBandLimit: CGFloat = 120
 
+  /// A row's close button is a square this wide at the row's right end, as
+  /// far in from it as from the row's top and bottom.
+  static let closeButtonSize: CGFloat = 24
+  static var closeButtonInset: CGFloat { (rowHeight - closeButtonSize) / 2 }
+  /// How near the pointer comes to a close button for it to show.
+  static let closeButtonReach: CGFloat = 10
+
   /// The center of row `row`, from the panel's top.
   static func rowCenter(_ row: Int) -> CGFloat {
     contentInset + CGFloat(row) * rowStep + rowHeight / 2
+  }
+
+  /// The close button `point` (from the panel's top-left) is within reach
+  /// of, the nearest if two are.
+  static func closeButton(near point: CGPoint, in tabs: [FiberTabState])
+    -> TabCloseButton?
+  {
+    guard !tabs.isEmpty else {
+      return nil
+    }
+    let row = min(
+      max(Int(((point.y - rowCenter(0)) / rowStep).rounded()), 0),
+      tabs.count - 1)
+    let button = CGRect(
+      x: panelWidth - contentInset - closeButtonInset - closeButtonSize,
+      y: rowCenter(row) - closeButtonSize / 2, width: closeButtonSize,
+      height: closeButtonSize)
+    guard
+      button.insetBy(dx: -closeButtonReach, dy: -closeButtonReach).contains(
+        point)
+    else {
+      return nil
+    }
+    return TabCloseButton(
+      tabID: tabs[row].tabID, isHovered: button.contains(point))
   }
 
   static func panelHeight(rows: Int) -> CGFloat {
@@ -42,23 +74,37 @@ enum TabListLayout {
   }
 }
 
+/// The one close button a tab list shows: the one the pointer is near.
+struct TabCloseButton: Equatable {
+  let tabID: Int
+  /// Whether the pointer is on it, where a click closes the tab.
+  let isHovered: Bool
+}
+
 /// A panel's rows, with a highlight that glides to the highlighted tab.
 struct TabList: View {
   let tabs: [FiberTabState]
   let activeTabID: Int
   let highlightedTabID: Int?
+  let closeButton: TabCloseButton?
   /// For accessibility, which presses a tab to select it.
   let onSelect: (Int) -> Void
+  /// For accessibility, which closes a tab without its button showing.
+  let onClose: (Int) -> Void
 
   var body: some View {
     VStack(spacing: TabListLayout.rowSpacing) {
       ForEach(tabs, id: \.tabID) { tab in
-        TabRow(tab: tab, isActive: tab.tabID == activeTabID)
-          .accessibilityElement(children: .combine)
-          .accessibilityAddTraits(
-            tab.tabID == activeTabID ? [.isButton, .isSelected] : .isButton
-          )
-          .accessibilityAction { onSelect(tab.tabID) }
+        TabRow(
+          tab: tab, isActive: tab.tabID == activeTabID,
+          closeButton: closeButton?.tabID == tab.tabID ? closeButton : nil
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(
+          tab.tabID == activeTabID ? [.isButton, .isSelected] : .isButton
+        )
+        .accessibilityAction { onSelect(tab.tabID) }
+        .accessibilityAction(named: "Close Tab") { onClose(tab.tabID) }
       }
     }
     .padding(TabListLayout.contentInset)
@@ -81,10 +127,17 @@ struct TabList: View {
 }
 
 private struct TabRow: View {
+  /// How long the close button takes to fade in or out.
+  private static let closeButtonFade = Animation.easeInOut(duration: 0.25)
+  /// How far ahead of the close button the title fades out.
+  private static let titleFadeWidth: CGFloat = 16
+
   let tab: FiberTabState
   let isActive: Bool
+  let closeButton: TabCloseButton?
 
   var body: some View {
+    let isCloseButtonShown = closeButton != nil
     HStack(spacing: 10) {
       icon
         .frame(width: 16, height: 16)
@@ -97,6 +150,44 @@ private struct TabRow: View {
     .foregroundStyle(isActive ? .primary : .secondary)
     .padding(.horizontal, 10)
     .frame(height: TabListLayout.rowHeight)
+    .mask {
+      HStack(spacing: 0) {
+        Rectangle()
+        LinearGradient(
+          colors: [.black, .clear], startPoint: .leading, endPoint: .trailing
+        )
+        .frame(width: Self.titleFadeWidth)
+        Color.clear
+          .frame(
+            width: TabListLayout.closeButtonInset
+              + TabListLayout.closeButtonSize)
+      }
+      .overlay {
+        Rectangle()
+          .animation(Self.closeButtonFade) {
+            $0.opacity(isCloseButtonShown ? 0 : 1)
+          }
+      }
+    }
+    .overlay(alignment: .trailing) {
+      Image(systemName: "xmark")
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(closeButton?.isHovered == true ? .primary : .secondary)
+        .frame(
+          width: TabListLayout.closeButtonSize,
+          height: TabListLayout.closeButtonSize
+        )
+        .background {
+          Circle()
+            .fill(Color.primary.opacity(0.1))
+            .opacity(closeButton?.isHovered == true ? 1 : 0)
+        }
+        .padding(.trailing, TabListLayout.closeButtonInset)
+        .animation(Self.closeButtonFade) {
+          $0.opacity(isCloseButtonShown ? 1 : 0)
+        }
+        .accessibilityHidden(true)
+    }
   }
 
   @ViewBuilder private var icon: some View {
@@ -106,6 +197,7 @@ private struct TabRow: View {
         .scaleEffect(0.75)
     } else if let favicon = tab.favicon {
       Image(nsImage: favicon)
+        .renderingMode(favicon.isTemplate ? .template : .original)
         .resizable()
         .interpolation(.high)
     } else {

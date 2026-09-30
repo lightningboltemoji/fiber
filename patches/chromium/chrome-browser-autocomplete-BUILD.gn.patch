@@ -1,0 +1,14 @@
+diff --git a/chrome/browser/autocomplete/BUILD.gn b/chrome/browser/autocomplete/BUILD.gn
+index d4c1ad59c6..cbbf5a3ba0 100644
+--- a/chrome/browser/autocomplete/BUILD.gn
++++ b/chrome/browser/autocomplete/BUILD.gn
+@@ -116,6 +116,9 @@ source_set("impl") {
+     "//components/lens",
+     "//components/translate/core/browser",
+     "//components/unified_consent",
++
++    # Fiber: for fiber:, in chrome_autocomplete_scheme_classifier.cc.
++    "//components/url_formatter",
+     "//components/variations/service",
+     "//content/public/browser",
+   ]

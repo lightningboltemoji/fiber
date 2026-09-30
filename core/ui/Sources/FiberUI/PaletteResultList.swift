@@ -418,7 +418,7 @@ private final class PaletteIcon: NSView {
         : NSColor.labelColor.withAlphaComponent(0.08)).cgColor
     } else if let favicon = item.favicon {
       image.image = favicon
-      image.contentTintColor = nil
+      image.contentTintColor = favicon.isTemplate ? secondary : nil
       layer?.backgroundColor = nil
     } else {
       image.image = NSImage(

@@ -11,12 +11,15 @@ final class TabSidebar: NSView {
 
   /// Not called for the tab that's already active.
   var onSelect: (Int) -> Void = { _ in }
+  /// Called with the ID of a tab whose close button was clicked.
+  var onClose: (Int) -> Void = { _ in }
 
   private let model = TabSidebarModel()
   private let hostingView: NSHostingView<TabSidebarView>
   /// Where the fingers have scrolled the list to, before rubber-banding.
   private var dragOffset: CGFloat = 0
   private var pressedTabID: Int?
+  private var pressedCloseButtonTabID: Int?
 
   override init(frame: NSRect) {
     hostingView = NSHostingView(rootView: TabSidebarView(model: model))
@@ -28,6 +31,7 @@ final class TabSidebar: NSView {
     addSubview(hostingView)
     model.size = bounds.size
     model.onSelect = { [weak self] tabID in self?.pick(tabID) }
+    model.onClose = { [weak self] tabID in self?.onClose(tabID) }
     addTrackingArea(
       NSTrackingArea(
         rect: .zero,
@@ -54,8 +58,9 @@ final class TabSidebar: NSView {
     } else {
       setScrollOffset(clamp(model.scrollOffset, to: model.scrollRange))
     }
-    // The tabs may have moved under the pointer.
-    if model.hoveredTabID != nil, let window {
+    // The tabs may have moved under the pointer, as they do when it closes
+    // one.
+    if model.hoveredTabID != nil || model.closeButton != nil, let window {
       hover(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
   }
@@ -85,6 +90,27 @@ final class TabSidebar: NSView {
     }
     let row = Int(offset / TabListLayout.rowStep)
     return model.tabs.indices.contains(row) ? model.tabs[row] : nil
+  }
+
+  /// The close button `point` is within reach of, where the list is scrolled
+  /// to now.
+  private func closeButton(near point: CGPoint) -> TabCloseButton? {
+    guard model.panelRect.contains(point) else {
+      return nil
+    }
+    return TabListLayout.closeButton(
+      near: CGPoint(x: point.x, y: point.y + model.scrollOffset),
+      in: model.tabs)
+  }
+
+  /// The tab whose close button is at `point`, if it's showing.
+  private func closeButtonTab(at point: CGPoint) -> Int? {
+    guard let button = closeButton(near: point), button.isHovered,
+      button.tabID == model.closeButton?.tabID
+    else {
+      return nil
+    }
+    return button.tabID
   }
 
   /// Scrolls the least that shows the active tab whole, clear of the rim.
@@ -138,7 +164,7 @@ final class TabSidebar: NSView {
   }
 
   @objc private func windowDidResignKey(_ notification: Notification) {
-    model.hoveredTabID = nil
+    hover(at: nil)
   }
 
   override func mouseMoved(with event: NSEvent) {
@@ -150,30 +176,48 @@ final class TabSidebar: NSView {
   }
 
   override func mouseExited(with event: NSEvent) {
-    model.hoveredTabID = nil
+    hover(at: nil)
   }
 
   override func mouseDown(with event: NSEvent) {
-    pressedTabID = tab(at: location(of: event))?.tabID
+    let point = location(of: event)
+    pressedCloseButtonTabID = closeButtonTab(at: point)
+    guard pressedCloseButtonTabID == nil else {
+      return
+    }
+    pressedTabID = tab(at: point)?.tabID
     if pressedTabID == nil {
       window?.performDrag(with: event)
     }
   }
 
   override func mouseUp(with event: NSEvent) {
-    defer { pressedTabID = nil }
-    guard let tabID = tab(at: location(of: event))?.tabID,
-      tabID == pressedTabID
-    else {
+    defer {
+      pressedTabID = nil
+      pressedCloseButtonTabID = nil
+    }
+    let point = location(of: event)
+    if let tabID = pressedCloseButtonTabID {
+      if closeButtonTab(at: point) == tabID {
+        onClose(tabID)
+      }
+      return
+    }
+    guard let tabID = tab(at: point)?.tabID, tabID == pressedTabID else {
       return
     }
     pick(tabID)
   }
 
-  private func hover(at point: CGPoint) {
-    let tabID = tab(at: point)?.tabID
+  /// Nil for the pointer gone.
+  private func hover(at point: CGPoint?) {
+    let tabID = point.flatMap { tab(at: $0)?.tabID }
     if tabID != model.hoveredTabID {
       model.hoveredTabID = tabID
+    }
+    let button = point.flatMap(closeButton(near:))
+    if button != model.closeButton {
+      model.closeButton = button
     }
   }
 
@@ -236,11 +280,13 @@ final class TabSidebarModel {
   var tabs: [FiberTabState] = []
   var activeTabID = 0
   var hoveredTabID: Int?
+  var closeButton: TabCloseButton?
   /// How far the list is scrolled up the panel.
   var scrollOffset: CGFloat = 0
   /// The sidebar's size: as far as the panel can grow.
   var size: CGSize = .zero
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
+  @ObservationIgnored var onClose: (Int) -> Void = { _ in }
 
   var panelRect: CGRect {
     CGRect(
@@ -270,7 +316,8 @@ struct TabSidebarView: View {
       TabList(
         tabs: model.tabs, activeTabID: model.activeTabID,
         highlightedTabID: model.hoveredTabID ?? model.activeTabID,
-        onSelect: model.onSelect
+        closeButton: model.closeButton, onSelect: model.onSelect,
+        onClose: model.onClose
       )
       .fixedSize(horizontal: false, vertical: true)
       .offset(y: -model.scrollOffset)

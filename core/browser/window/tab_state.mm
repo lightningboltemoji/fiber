@@ -8,6 +8,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "components/url_formatter/url_formatter.h"
 #include "content/public/browser/web_contents.h"
+#include "fiber/browser/favicons/favicon_image.h"
 #include "ui/gfx/image/image.h"
 
 namespace fiber {
@@ -17,7 +18,8 @@ FiberTabState* TabStateFor(tabs::TabInterface* tab) {
   favicon::ContentFaviconDriver* favicon_driver =
       favicon::ContentFaviconDriver::FromWebContents(contents);
   NSImage* favicon = favicon_driver && favicon_driver->FaviconIsValid()
-                         ? favicon_driver->GetFavicon().AsNSImage()
+                         ? FaviconImage(favicon_driver->GetFavicon(),
+                                        contents->GetLastCommittedURL())
                          : nil;
   std::u16string url = url_formatter::FormatUrl(
       contents->GetVisibleURL(),

@@ -1,0 +1,14 @@
+diff --git a/components/omnibox/browser/BUILD.gn b/components/omnibox/browser/BUILD.gn
+index d193e3c7c0..0292513779 100644
+--- a/components/omnibox/browser/BUILD.gn
++++ b/components/omnibox/browser/BUILD.gn
+@@ -438,6 +438,9 @@ static_library("browser") {
+     "//components/variations/service",
+     "//components/vector_icons",
+     "//extensions/buildflags",
++
++    # Fiber: fiber://, for builtin_provider.cc.
++    "//fiber/branding:url_scheme",
+     "//net",
+     "//services/metrics/public/cpp:metrics_cpp",
+     "//services/metrics/public/cpp:ukm_builders",

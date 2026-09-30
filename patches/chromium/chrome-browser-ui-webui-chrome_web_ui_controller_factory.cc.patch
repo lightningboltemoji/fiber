@@ -1,0 +1,23 @@
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+index c3020dfdea..bcec4f41f9 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -50,6 +50,7 @@
+ #include "content/public/common/url_utils.h"
+ #include "crypto/crypto_buildflags.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "fiber/browser/hooks/web_ui_favicons.h"
+ #include "media/media_buildflags.h"
+ #include "ui/accessibility/accessibility_features.h"
+ #include "ui/base/resource/resource_bundle.h"
+@@ -314,8 +315,9 @@ void ChromeWebUIControllerFactory::GetFaviconForURL(
+     ui::ResourceScaleFactor selected_resource_scale =
+         resource_scale_factors[selected_index];
+ 
++    // Fiber: Fiber's favicons, for every chrome:// page.
+     scoped_refptr<base::RefCountedMemory> bitmap =
+-        GetFaviconResourceBytes(url, selected_resource_scale);
++        fiber::GetWebUIFavicon(url, selected_resource_scale);
+     if (bitmap.get() && bitmap->size()) {
+       favicon_base::FaviconRawBitmapResult bitmap_result;
+       bitmap_result.bitmap_data = bitmap;

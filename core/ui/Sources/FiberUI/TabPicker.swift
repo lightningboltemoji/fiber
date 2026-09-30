@@ -13,6 +13,9 @@ final class TabPicker: NSView {
 
   /// Called with the picked tab's ID, unless it's already active.
   var onSelect: (Int) -> Void = { _ in }
+  /// Called with the ID of a tab whose close button was clicked. The panel
+  /// stays open.
+  var onClose: (Int) -> Void = { _ in }
 
   /// Off while the toolbar's sidebar (TabSidebar) lists the tabs instead; the
   /// bump still moves the window.
@@ -64,6 +67,7 @@ final class TabPicker: NSView {
   /// under the pointer meanwhile, and the rest of the gesture still comes here.
   private var isScrolling = false
   private var pressedTabID: Int?
+  private var pressedCloseButtonTabID: Int?
   /// After the bump is pressed to move the window, until the pointer leaves
   /// it: the panel stays shut.
   private var isOpenHeldOff = false
@@ -80,6 +84,7 @@ final class TabPicker: NSView {
     model.size = bounds.size
     model.onToggle = { [weak self] in self?.toggle() }
     model.onSelect = { [weak self] tabID in self?.pick(tabID) }
+    model.onClose = { [weak self] tabID in self?.onClose(tabID) }
     addTrackingArea(
       NSTrackingArea(
         rect: .zero,
@@ -100,6 +105,15 @@ final class TabPicker: NSView {
     model.activeTabID = activeTabID
     if tabs.isEmpty {
       close()
+      return
+    }
+    // The tabs may have moved under the pointer, as they do when it closes
+    // one.
+    if model.isExpanded, !isScrolling, let window {
+      let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+      if keepOpenZone.contains(point) {
+        hover(at: point)
+      }
     }
   }
 
@@ -115,6 +129,7 @@ final class TabPicker: NSView {
       model.isExpanded = false
     }
     model.highlightedTabID = nil
+    showCloseButton(near: nil)
   }
 
   // MARK: Geometry (flipped: y grows down from the window's top)
@@ -269,14 +284,28 @@ final class TabPicker: NSView {
     guard model.isExpanded else {
       return
     }
-    pressedTabID = tab(at: point)?.tabID
+    pressedCloseButtonTabID = closeButtonTab(at: point)
+    if pressedCloseButtonTabID == nil {
+      pressedTabID = tab(at: point)?.tabID
+    }
   }
 
   override func mouseUp(with event: NSEvent) {
-    defer { pressedTabID = nil }
-    guard model.isExpanded, let tabID = tab(at: location(of: event))?.tabID,
-      tabID == pressedTabID
-    else {
+    defer {
+      pressedTabID = nil
+      pressedCloseButtonTabID = nil
+    }
+    let point = location(of: event)
+    guard model.isExpanded else {
+      return
+    }
+    if let tabID = pressedCloseButtonTabID {
+      if closeButtonTab(at: point) == tabID {
+        onClose(tabID)
+      }
+      return
+    }
+    guard let tabID = tab(at: point)?.tabID, tabID == pressedTabID else {
       return
     }
     pick(tabID)
@@ -286,7 +315,7 @@ final class TabPicker: NSView {
     if model.isExpanded {
       if keepOpenZone.contains(point) {
         closeTimer?.invalidate()
-        highlightRow(at: point)
+        hover(at: point)
       } else {
         scheduleClose()
       }
@@ -377,6 +406,36 @@ final class TabPicker: NSView {
     model.highlightedTabID = tabID
   }
 
+  private func hover(at point: CGPoint) {
+    highlightRow(at: point)
+    showCloseButton(near: point)
+  }
+
+  private func closeButton(near point: CGPoint) -> TabCloseButton? {
+    let panel = model.panelRect
+    return TabListLayout.closeButton(
+      near: CGPoint(x: point.x - panel.minX, y: point.y - panel.minY),
+      in: model.tabs)
+  }
+
+  /// Nil hides the close button.
+  private func showCloseButton(near point: CGPoint?) {
+    let button = point.flatMap(closeButton(near:))
+    if button != model.closeButton {
+      model.closeButton = button
+    }
+  }
+
+  /// The tab whose close button is at `point`, if it's showing.
+  private func closeButtonTab(at point: CGPoint) -> Int? {
+    guard let button = closeButton(near: point), button.isHovered,
+      button.tabID == model.closeButton?.tabID
+    else {
+      return nil
+    }
+    return button.tabID
+  }
+
   private func pick(_ tabID: Int) {
     if tabID != model.activeTabID {
       onSelect(tabID)
@@ -390,6 +449,8 @@ final class TabPicker: NSView {
     guard model.isExpanded, !model.tabs.isEmpty else {
       return
     }
+    // Rows pass under the pointer; their close buttons would flicker by.
+    showCloseButton(near: nil)
     if event.hasPreciseScrollingDeltas {
       trackpadScroll(event)
     } else {
@@ -534,10 +595,12 @@ final class TabPickerModel {
   var panelTop: CGFloat = 0
   /// The tab under the pointer, or where scrolling has brought the panel.
   var highlightedTabID: Int?
+  var closeButton: TabCloseButton?
   /// The picker's size, which places the bump.
   var size: CGSize = .zero
   @ObservationIgnored var onToggle: () -> Void = {}
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
+  @ObservationIgnored var onClose: (Int) -> Void = { _ in }
 
   /// The bump is a capsule this wide, centered on the window's edge.
   nonisolated static let bumpWidth: CGFloat = 16

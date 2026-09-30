@@ -36,6 +36,8 @@ source_set("browser") {
     "extensions/fiber_extension_window.mm",
     "extensions/fiber_extensions_toolbar.h",
     "extensions/fiber_extensions_toolbar.mm",
+    "favicons/favicon_image.h",
+    "favicons/favicon_image.mm",
     "hooks/autofill_prompts.cc",
     "hooks/autofill_prompts.h",
     "hooks/browser_window_factory.h",
@@ -57,8 +59,12 @@ source_set("browser") {
     "hooks/permission_prompt.h",
     "hooks/profile_pref_defaults.cc",
     "hooks/profile_pref_defaults.h",
+    "hooks/resource_bundle_delegate.h",
+    "hooks/resource_bundle_delegate.mm",
     "hooks/web_ui_configs.cc",
     "hooks/web_ui_configs.h",
+    "hooks/web_ui_favicons.h",
+    "hooks/web_ui_favicons.mm",
     "hooks/webauthn_dialog.cc",
     "hooks/webauthn_dialog.h",
     "new_tab/new_tab_page_ui.cc",
@@ -92,6 +98,8 @@ source_set("browser") {
     "//base",
     "//chrome/app:command_ids",
     "//chrome/app:generated_resources",
+    "//chrome/app/theme:chrome_unscaled_resources",
+    "//chrome/app/theme:theme_resources",
     "//chrome/browser:browser_public_dependencies",
     "//chrome/browser:chrome_browser_application_mac",
     "//chrome/browser:global_keyboard_shortcuts_mac",
@@ -132,6 +140,7 @@ source_set("browser") {
     "//components/permissions",
     "//components/pref_registry",
     "//components/renderer_context_menu",
+    "//components/resources:components_scaled_resources",
     "//components/search_engines",
     "//components/sessions",
     "//components/strings",
@@ -156,7 +165,11 @@ source_set("browser") {
     "//ui/menus",
     "//ui/native_theme",
     "//ui/strings",
+    "//ui/webui/resources",
     "//url",
   ]
-  frameworks = [ "AppKit.framework" ]
+  frameworks = [
+    "AppKit.framework",
+    "ImageIO.framework",
+  ]
 }
