@@ -171,18 +171,19 @@ the main loop's first idle, later still.
 
 - **The startup window** (`hooks/startup_window.mm`). As soon as the process
   holds the process singleton (so it's the browser, not a launch handing its
-  URLs to a running one), `ShowStartupWindow()` shows a Fiber window as
-  Chrome's startup usually leaves it: where the last startup's window went, on
-  the New Tab page with the omnibar open. If the last startup opened
-  something else (it restored the session, say), or there are URLs on the
-  command line, the page is empty instead. The first normal, non-Incognito
-  browser takes the window over rather than making one (`FiberBrowserWindow`'s
-  constructor), and tells it what to show from then on; the omnibar only
-  takes the keyboard when the browser opens it for real. Chrome starts up on
-  the main thread, so keys typed meanwhile wait in the event queue and reach
-  the omnibar once it can handle them. Until Chrome shows the window it counts
-  as hidden, as Chrome's startup expects. If no browser has taken it by the
-  time the main loop runs (Incognito by policy, say), it closes.
+  URLs to a running one), `ShowStartupWindow()` shows a Fiber window where the
+  last startup's window went, with nothing on its page. The first normal,
+  non-Incognito browser takes the window over rather than making one
+  (`FiberBrowserWindow`'s constructor), and tells it what to show from then
+  on, but the page, and the omnibar the browser opens over a New Tab page,
+  don't show until AppKit has finished launching. Until then the New Tab page
+  may be about to go: a link from another app is an Apple event, which
+  arrives as AppKit finishes launching, and AppController then opens it in the
+  New Tab page's place. Chrome starts up on the main thread, so keys typed
+  meanwhile wait in the event queue, and reach the omnibar, which by then has
+  the keyboard. Until Chrome shows the window it counts as hidden, as Chrome's
+  startup expects. If no browser has taken it by the time AppKit has finished
+  launching (Incognito by policy, say), it closes.
 - **Only what shows is built.** The command palette is made the first time it
   opens, and the window is made at its final size so it's laid out once.
 - **What can wait, waits.** The browser process starts its crash reporter

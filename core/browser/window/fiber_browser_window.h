@@ -295,8 +295,6 @@ class FiberBrowserWindow : public BrowserWindow,
   // ShowStartupWindow()) is on screen before then, but Chrome's startup
   // expects it hidden until it shows it.
   bool shown_ = false;
-  // Whether this took over the startup window, and has yet to show it.
-  bool showing_startup_window_ = false;
   base::WeakPtrFactory<FiberBrowserWindow> weak_factory_{this};
 };
 

@@ -93,6 +93,9 @@ NS_SWIFT_UI_ACTOR
 // previous one. Nil leaves the content area empty.
 - (void)setContentsView:(nullable NSView*)view;
 - (void)setPageState:(FiberPageState*)state;
+// Shows a startup window's page, which until then doesn't show (see
+// startupWindowWithFrame:).
+- (void)showPage;
 // Replaces the tab list with `tabs`, in order. `activeTabID` is the tab whose
 // page is in the content area.
 - (void)setTabs:(NSArray<FiberTabState*>*)tabs
@@ -140,11 +143,10 @@ NS_SWIFT_UI_ACTOR
                          incognito:(BOOL)incognito;
 
 // A window for the browser that's starting up, to show before the browser
-// exists: the New Tab page with the omnibar open, as a browser usually starts,
-// when `newTabPage`, or else an empty page. The first browser takes it over,
-// and tells it what to show from then on. It isn't Incognito.
-+ (id<FiberWindow>)startupWindowWithFrame:(NSRect)frame
-                               newTabPage:(BOOL)newTabPage;
+// exists. The first browser takes it over and tells it what to show, but its
+// page, and the omnibar over it, don't show until showPage. It isn't
+// Incognito.
++ (id<FiberWindow>)startupWindowWithFrame:(NSRect)frame;
 
 - (instancetype)init NS_UNAVAILABLE;
 

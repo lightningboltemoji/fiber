@@ -208,7 +208,6 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
     ui_ = TakeStartupWindow();
   }
   if (ui_) {
-    showing_startup_window_ = true;
     ui_.actions = actions_;
     ui_.tabIndex = tab_index_source_->index();
     // Usually where it already is.
@@ -813,11 +812,6 @@ void FiberBrowserWindow::Show() {
   // startup is well after the browser is ready.
   [GetNSWindow() displayIfNeeded];
   [CATransaction flush];
-  if (std::exchange(showing_startup_window_, false)) {
-    content::WebContents* contents = GetActiveWebContents();
-    RecordStartupWindow(GetNSWindow().frame,
-                        contents && IsNewTabPage(contents));
-  }
 }
 
 void FiberBrowserWindow::ShowInactive() {

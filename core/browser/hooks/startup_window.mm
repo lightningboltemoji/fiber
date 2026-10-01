@@ -18,9 +18,8 @@ namespace fiber {
 
 namespace {
 
-// How the last startup went, in the app's user defaults.
+// Where the last startup's window went, in the app's user defaults.
 NSString* const kFrameKey = @"FiberStartupWindowFrame";
-NSString* const kNewTabPageKey = @"FiberStartupWindowNewTabPage";
 
 // Chrome's window sizer puts a new window without a saved placement this far
 // in from the primary screen's visible frame, at most this wide (see
@@ -28,10 +27,10 @@ NSString* const kNewTabPageKey = @"FiberStartupWindowNewTabPage";
 constexpr CGFloat kDefaultInset = 22;
 constexpr CGFloat kDefaultMaxWidth = 1200;
 
+// Until AppKit has finished launching, and whether a browser has taken it over
+// by then.
 id<FiberWindow> g_startup_window;
-// Pages to open on the command line, which the browser opens in place of the
-// New Tab page.
-bool g_has_urls = false;
+bool g_taken = false;
 
 // Whether Chrome is starting the way it usually does: with a browser window
 // of its own, which Fiber draws.
@@ -78,8 +77,18 @@ NSRect StartupFrame() {
       NSHeight(area) - 2 * kDefaultInset);
 }
 
-void CloseUnclaimedStartupWindow() {
-  if (id<FiberWindow> window = TakeStartupWindow()) {
+void FinishStartupWindow() {
+  id<FiberWindow> window = g_startup_window;
+  g_startup_window = nil;
+  if (!window) {
+    return;
+  }
+  if (g_taken) {
+    [window showPage];
+    [NSUserDefaults.standardUserDefaults
+        setObject:NSStringFromRect(window.window.frame)
+           forKey:kFrameKey];
+  } else {
     [window.window close];
   }
 }
@@ -87,21 +96,10 @@ void CloseUnclaimedStartupWindow() {
 }  // namespace
 
 void ShowStartupWindow() {
-  const base::CommandLine& command_line =
-      *base::CommandLine::ForCurrentProcess();
-  if (!ShouldShow(command_line)) {
+  if (!ShouldShow(*base::CommandLine::ForCurrentProcess())) {
     return;
   }
-  NSUserDefaults* defaults = NSUserDefaults.standardUserDefaults;
-  // A browser starts on the New Tab page, unless the last one didn't (it
-  // restored the last session, say), or there are pages to open.
-  g_has_urls = !command_line.GetArgs().empty();
-  bool new_tab_page = !g_has_urls &&
-                      ([defaults objectForKey:kNewTabPageKey] == nil ||
-                       [defaults boolForKey:kNewTabPageKey]);
-  g_startup_window =
-      [FiberWindowFactory startupWindowWithFrame:StartupFrame()
-                                      newTabPage:new_tab_page];
+  g_startup_window = [FiberWindowFactory startupWindowWithFrame:StartupFrame()];
   NSWindow* window = g_startup_window.window;
   [window makeKeyAndOrderFront:nil];
   // Drawn and on screen now: the main loop, which would otherwise do it,
@@ -109,25 +107,27 @@ void ShowStartupWindow() {
   [window displayIfNeeded];
   [CATransaction flush];
 
-  // This runs once the main loop does, after Chrome's usual startup has made
-  // its first browser.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&CloseUnclaimedStartupWindow));
+  // Links from other apps are Apple events, which arrive as AppKit finishes
+  // launching; AppController opens them in place of the New Tab page when it's
+  // told it has, after this observer.
+  __block id<NSObject> observer = [NSNotificationCenter.defaultCenter
+      addObserverForName:NSApplicationDidFinishLaunchingNotification
+                  object:nil
+                   queue:nil
+              usingBlock:^(NSNotification*) {
+                [NSNotificationCenter.defaultCenter removeObserver:observer];
+                observer = nil;
+                base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+                    FROM_HERE, base::BindOnce(&FinishStartupWindow));
+              }];
 }
 
 id<FiberWindow> TakeStartupWindow() {
-  id<FiberWindow> window = g_startup_window;
-  g_startup_window = nil;
-  return window;
-}
-
-void RecordStartupWindow(NSRect frame, bool new_tab_page) {
-  NSUserDefaults* defaults = NSUserDefaults.standardUserDefaults;
-  [defaults setObject:NSStringFromRect(frame) forKey:kFrameKey];
-  // Pages from the command line say nothing about how the next startup goes.
-  if (!g_has_urls) {
-    [defaults setBool:new_tab_page forKey:kNewTabPageKey];
+  if (g_taken) {
+    return nil;
   }
+  g_taken = true;
+  return g_startup_window;
 }
 
 }  // namespace fiber

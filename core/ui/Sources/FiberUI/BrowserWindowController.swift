@@ -11,14 +11,10 @@ import FiberBridge
       isIncognito: incognito)
   }
 
-  class func startupWindow(withFrame frame: NSRect, newTabPage: Bool)
-    -> any FiberWindow
-  {
+  class func startupWindow(withFrame frame: NSRect) -> any FiberWindow {
     let controller = BrowserWindowController(
       frame: frame, actions: nil, tabIndex: nil, isIncognito: false)
-    if newTabPage {
-      controller.showStartupNewTabPage()
-    }
+    controller.isPageHeld = true
     return controller
   }
 }
@@ -97,6 +93,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
   /// draws over the (empty) page.
   private var isNewTabPage = false
+  /// A startup window's page, and the omnibar over it, don't show until
+  /// showPage().
+  fileprivate var isPageHeld = false {
+    didSet {
+      pageArea.alphaValue = isPageHeld ? 0 : 1
+      omnibar.view.isHeld = isPageHeld
+    }
+  }
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
   /// Blurs the page and darkens the window while it waits on the user.
@@ -286,14 +290,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     toolbar.addressButton.action = #selector(addressClicked(_:))
   }
 
-  /// How a startup window looks until its browser says otherwise: the New Tab
-  /// page, with the omnibar open over it, as the browser opens it.
-  fileprivate func showStartupNewTabPage() {
-    isNewTabPage = true
-    newTabView.isHidden = false
-    omnibar.view.showPlaceholder()
-  }
-
   fileprivate func toggleToolbar() {
     isToolbarShown = !isToolbarVisible
     if !isToolbarShown {
@@ -450,11 +446,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     // They were for the tab being switched away from. (The browser opens the
-    // omnibar again on a New Tab page.) A startup window's is for the tab
-    // coming in.
-    if !omnibar.view.isPlaceholder {
-      omnibar.close()
-    }
+    // omnibar again on a New Tab page.)
+    omnibar.close()
     commandPalette?.close()
     historySwipe.reset()
     contentsView?.removeFromSuperview()
@@ -472,10 +465,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
     newTabView.isHidden = !isNewTabPage || state.sadTab != nil
-    // The startup window guessed the New Tab page, and it isn't.
-    if !isNewTabPage {
-      omnibar.view.hidePlaceholder()
-    }
     if let sadTab = state.sadTab {
       sadTabView.show(sadTab)
     }
@@ -486,6 +475,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     toolbar.reloadButton.isEnabled = true
     isLoading = state.isLoading
     toolbar.setLoading(isLoading)
+  }
+
+  func showPage() {
+    isPageHeld = false
   }
 
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
