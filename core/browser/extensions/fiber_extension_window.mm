@@ -595,7 +595,7 @@ bool FiberExtensionWindow::HandleKeyboardEvent(
 }
 
 std::unique_ptr<FindBar> FiberExtensionWindow::CreateFindBar() {
-  // Unreachable: IDC_FIND goes to the browser window's.
+  // Unreachable: find is off for extension windows (hooks/commands.cc).
   NOTREACHED();
 }
 

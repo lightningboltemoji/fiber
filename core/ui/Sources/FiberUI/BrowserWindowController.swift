@@ -54,6 +54,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
   var omnibox: any FiberOmnibox { omnibar }
   var extensions: any FiberExtensions { extensionsController }
+  var findBar: any FiberFindBar { madeFindBar ?? makeFindBar() }
 
   private let browserWindow: BrowserWindow
   var actions: (any FiberWindowActions)? {
@@ -68,6 +69,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var omnibar: Omnibar { madeOmnibar ?? makeOmnibar() }
   /// Made the first time it opens (see makeCommandPalette()).
   private var commandPalette: CommandPalette?
+  /// Made the first time the browser finds in the window (see makeFindBar()).
+  private var madeFindBar: FindBar?
   /// The window's tabs, for a command palette made later.
   private var windowTabs: [FiberTabState] = []
   private var activeTabID = 0
@@ -87,7 +90,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Whose browser the user is in: the window's, or an extension window's,
   /// while its page has focus.
   private var activeBrowser = ActiveBrowser.none
-  /// Holds `pageView`; the veil blurs it, and swiping between pages moves it.
+  /// The page, and the active tab's DevTools filling the content area under
+  /// it; the veil blurs them.
+  private let contentArea = NSView()
+  /// Holds DevTools' view, rounded like the window.
+  private let devToolsArea = NSView()
+  private var devTools: FiberDevTools?
+  /// Holds `pageView`, where DevTools puts the page; swiping between pages
+  /// moves it.
   private let pageArea = NSView()
   /// The page and what the window draws over it (the New Tab page, a sad tab),
   /// with its corners rounded like the window's.
@@ -107,10 +117,16 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
   /// Under the page while it's held.
   private var heldPagePlaceholder: NewTabView?
+  /// Over the page, wherever DevTools puts it, even an emulated device's
+  /// screen.
+  private let pageOverlay = PassthroughView()
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
+  /// The window's floating controls, over all of the content area that isn't
+  /// DevTools, laid out as if it were the window.
+  private let controlsView = PassthroughView()
   /// Blurs the page and darkens the window while it waits on the user.
-  private lazy var veil = Veil(blurring: pageArea)
+  private lazy var veil = Veil(blurring: contentArea)
   private lazy var historySwipe = HistorySwipe(pageArea: pageArea, page: pageView)
   /// What the window is waiting on the user for, over the veil.
   private var prompt: (any VeilContent)?
@@ -119,8 +135,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
     rimWidth: BrowserWindowController.windowControlsRimWidth)
   /// Toggled with Command-S; the tab sidebar shows with the toolbar.
   private var isToolbarShown = false
-  /// The toolbar, tab sidebar and tab picker hide while a page is fullscreen.
-  private var areControlsVisible = true
+  /// Set while a page is fullscreen (a video, say), which shows alone.
+  private var isPageFullScreen = false
+  /// The toolbar, tab sidebar and tab picker hide while a page is fullscreen,
+  /// and while DevTools emulates a device, whose controls take their place.
+  private var areControlsVisible: Bool {
+    !isPageFullScreen && devTools?.emulatesDevice != true
+  }
   fileprivate var isToolbarVisible: Bool {
     isToolbarShown && areControlsVisible
   }
@@ -173,15 +194,31 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.tabbingMode = .disallowed
 
     let content = window.contentView!
-    pageArea.frame = content.bounds
+    contentArea.frame = content.bounds
+    contentArea.autoresizingMask = [.width, .height]
+    contentArea.wantsLayer = true
+    content.addSubview(contentArea)
+
+    devToolsArea.frame = contentArea.bounds
+    devToolsArea.autoresizingMask = [.width, .height]
+    devToolsArea.wantsLayer = true
+    devToolsArea.layer?.masksToBounds = true
+    devToolsArea.layer?.cornerRadius = Self.pageCornerRadius
+    devToolsArea.layer?.cornerCurve = .continuous
+    devToolsArea.isHidden = true
+    contentArea.addSubview(devToolsArea)
+
+    pageArea.frame = contentArea.bounds
     pageArea.autoresizingMask = [.width, .height]
     pageArea.wantsLayer = true
-    content.addSubview(pageArea)
+    // A swipe moves the page within it, clear of DevTools.
+    pageArea.layer?.masksToBounds = true
+    contentArea.addSubview(pageArea)
     historySwipe.place = { [weak self] view, above in
       guard let self else {
         return
       }
-      self.window.contentView?.addSubview(
+      self.contentArea.addSubview(
         view, positioned: above ? .above : .below, relativeTo: self.pageArea)
     }
 
@@ -208,16 +245,26 @@ final class BrowserWindowController: NSObject, FiberWindow {
     sadTabView.onHelp = { [weak self] in self?.actions?.openSadTabHelp() }
     pageView.addSubview(sadTabView)
 
+    pageOverlay.frame = content.bounds
+    pageOverlay.autoresizingMask = [.width, .height]
+    content.addSubview(pageOverlay)
     progressBar.frame = NSRect(
       x: 0, y: content.bounds.height - Self.progressBarHeight,
       width: content.bounds.width, height: Self.progressBarHeight)
     progressBar.autoresizingMask = [.width, .minYMargin]
-    content.addSubview(progressBar)
+    pageOverlay.addSubview(progressBar)
 
     statusBubble.setFrameOrigin(
       NSPoint(x: Self.statusBubbleInset, y: Self.statusBubbleInset))
     statusBubble.autoresizingMask = [.maxXMargin, .maxYMargin]
-    content.addSubview(statusBubble)
+    pageOverlay.addSubview(statusBubble)
+
+    controlsView.frame = content.bounds
+    controlsView.autoresizingMask = [.width, .height]
+    controlsView.wantsLayer = true
+    // The tab picker's bump straddles the edge, and stays off DevTools.
+    controlsView.layer?.masksToBounds = true
+    content.addSubview(controlsView)
 
     configureWindowControls()
 
@@ -230,7 +277,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       width: content.bounds.width - toolbarX - Self.edgeInset,
       height: Toolbar.height)
     toolbar.autoresizingMask = [.width, .minYMargin]
-    content.addSubview(toolbar)
+    controlsView.addSubview(toolbar)
 
     // Below the traffic lights' capsule, level with its left end.
     tabSidebar.frame = NSRect(
@@ -243,14 +290,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabSidebar.onClose = { [weak self] tabID in
       self?.actions?.closeTab(withID: tabID)
     }
-    content.addSubview(tabSidebar)
+    controlsView.addSubview(tabSidebar)
     updateToolbar(animated: false)
 
     extensionBubbles.frame = content.bounds
     extensionBubbles.autoresizingMask = [.width, .height]
     extensionBubbles.onFocusPage = { [weak self] in self?.actions?.focusPage() }
     extensionBubbles.onRemove = { [weak self] in self?.updateActiveBrowser() }
-    content.addSubview(extensionBubbles)
+    controlsView.addSubview(extensionBubbles)
 
     tabPicker.frame = NSRect(
       x: content.bounds.width - TabPicker.width, y: 0, width: TabPicker.width,
@@ -262,7 +309,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabPicker.onClose = { [weak self] tabID in
       self?.actions?.closeTab(withID: tabID)
     }
-    content.addSubview(tabPicker)
+    controlsView.addSubview(tabPicker)
 
     // Over everything; what the window waits on goes over it.
     veil.dimView.frame = content.bounds
@@ -296,20 +343,66 @@ final class BrowserWindowController: NSObject, FiberWindow {
     return omnibar
   }
 
+  /// Over the page, the toolbar and the tab sidebar, under extension windows'
+  /// bubbles, which move out of its way.
+  private func makeFindBar() -> FindBar {
+    let findBar = FindBar()
+    extensionBubbles.superview?.addSubview(
+      findBar, positioned: .below, relativeTo: extensionBubbles)
+    findBar.autoresizingMask = [.minXMargin, .minYMargin]
+    findBar.onOpen = { [weak self] in
+      self?.tabPicker.close()
+      self?.madeOmnibar?.close()
+      self?.commandPalette?.close()
+    }
+    findBar.onShowOrHide = { [weak self] in
+      self?.placeFindBar(animated: true)
+    }
+    madeFindBar = findBar
+    placeFindBar(animated: false)
+    return findBar
+  }
+
+  /// In the top-right corner, in line with the toolbar's right end: below the
+  /// toolbar while it shows, level with the tab sidebar's top.
+  private func placeFindBar(animated: Bool) {
+    guard let findBar = madeFindBar, let container = findBar.superview else {
+      return
+    }
+    let bounds = container.bounds
+    let top =
+      isToolbarVisible
+      ? toolbar.frame.minY - 2 * Toolbar.spacing
+      : bounds.maxY - Self.edgeInset
+    let width = min(FindBar.width, bounds.width - 2 * Self.edgeInset)
+    let frame = NSRect(
+      x: bounds.maxX - Self.edgeInset - width, y: top - FindBar.height,
+      width: width, height: FindBar.height)
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = animated ? 0.3 : 0
+      context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+      findBar.animator().frame = frame
+    }
+    extensionBubbles.setKeepClear(
+      findBar.isOpen
+        ? extensionBubbles.convert(frame, from: container) : .null,
+      animated: animated)
+  }
+
   private func updateHeldPagePlaceholder() {
     guard isPageHeld else {
       heldPagePlaceholder?.removeFromSuperview()
       heldPagePlaceholder = nil
       return
     }
-    guard heldPagePlaceholder == nil, let content = window.contentView else {
+    guard heldPagePlaceholder == nil else {
       return
     }
     // Only startup windows hold their page, and they're never Incognito.
     let placeholder = NewTabView(isIncognito: false)
     placeholder.frame = pageArea.frame
     placeholder.autoresizingMask = [.width, .height]
-    content.addSubview(placeholder, positioned: .below, relativeTo: pageArea)
+    contentArea.addSubview(placeholder, positioned: .below, relativeTo: pageArea)
     heldPagePlaceholder = placeholder
   }
 
@@ -366,6 +459,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       }
     }
     updateWindowControls(animated: animated)
+    placeFindBar(animated: animated)
   }
 
   /// How much larger the toolbar is while lifted off the page: it settles
@@ -373,19 +467,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private static let toolbarLiftScale: CGFloat = 1.03
 
   /// Scales `views` to the lifted size or back to their own, from wherever
-  /// they are now, about the window's center so they move as one sheet.
+  /// they are now, about the controls' center so they move as one sheet.
   private func animateLift(of views: [NSView], lifted: Bool) {
-    guard let content = window.contentView else {
-      return
-    }
-    let center = NSPoint(x: content.bounds.midX, y: content.bounds.midY)
+    let center = NSPoint(
+      x: controlsView.bounds.midX, y: controlsView.bounds.midY)
     let scale = Self.toolbarLiftScale
     for view in views {
       guard let layer = view.layer, let superview = view.superview else {
         continue
       }
       // A layer scales about its position; this moves that to the center.
-      let pivot = superview.convert(center, from: content)
+      let pivot = superview.convert(center, from: controlsView)
       let liftedTransform = CATransform3DConcat(
         CATransform3DMakeScale(scale, scale, 1),
         CATransform3DMakeTranslation(
@@ -414,11 +506,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Puts a glass capsule behind the traffic lights, which stay in the title
   /// bar above it. Dragging the capsule moves the window.
   private func configureWindowControls() {
-    guard let content = window.contentView else {
-      return
-    }
-    // Where AppKit put the traffic lights. The content view fills the window,
-    // so window coordinates are the content view's.
+    // Where AppKit put the traffic lights. The controls fill the window until
+    // DevTools docks, so window coordinates are theirs.
     window.layoutIfNeeded()
     let buttonsFrame = windowControlButtons.reduce(NSRect.null) {
       $0.union($1.convert($1.bounds, to: nil))
@@ -433,7 +522,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowControlsBackground.cornerRadius = frame.height / 2
     windowControlsBackground.contentView = WindowDragArea()
     windowControlsBackground.autoresizingMask = [.maxXMargin, .minYMargin]
-    content.addSubview(windowControlsBackground)
+    controlsView.addSubview(windowControlsBackground)
   }
 
   /// The traffic lights and their capsule show with the toolbar. While the
@@ -493,6 +582,31 @@ final class BrowserWindowController: NSObject, FiberWindow {
     pageView.addSubview(view, positioned: .below, relativeTo: newTabView)
   }
 
+  func setDevTools(_ devTools: FiberDevTools?) {
+    let previous = self.devTools
+    self.devTools = devTools
+    if devTools?.view !== previous?.view {
+      let hadFocus =
+        previous.map { isFirstResponder(in: $0.view) } ?? false
+      previous?.view.removeFromSuperview()
+      if let view = devTools?.view {
+        view.frame = devToolsArea.bounds
+        view.autoresizingMask = [.width, .height]
+        devToolsArea.addSubview(view)
+      }
+      // AppKit leaves the window itself focused.
+      if hadFocus {
+        actions?.focusPage()
+      }
+    }
+    devToolsArea.isHidden = devTools == nil
+    layoutPage()
+    updateMinSize()
+    if devTools?.emulatesDevice != previous?.emulatesDevice {
+      updateControls()
+    }
+  }
+
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
@@ -534,32 +648,102 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   func setControlsVisible(_ visible: Bool) {
-    areControlsVisible = visible
-    if !visible {
-      tabPicker.close()
+    isPageFullScreen = !visible
+    if isPageFullScreen {
       closeOmnibar()
       closeCommandPalette()
+    }
+    updateControls()
+  }
+
+  private func updateControls() {
+    let isVisible = areControlsVisible
+    if !isVisible {
+      tabPicker.close()
       extensionsController.closeMenu()
     }
-    tabPicker.isHidden = !visible
-    extensionBubbles.isHidden = !visible
+    tabPicker.isHidden = !isVisible
+    extensionBubbles.isHidden = !isVisible
     updatePageCorners()
     updateToolbar(animated: false)
   }
 
-  /// Rounds the page like the window. A fullscreen page, and a fullscreen
-  /// window's, stay square.
+  /// Rounds the page and DevTools like the window. A fullscreen page, an
+  /// emulated device's screen and a fullscreen window's stay square.
   private func updatePageCorners(windowFullScreen: Bool? = nil) {
-    let isSquare =
-      !areControlsVisible
-      || (windowFullScreen ?? window.styleMask.contains(.fullScreen))
+    let isWindowFullScreen =
+      windowFullScreen ?? window.styleMask.contains(.fullScreen)
+    let corners: CACornerMask = [
+      .layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner,
+      .layerMaxXMaxYCorner,
+    ]
     pageView.layer?.maskedCorners =
-      isSquare
-      ? []
-      : [
-        .layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner,
-        .layerMaxXMaxYCorner,
-      ]
+      !areControlsVisible || isWindowFullScreen ? [] : corners
+    devToolsArea.layer?.maskedCorners = isWindowFullScreen ? [] : corners
+  }
+
+  // MARK: DevTools
+
+  /// DevTools' own smallest size beside the page (InspectorView.ts), and its
+  /// splitter.
+  private static let minDevToolsSize = NSSize(width: 251, height: 73)
+
+  /// Puts the page where DevTools says, and the controls over it, unless it's
+  /// an emulated device's screen.
+  private func layoutPage() {
+    let bounds = contentArea.bounds
+    var frame = bounds
+    if let pageFrame = devTools?.pageFrame, !pageFrame.isEmpty {
+      frame = NSRect(
+        x: pageFrame.minX, y: bounds.maxY - pageFrame.maxY,
+        width: pageFrame.width, height: pageFrame.height)
+    }
+    let emulatesDevice = devTools?.emulatesDevice == true
+    // As the window resizes, until DevTools says otherwise, it keeps its size,
+    // and an emulated screen keeps its own.
+    let resizing: NSView.AutoresizingMask =
+      emulatesDevice ? [.maxXMargin, .minYMargin] : [.width, .height]
+    for view in [pageArea, pageOverlay] {
+      view.frame = frame
+      view.autoresizingMask = resizing
+    }
+    if !emulatesDevice {
+      controlsView.frame = frame
+    }
+  }
+
+  /// Makes room for docked DevTools beside a page as big as the smallest
+  /// window, which DevTools keeps it (DeviceModeView.ts), growing the window
+  /// if it's smaller.
+  private func updateMinSize() {
+    var size = Self.minWindowSize
+    switch devTools?.dock {
+    case .bottom?:
+      size.height += Self.minDevToolsSize.height
+    case .right?:
+      size.width += Self.minDevToolsSize.width
+    default:
+      break
+    }
+    guard size != window.minSize else {
+      return
+    }
+    window.minSize = size
+    var frame = window.frame
+    guard !window.styleMask.contains(.fullScreen),
+      frame.width < size.width || frame.height < size.height
+    else {
+      return
+    }
+    // Keeping its top-left corner where it is.
+    let height = max(frame.height, size.height)
+    frame.origin.y = frame.maxY - height
+    frame.size = NSSize(width: max(frame.width, size.width), height: height)
+    window.setFrame(frame, display: true)
+  }
+
+  private func isFirstResponder(in view: NSView) -> Bool {
+    (window.firstResponder as? NSView)?.isDescendant(of: view) ?? false
   }
 
   // MARK: Veil
@@ -679,7 +863,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   /// Not while a prompt waits on the user, or a page is fullscreen.
   fileprivate var canShowCommandPalette: Bool {
-    prompt == nil && areControlsVisible
+    prompt == nil && !isPageFullScreen
   }
 
   /// Not while a prompt waits on the user, which the switcher would replace.
@@ -736,9 +920,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// About item in the app menu, say), and the omnibar and command palette
   /// give way, as Chrome's omnibox does.
   fileprivate func firstResponderDidChange() {
-    guard let contentsView, let responder = window.firstResponder as? NSView,
-      responder.isDescendant(of: contentsView)
-    else {
+    madeFindBar?.firstResponderDidChange()
+    let pages = [contentsView, devTools?.view].compactMap { $0 }
+    guard pages.contains(where: isFirstResponder(in:)) else {
       return
     }
     madeOmnibar?.close()
@@ -942,5 +1126,13 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
       return menuActionTarget
     }
     return super.supplementalTarget(forAction: action, sender: sender)
+  }
+}
+
+/// Holds views over the page without taking the clicks they don't.
+private final class PassthroughView: NSView {
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    let view = super.hitTest(point)
+    return view === self ? nil : view
   }
 }

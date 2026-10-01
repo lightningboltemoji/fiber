@@ -11,6 +11,8 @@
 #include "base/notimplemented.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
+#include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -21,7 +23,6 @@
 #include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
-#include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/sad_tab_helper.h"
 #include "chrome/browser/ui/status_bubble.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -45,6 +46,7 @@
 #include "fiber/browser/downloads/downloads_wait.h"
 #include "fiber/browser/extensions/fiber_extension_window.h"
 #include "fiber/browser/extensions/fiber_extensions_toolbar.h"
+#include "fiber/browser/find_bar/fiber_find_bar.h"
 #include "fiber/browser/hooks/startup_window.h"
 #include "fiber/browser/palette/tab_index_source.h"
 #include "fiber/browser/profiles/profile_switcher.h"
@@ -145,6 +147,12 @@ class FiberStatusBubble : public StatusBubble {
 // static
 FiberBrowserWindow* FiberBrowserWindow::FromWebContents(
     content::WebContents* web_contents) {
+  // Docked DevTools are in their page's window.
+  if (DevToolsWindow* devtools = DevToolsWindow::AsDevToolsWindow(web_contents);
+      devtools && devtools->IsDocked()) {
+    content::WebContents* inspected = devtools->GetInspectedWebContents();
+    return inspected ? FromWebContents(inspected) : nullptr;
+  }
   tabs::TabInterface* tab =
       tabs::TabInterface::MaybeGetFromContents(web_contents);
   BrowserWindowInterface* browser =
@@ -327,9 +335,18 @@ void FiberBrowserWindow::SelectTab(int32_t tab_id) {
 void FiberBrowserWindow::RevealText(int32_t tab_id,
                                     const std::u16string& text) {
   SelectTab(tab_id);
-  if (tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get()) {
-    tab_index_source_->RevealText(tab->GetContents(), text);
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  if (!tab) {
+    return;
   }
+  // The reveal finds with the tab's FindTabHelper, and stops, which would end
+  // an open find bar's session from under it.
+  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
+  if (browser && browser->GetTabStripModel()->GetActiveTab() == tab &&
+      chrome::CanCloseFind(browser)) {
+    chrome::CloseFind(browser);
+  }
+  tab_index_source_->RevealText(tab->GetContents(), text);
 }
 
 void FiberBrowserWindow::CloseTab(int32_t tab_id) {
@@ -484,6 +501,7 @@ void FiberBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
   // Swapping the view in and out of the window also updates each tab's
   // visibility, via WebContentsViewCocoa.
   [ui_ setContentsView:new_contents->GetNativeView().GetNativeNSView()];
+  UpdateDevTools();
   new_contents->SetColorProviderSource(this);
   Observe(new_contents);
   UpdateToolbar(new_contents);
@@ -507,6 +525,7 @@ void FiberBrowserWindow::OnTabDetached(content::WebContents* contents,
                                        bool was_active) {
   if (was_active) {
     [ui_ setContentsView:nil];
+    [ui_ setDevTools:nil];
     Observe(nullptr);
   }
 }
@@ -573,6 +592,38 @@ void FiberBrowserWindow::UpdatePageState() {
                                 newTabPage:IsNewTabPage(active)
                                     sadTab:sad_tab ? SadTabState(*sad_tab)
                                                    : nil]];
+}
+
+void FiberBrowserWindow::UpdateDevTools() {
+  content::WebContents* active = GetActiveWebContents();
+  DevToolsContentsResizingStrategy strategy;
+  content::WebContents* devtools =
+      active ? DevToolsWindow::GetInTabWebContents(active, &strategy) : nullptr;
+  if (!devtools) {
+    [ui_ setDevTools:nil];
+    return;
+  }
+  FiberDevToolsDock dock = FiberDevToolsDockUndocked;
+  switch (strategy.dock_side()) {
+    case devtools::DockSide::kBottom:
+      dock = FiberDevToolsDockBottom;
+      break;
+    case devtools::DockSide::kRight:
+      dock = FiberDevToolsDockRight;
+      break;
+    // Fiber's DevTools don't offer docking left (DockController.ts).
+    case devtools::DockSide::kLeft:
+    case devtools::DockSide::kNone:
+      break;
+  }
+  // Nothing docks left of the page, so it starts at DevTools' top-left corner
+  // unless device emulation's controls are above it.
+  const gfx::Rect& page = strategy.bounds();
+  [ui_ setDevTools:[[FiberDevTools alloc]
+                         initWithView:devtools->GetNativeView().GetNativeNSView()
+                                 dock:dock
+                            pageFrame:page.ToCGRect()
+                       emulatesDevice:!page.origin().IsOrigin()]];
 }
 
 void FiberBrowserWindow::PerformSadTabAction(SadTab::Action action) {
@@ -701,8 +752,7 @@ bool FiberBrowserWindow::HandleKeyboardEvent(
 }
 
 std::unique_ptr<FindBar> FiberBrowserWindow::CreateFindBar() {
-  // Unreachable while IDC_FIND is unsupported.
-  NOTREACHED();
+  return std::make_unique<FiberFindBar>(this, ui_.findBar);
 }
 
 web_modal::WebContentsModalDialogHost*

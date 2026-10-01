@@ -1,0 +1,16 @@
+diff --git a/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts b/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
+index 867dc98b..759e06e1 100644
+--- a/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
++++ b/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
+@@ -272,7 +272,10 @@ export class DeviceModeView extends UI.Widget.VBox {
+     super(element, {useShadowDom: true});
+     this.#view = view;
+ 
+-    this.setMinimumSize(150, 150);
++    // Fiber: the page is never smaller than Fiber's smallest window, since the
++    // window's controls lay out over it as if it were the window
++    // (BrowserWindowController.minWindowSize in //fiber/ui).
++    this.setMinimumSize(480, 320);
+     this.registerRequiredCSS(deviceModeViewStyles);
+ 
+     this.model = EmulationModel.DeviceModeModel.DeviceModeModel.instance();

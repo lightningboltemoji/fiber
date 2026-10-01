@@ -18,6 +18,8 @@ final class ExtensionBubbles: NSView {
   var onRemove: () -> Void = {}
 
   private var bubbles: [ExtensionWindowBubble] = []
+  /// The open find bar's frame, which the bubbles move down out of the way of.
+  private var keepClear = NSRect.null
 
   override var isFlipped: Bool { true }
 
@@ -27,16 +29,50 @@ final class ExtensionBubbles: NSView {
   }
 
   override func resizeSubviews(withOldSize oldSize: NSSize) {
-    for bubble in bubbles {
-      bubble.layout()
-    }
+    layoutBubbles()
   }
 
   func add(actions: any FiberExtensionWindowActions) -> ExtensionWindowBubble {
     let bubble = ExtensionWindowBubble(
       actions: actions, container: self, center: freeSpot())
     bubbles.append(bubble)
+    // Again now that it's listed, so it keeps clear of the find bar.
+    bubble.layout()
     return bubble
+  }
+
+  /// Moves the bubbles out of the way of `rect` (in this view), or with
+  /// .null, back where they were.
+  func setKeepClear(_ rect: NSRect, animated: Bool) {
+    guard rect != keepClear else {
+      return
+    }
+    keepClear = rect
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = animated ? 0.3 : 0
+      context.allowsImplicitAnimation = animated
+      layoutBubbles()
+    }
+  }
+
+  fileprivate func layoutBubbles() {
+    for bubble in bubbles {
+      bubble.layout()
+    }
+  }
+
+  /// Where `bubble`'s circle goes: where it wants to be, unless that's in the
+  /// way of the find bar or a bubble moved for it.
+  fileprivate func circleCenter(for bubble: ExtensionWindowBubble) -> NSPoint {
+    guard !keepClear.isNull,
+      let index = bubbles.firstIndex(where: { $0 === bubble })
+    else {
+      return bubble.wantedCircleCenter
+    }
+    return ExtensionBubbleLayout.centers(
+      bubbles.map(\.wantedCircleCenter),
+      radius: ExtensionBubbleView.diameter / 2, clearOf: keepClear,
+      spacing: Self.spacing)[index]
   }
 
   /// The bubble whose panel has `responder`, if any.
@@ -55,6 +91,7 @@ final class ExtensionBubbles: NSView {
 
   fileprivate func remove(_ bubble: ExtensionWindowBubble) {
     bubbles.removeAll { $0 === bubble }
+    layoutBubbles()
     onRemove()
   }
 
@@ -105,6 +142,34 @@ enum ExtensionBubbleLayout {
     -> CGFloat
   {
     max(low, min(value, high))
+  }
+
+  /// The circles at `centers`, those in the way of `obstacle` moved down below
+  /// it, and those then in the way of a moved one below that, `spacing` apart.
+  static func centers(
+    _ centers: [NSPoint], radius: CGFloat, clearOf obstacle: NSRect,
+    spacing: CGFloat
+  ) -> [NSPoint] {
+    func circle(_ center: NSPoint) -> NSRect {
+      NSRect(
+        x: center.x - radius, y: center.y - radius, width: 2 * radius,
+        height: 2 * radius)
+    }
+    var obstacles = [obstacle]
+    var result = centers
+    for index in centers.indices.sorted(by: { centers[$0].y < centers[$1].y }) {
+      var center = centers[index]
+      while let hit = obstacles.first(where: {
+        $0.intersects(circle(center).insetBy(dx: -spacing, dy: -spacing))
+      }) {
+        center.y = hit.maxY + spacing + radius
+      }
+      if center != centers[index] {
+        obstacles.append(circle(center))
+        result[index] = center
+      }
+    }
+    return result
   }
 }
 
@@ -238,8 +303,24 @@ final class ExtensionWindowBubble: NSObject, FiberExtensionWindow {
 
   // MARK: Layout
 
-  /// Puts the bubble where its anchor says, within the page, and its panel
-  /// beside it.
+  /// Where the anchor puts the bubble's circle, within the page.
+  fileprivate var wantedCircleCenter: NSPoint {
+    guard let container else {
+      return .zero
+    }
+    let bounds = container.bounds.insetBy(
+      dx: ExtensionBubbles.margin, dy: ExtensionBubbles.margin)
+    let radius = ExtensionBubbleView.diameter / 2
+    let wanted = anchor.center(in: container.bounds)
+    return NSPoint(
+      x: ExtensionBubbleLayout.clamp(
+        wanted.x, bounds.minX + radius, bounds.maxX - radius),
+      y: ExtensionBubbleLayout.clamp(
+        wanted.y, bounds.minY + radius, bounds.maxY - radius))
+  }
+
+  /// Puts the bubble where its anchor says, within the page and out of the
+  /// find bar's way, and its panel beside it.
   func layout() {
     guard let container else {
       return
@@ -247,12 +328,11 @@ final class ExtensionWindowBubble: NSObject, FiberExtensionWindow {
     let bounds = container.bounds.insetBy(
       dx: ExtensionBubbles.margin, dy: ExtensionBubbles.margin)
     let radius = ExtensionBubbleView.diameter / 2
-    let wanted = anchor.center(in: container.bounds)
+    let clear = container.circleCenter(for: self)
     let center = NSPoint(
-      x: ExtensionBubbleLayout.clamp(
-        wanted.x, bounds.minX + radius, bounds.maxX - radius),
+      x: clear.x,
       y: ExtensionBubbleLayout.clamp(
-        wanted.y, bounds.minY + radius, bounds.maxY - radius))
+        clear.y, bounds.minY + radius, bounds.maxY - radius))
     // The capsule grows toward the middle, alongside the panel.
     let growsDown = center.y < bounds.midY
     bubbleView.place(circleCenter: center, growsDown: growsDown)
@@ -268,7 +348,8 @@ final class ExtensionWindowBubble: NSObject, FiberExtensionWindow {
       return
     }
     anchor = BubbleAnchor(center: center, in: container.bounds)
-    layout()
+    // Bubbles below it may have moved out of its way.
+    container.layoutBubbles()
   }
 
   // MARK: Showing

@@ -20,7 +20,7 @@ final class Veil {
   /// drawn again leaves the filter on.
   private var generation = 0
 
-  /// Blurs `view` (the page area) when drawn.
+  /// Blurs `view` (the page and DevTools) when drawn.
   init(blurring view: NSView) {
     blurredView = view
     dimView.isHidden = true

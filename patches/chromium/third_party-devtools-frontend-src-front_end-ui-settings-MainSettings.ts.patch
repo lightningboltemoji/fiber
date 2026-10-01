@@ -1,0 +1,14 @@
+diff --git a/third_party/devtools-frontend/src/front_end/ui/settings/MainSettings.ts b/third_party/devtools-frontend/src/front_end/ui/settings/MainSettings.ts
+index a0d3f9b4..54a5c6e8 100644
+--- a/third_party/devtools-frontend/src/front_end/ui/settings/MainSettings.ts
++++ b/third_party/devtools-frontend/src/front_end/ui/settings/MainSettings.ts
+@@ -42,7 +42,8 @@ export const shortcutPanelSwitchSettingDescriptor: Common.Settings.SettingDescri
+ export const currentDockStateSettingDescriptor: Common.Settings.SettingDescriptor<string> = {
+   name: 'currentDockState',
+   type: Common.Settings.SettingType.ENUM,
+-  defaultValue: 'right',
++  // Fiber: bottom, as DevToolsSettings::GetDockSide() assumes too.
++  defaultValue: 'bottom',
+ };
+ 
+ export const activeKeybindSetSettingDescriptor: Common.Settings.SettingDescriptor<string> = {

@@ -38,6 +38,18 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var controlsVisible = true
   private var omnibox: MockOmnibox!
   private var extensions: MockExtensions!
+  /// Made the first time the window finds, as in Chrome.
+  private var madeFindBar: MockFindBar?
+  private var findBar: MockFindBar {
+    if let madeFindBar {
+      return madeFindBar
+    }
+    let findBar = MockFindBar(
+      ui: ui.findBar, tab: activeTab,
+      focusPage: { [weak self] in self?.focusPage() })
+    madeFindBar = findBar
+    return findBar
+  }
 
   init(urls: [String], isIncognito: Bool, app: HarnessAppDelegate) {
     self.isIncognito = isIncognito
@@ -189,6 +201,25 @@ final class MockBrowser: NSObject, FiberWindowActions {
     ui.omnibox.focus()
   }
 
+  @objc func findInPage(_ sender: Any?) {
+    findBar.open()
+  }
+
+  @objc func findNextInPage(_ sender: Any?) {
+    findBar.open(findNext: true)
+  }
+
+  @objc func findPreviousInPage(_ sender: Any?) {
+    findBar.open(findNext: true, forward: false)
+  }
+
+  /// Opens the find bar with `query` typed in it.
+  func openFindBar(typing query: String) {
+    findBar.open()
+    (ui.window.firstResponder as? NSTextView)?.insertText(
+      query, replacementRange: NSRange(location: NSNotFound, length: 0))
+  }
+
   // MARK: Omnibox
 
   /// Opens what the user picked in the omnibar: a URL, or a search.
@@ -303,6 +334,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     activeTab = tab
     tab.lastActive = Date()
     ui.setContentsView(tab.page)
+    madeFindBar?.tabDidActivate(tab)
     pushPageState()
     pushTabs()
     ui.setLoading(tab.isLoading, progress: tab.progress)
@@ -472,6 +504,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     if tab === activeTab {
       dialog?.close()
     }
+    madeFindBar?.pageWillChange(in: tab)
     tab.loadTimer?.invalidate()
     tab.loadStart = Date()
     tab.page.show(url: tab.url, loaded: false)

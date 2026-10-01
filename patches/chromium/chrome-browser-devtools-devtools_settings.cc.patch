@@ -1,0 +1,14 @@
+diff --git a/chrome/browser/devtools/devtools_settings.cc b/chrome/browser/devtools/devtools_settings.cc
+index a44c59a4b2..aff244213a 100644
+--- a/chrome/browser/devtools/devtools_settings.cc
++++ b/chrome/browser/devtools/devtools_settings.cc
+@@ -162,7 +162,8 @@ DockSide DevToolsSettings::GetDockSide(Profile* profile) {
+       }
+     }
+   }
+-  return DockSide::kRight;
++  // Fiber: bottom, the DevTools frontend's default in Fiber (MainSettings.ts).
++  return DockSide::kBottom;
+ }
+ 
+ DockSide DevToolsSettings::GetDockSide() const {

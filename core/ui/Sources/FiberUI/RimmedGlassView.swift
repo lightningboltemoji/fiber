@@ -17,6 +17,12 @@ final class RimmedGlassView: NSView {
     set { inner.contentView = newValue }
   }
 
+  /// Tints the inner glass, behind the content.
+  var contentTintColor: NSColor? {
+    get { inner.tintColor }
+    set { inner.tintColor = newValue }
+  }
+
   private let rimWidth: CGFloat
   private let outer = NSGlassEffectView()
   private let rimHolder = NSView()

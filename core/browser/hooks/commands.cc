@@ -10,10 +10,12 @@ bool IsCommandSupported(BrowserWindowInterface* browser, int command) {
     return true;
   }
   switch (command) {
-    // Find, and the app menu and panes to focus.
+    // Extension windows' bubbles have no find bar.
     case IDC_FIND:
     case IDC_FIND_NEXT:
     case IDC_FIND_PREVIOUS:
+      return !IsExtensionWindowBubble(browser);
+    // The app menu, and panes to focus.
     case IDC_FIND_AND_EDIT_MENU:
     case IDC_SHOW_APP_MENU:
     case IDC_FOCUS_TOOLBAR:

@@ -87,6 +87,9 @@ class FiberBrowserWindow : public BrowserWindow,
   // Sends the UI what it shows of the active tab's page (the toolbar, the
   // window title, a sad tab).
   void UpdatePageState();
+  // Sends the UI the active tab's docked DevTools, if any, and where they put
+  // the page.
+  void UpdateDevTools();
   // The button or help link of the active tab's sad tab was pressed.
   void PerformSadTabAction(SadTab::Action action);
 

@@ -89,4 +89,28 @@ struct ExtensionBubbleLayoutTests {
       beside: NSRect(x: 130, y: 10, width: 44, height: 44), in: tiny)
     #expect(frame == tiny)
   }
+
+  // The find bar below the toolbar, and the first two spots down the right
+  // edge.
+  private let findBar = NSRect(x: 664, y: 72, width: 320, height: 40)
+
+  private func clear(_ centers: [NSPoint]) -> [NSPoint] {
+    ExtensionBubbleLayout.centers(
+      centers, radius: 22, clearOf: findBar, spacing: 12)
+  }
+
+  @Test func movesBelowTheFindBarAndPushesTheNextOne() {
+    #expect(
+      clear([NSPoint(x: 962, y: 174), NSPoint(x: 962, y: 86)])
+        == [NSPoint(x: 962, y: 202), NSPoint(x: 962, y: 146)])
+  }
+
+  @Test func leavesTheRestWhereTheyAre() {
+    let centers = [
+      NSPoint(x: 38, y: 86), NSPoint(x: 962, y: 400),
+      // Overlapping each other, as the user left them.
+      NSPoint(x: 500, y: 500), NSPoint(x: 510, y: 500),
+    ]
+    #expect(clear(centers) == centers)
+  }
 }

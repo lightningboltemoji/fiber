@@ -1,6 +1,6 @@
 import AppKit
 
-/// Shows a hovered link's URL in the window's bottom-left corner.
+/// Shows a hovered link's URL in the page's bottom-left corner.
 final class StatusBubble: NSBox {
   private static let padding = NSSize(width: 8, height: 3)
 

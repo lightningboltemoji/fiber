@@ -29,6 +29,9 @@ bool IsFiberWindow(gfx::NativeWindow window);
 // Whether `browser`'s window is Fiber's: a browser window, or an extension's
 // window as a bubble over one.
 bool IsFiberBrowser(BrowserWindowInterface* browser);
+// Whether `browser`'s window is an extension's, as a bubble over a Fiber
+// window.
+bool IsExtensionWindowBubble(BrowserWindowInterface* browser);
 
 }  // namespace fiber
 

@@ -1,0 +1,21 @@
+diff --git a/third_party/devtools-frontend/src/front_end/entrypoints/main/main-meta.ts b/third_party/devtools-frontend/src/front_end/entrypoints/main/main-meta.ts
+index 767b00ad..80430f69 100644
+--- a/third_party/devtools-frontend/src/front_end/entrypoints/main/main-meta.ts
++++ b/third_party/devtools-frontend/src/front_end/entrypoints/main/main-meta.ts
+@@ -765,16 +765,6 @@ SettingsUI.SettingUIRegistration.register(SettingsUI.MainSettings.currentDockSta
+       text: i18nLazyString(UIStrings.bottom),
+       title: i18nLazyString(UIStrings.dockToBottom),
+     },
+-    {
+-      value: 'left',
+-      text: i18nLazyString(UIStrings.left),
+-      title: i18nLazyString(UIStrings.dockToLeft),
+-    },
+-    {
+-      value: 'undocked',
+-      text: i18nLazyString(UIStrings.undocked),
+-      title: i18nLazyString(UIStrings.undockIntoSeparateWindow),
+-    },
+   ],
+ });
+ 

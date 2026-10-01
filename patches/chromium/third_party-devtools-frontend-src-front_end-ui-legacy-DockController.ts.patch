@@ -1,0 +1,27 @@
+diff --git a/third_party/devtools-frontend/src/front_end/ui/legacy/DockController.ts b/third_party/devtools-frontend/src/front_end/ui/legacy/DockController.ts
+index ca6d6b57..ed2ad5b7 100644
+--- a/third_party/devtools-frontend/src/front_end/ui/legacy/DockController.ts
++++ b/third_party/devtools-frontend/src/front_end/ui/legacy/DockController.ts
+@@ -64,7 +64,9 @@ export class DockController extends Common.ObjectWrapper.ObjectWrapper<EventType
+ 
+     this.currentDockStateSetting.addChangeListener(this.dockSideChanged, this);
+     if (states.indexOf(this.currentDockStateSetting.get()) === -1) {
+-      this.currentDockStateSetting.set(DockState.RIGHT);
++      // Fiber: including a saved 'left' or 'undocked', which Fiber doesn't
++      // offer.
++      this.currentDockStateSetting.set(DockState.BOTTOM);
+     }
+     if (states.indexOf(this.lastDockStateSetting.get()) === -1) {
+       this.currentDockStateSetting.set(DockState.BOTTOM);
+@@ -172,7 +174,10 @@ export const enum DockState {
+   UNDOCKED = 'undocked',
+ }
+ 
+-const states = [DockState.RIGHT, DockState.BOTTOM, DockState.LEFT, DockState.UNDOCKED];
++// Fiber: no LEFT, where the page's top-left corner, under the window's
++// controls, would be DevTools'. No UNDOCKED: Chrome's DevTools window is views,
++// and a page views has shown never draws in a Fiber window again.
++const states = [DockState.RIGHT, DockState.BOTTOM];
+ 
+ // Use BeforeDockSideChanged to do something before all the UI bits are updated,
+ // DockSideChanged to update UI, and AfterDockSideChanged to perform actions

@@ -44,4 +44,8 @@ bool IsFiberBrowser(BrowserWindowInterface* browser) {
          FiberExtensionWindow::FromBrowser(browser);
 }
 
+bool IsExtensionWindowBubble(BrowserWindowInterface* browser) {
+  return FiberExtensionWindow::FromBrowser(browser) != nullptr;
+}
+
 }  // namespace fiber

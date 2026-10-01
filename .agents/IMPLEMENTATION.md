@@ -2,8 +2,8 @@
 
 A high-level map of how Fiber is built and why. The rules it follows are in
 [PRINCIPLES.md](PRINCIPLES.md); detailed designs live in their own docs
-([MEDIA.md](MEDIA.md), [PALETTE.md](PALETTE.md)) and in the code. Commands
-are in `README.md`.
+([MEDIA.md](MEDIA.md), [PALETTE.md](PALETTE.md), [FIND-BAR.md](FIND-BAR.md))
+and in the code. Commands are in `README.md`.
 
 Fiber forks Chromium's `//chrome` layer rather than embedding a web engine,
 because full Chrome extension support is a hard requirement. (CEF rules that
@@ -109,6 +109,7 @@ Each surface Fiber replaces, and where it lives:
 | Tabs (picker of the 15 most recent on the window's edge, sidebar of them all in order with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift` |
 | Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
+| Find in page, a bar in the window's top-right corner (see [FIND-BAR.md](FIND-BAR.md)) | `browser/find_bar/` | `FindBar.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
 | Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `Toolbar.swift`, `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
@@ -118,6 +119,7 @@ Each surface Fiber replaces, and where it lives:
 | Extensions toolbar, menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
 | Windows extensions open (`chrome.windows.create` popups), as bubbles over the page | `browser/extensions/fiber_extension_window.mm` | `ExtensionWindowBubble.swift` |
 | Swiping between pages | `browser/swipe/` | `HistorySwipe.swift` |
+| DevTools, docked at the bottom or right of the window. The window's controls lay out over the page as if it were the window, and hide while DevTools emulates a device. DevTools' dock menu offers neither left nor a window of its own (patches in `third_party/devtools-frontend`) | `hooks/devtools_dock.mm`, `browser/window/` | `BrowserWindowController.swift` |
 | A page whose renderer crashed or was killed (Chrome's sad tab), drawn over it | `browser/window/fiber_sad_tab.mm` | `SadTabView.swift` |
 | The page's scrollbar, clear of the tab picker | `renderer/hooks/` | |
 | Media codecs | `media/` | |
@@ -125,7 +127,10 @@ Each surface Fiber replaces, and where it lives:
 Where Fiber has no replacement yet ([UNIMPLEMENTED.md](UNIMPLEMENTED.md) has
 the rest, and what's still broken):
 
-- **Chrome's UI, kept:** DevTools, web app and picture-in-picture windows.
+- **Chrome's UI, kept:** DevTools windows (for what can't dock, like
+  workers and extensions), web app and picture-in-picture windows. Docked
+  DevTools can't move into one: a page views has shown never draws in a Fiber
+  window again (`RenderWidgetHostViewMac::SetParentUiLayer()`).
 - **Refused, for the page:** passkeys, security keys and Sign in with Google
   (FedCM) fail; screen sharing and an extension's screen capture are refused;
   a site asking for a USB, HID, serial or Bluetooth device, or to choose a

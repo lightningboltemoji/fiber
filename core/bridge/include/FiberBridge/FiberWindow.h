@@ -1,8 +1,10 @@
 #import <AppKit/AppKit.h>
 
+@class FiberDevTools;
 @class FiberPageState;
 @class FiberTabState;
 @protocol FiberExtensions;
+@protocol FiberFindBar;
 @protocol FiberOmnibox;
 @protocol FiberTabIndex;
 
@@ -79,6 +81,7 @@ NS_SWIFT_UI_ACTOR
 // The omnibar, where the user enters an address or search.
 @property(readonly) id<FiberOmnibox> omnibox;
 @property(readonly) id<FiberExtensions> extensions;
+@property(readonly) id<FiberFindBar> findBar;
 // A startup window's are set once, by the browser that takes it over (see
 // FiberWindowFactory); what the user does before then waits in the event
 // queue, since the browser starts up on the main thread.
@@ -92,6 +95,10 @@ NS_SWIFT_UI_ACTOR
 // Shows `view` (the active tab's page) in the content area in place of the
 // previous one. Nil leaves the content area empty.
 - (void)setContentsView:(nullable NSView*)view;
+// Shows the active tab's DevTools with its page, or with nil, the page alone.
+// The window's controls lay out over the page as if it were the window, and
+// hide while it emulates a device.
+- (void)setDevTools:(nullable FiberDevTools*)devTools;
 - (void)setPageState:(FiberPageState*)state;
 // Shows a startup window's page, which until then doesn't show (see
 // startupWindowWithFrame:).

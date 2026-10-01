@@ -1,5 +1,6 @@
 #include "fiber/browser/hooks/context_menu_factory.h"
 
+#include "chrome/browser/devtools/devtools_window.h"
 #include "fiber/browser/context_menu/fiber_render_view_context_menu.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 
@@ -11,7 +12,9 @@ std::unique_ptr<RenderViewContextMenuMac> CreateContextMenu(
     const content::ContextMenuParams& params,
     bool is_paste_enabled,
     bool is_paste_and_match_style_enabled) {
-  if (!FiberBrowserWindow::FromWebContents(web_contents)) {
+  // DevTools' menus are mostly its own items, which Fiber's leaves out.
+  if (!FiberBrowserWindow::FromWebContents(web_contents) ||
+      DevToolsWindow::IsDevToolsWindow(web_contents)) {
     return nullptr;
   }
   return std::make_unique<FiberRenderViewContextMenu>(

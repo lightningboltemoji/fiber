@@ -187,14 +187,19 @@ final class TabPicker: NSView {
   /// Whether a view in front of the picker, like the omnibar or a prompt,
   /// takes `point`. The tracking area sees the pointer under it all the same.
   private func isCovered(at point: CGPoint) -> Bool {
-    guard let superview, let index = superview.subviews.firstIndex(of: self)
-    else {
-      return false
+    var view: NSView = self
+    while let superview = view.superview,
+      let index = superview.subviews.firstIndex(of: view)
+    {
+      let point = convert(point, to: superview)
+      if superview.subviews[(index + 1)...].contains(where: {
+        $0.hitTest(point) != nil
+      }) {
+        return true
+      }
+      view = superview
     }
-    let point = convert(point, to: superview)
-    return superview.subviews[(index + 1)...].contains {
-      $0.hitTest(point) != nil
-    }
+    return false
   }
 
   // MARK: Pointer

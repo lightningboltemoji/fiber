@@ -10,7 +10,7 @@ OUT="$ROOT/patches/chromium"
 
 # Repositories nested in chromium/src that Fiber patches files in (see
 # apply_patches.sh). Their patches name paths from chromium/src too.
-NESTED=(third_party/ffmpeg)
+NESTED=(third_party/ffmpeg third_party/devtools-frontend/src)
 
 mkdir -p "$OUT"
 rm -f "$OUT"/*.patch

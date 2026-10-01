@@ -1,0 +1,33 @@
+diff --git a/chrome/browser/devtools/devtools_window.cc b/chrome/browser/devtools/devtools_window.cc
+index 464cf1ba17..19b4c6185c 100644
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -98,6 +98,7 @@
+ #include "content/public/common/content_features.h"
+ #include "content/public/common/url_constants.h"
+ #include "extensions/common/constants.h"
++#include "fiber/browser/hooks/devtools_dock.h"
+ #include "net/cert/x509_certificate.h"
+ #include "services/metrics/public/cpp/ukm_builders.h"
+ #include "services/metrics/public/cpp/ukm_recorder.h"
+@@ -1080,6 +1081,8 @@ void DevToolsWindow::Show(const DevToolsToggleAction& action) {
+             DevtoolsUIController::From(inspected_browser)) {
+       devtools_ui_controller->UpdateDevtools(inspected_web_contents);
+     }
++    // Fiber: Fiber's windows have no DevtoolsUIController.
++    fiber::UpdateDevTools(inspected_browser, inspected_web_contents);
+     main_web_contents_->SetInitialFocus();
+     inspected_window->Show();
+     // On Aura, focusing once is not enough. Do it again.
+@@ -1403,7 +1406,10 @@ DevToolsWindow* DevToolsWindow::Create(
+ #endif  // BUILDFLAG(IS_MAC)
+     DevtoolsUIController* devtools_ui_controller =
+         browser ? DevtoolsUIController::From(browser) : nullptr;
+-    if (!devtools_ui_controller || !devtools_ui_controller->CanDockDevtools()) {
++    // Fiber: Fiber's windows dock DevTools themselves.
++    if (!fiber::CanDockDevTools(browser) &&
++        (!devtools_ui_controller ||
++         !devtools_ui_controller->CanDockDevtools())) {
+       can_dock = false;
+     }
+   }

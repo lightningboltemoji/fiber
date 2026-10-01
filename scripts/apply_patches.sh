@@ -21,7 +21,7 @@ MODE="${1:-apply}"
 # Repositories nested in chromium/src (DEPS checkouts) that Fiber patches files
 # in; update_patches.sh has the same list. A file's patch names its path from
 # chromium/src, and git apply there reaches into them.
-NESTED=(third_party/ffmpeg)
+NESTED=(third_party/ffmpeg third_party/devtools-frontend/src)
 
 fail() { echo "error: $*" >&2; exit 1; }
 # The repository `file` is in, and its path there.

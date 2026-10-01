@@ -2,7 +2,7 @@
 // //fiber/browser does, without Chromium. Flags: `--tabs N` (made-up sites),
 // `--downloads N` (which quitting waits for), `--ask-before-leaving`,
 // `--palette QUERY` (the command palette, open with QUERY typed),
-// `--extension-window` (a window an extension opened, as its bubble),
+// `--find QUERY` (the find bar, likewise), `--extension-window` (a window an extension opened, as its bubble),
 // `--incognito` (the first window is Incognito, on the New Tab page),
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page).
 
@@ -46,11 +46,18 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     } else if CommandLine.arguments.contains("--new-profile") {
       addProfile(nil)
     }
-    if let query = launchPaletteQuery {
+    if let query = launchValue(of: "--palette") {
       // Once the pages have loaded, so there's text to find.
       DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
         MainActor.assumeIsolated {
           self?.browsers.last?.openCommandPalette(typing: query)
+        }
+      }
+    }
+    if let query = launchValue(of: "--find") {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        MainActor.assumeIsolated {
+          self?.browsers.last?.openFindBar(typing: query)
         }
       }
     }
@@ -103,9 +110,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     return max(count, 0)
   }
 
-  private var launchPaletteQuery: String? {
+  private func launchValue(of flagName: String) -> String? {
     let arguments = CommandLine.arguments
-    guard let flag = arguments.firstIndex(of: "--palette"),
+    guard let flag = arguments.firstIndex(of: flagName),
       arguments.indices.contains(flag + 1)
     else {
       return nil
@@ -216,6 +223,12 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         item("Copy", #selector(NSText.copy(_:)), "c"),
         item("Paste", #selector(NSText.paste(_:)), "v"),
         item("Select All", #selector(NSText.selectAll(_:)), "a"),
+        .separator(),
+        // Like Chrome's Find submenu, handled by the key window's MockBrowser.
+        item("Find…", #selector(MockBrowser.findInPage(_:)), "f"),
+        item("Find Next", #selector(MockBrowser.findNextInPage(_:)), "g"),
+        item(
+          "Find Previous", #selector(MockBrowser.findPreviousInPage(_:)), "G"),
       ])
     // Handled by the key window's MockBrowser, which the window forwards
     // menu actions to (like Chrome's main menu commands in the real app).

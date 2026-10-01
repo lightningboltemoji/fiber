@@ -4,8 +4,10 @@
 
 #import "FiberBuiltInPageFavicon.h"
 #import "FiberContextMenu.h"
+#import "FiberDevTools.h"
 #import "FiberDownloadsWait.h"
 #import "FiberExtensions.h"
+#import "FiberFindBar.h"
 #import "FiberJavaScriptDialog.h"
 #import "FiberOmnibox.h"
 #import "FiberPageState.h"
