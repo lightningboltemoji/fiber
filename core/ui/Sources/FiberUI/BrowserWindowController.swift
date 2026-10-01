@@ -7,8 +7,19 @@ import FiberBridge
     tabIndex: any FiberTabIndex, incognito: Bool
   ) -> any FiberWindow {
     BrowserWindowController(
-      frame: frame, actions: actions,
-      tabIndex: tabIndex as? TabIndex ?? TabIndex(), isIncognito: incognito)
+      frame: frame, actions: actions, tabIndex: tabIndex,
+      isIncognito: incognito)
+  }
+
+  class func startupWindow(withFrame frame: NSRect, newTabPage: Bool)
+    -> any FiberWindow
+  {
+    let controller = BrowserWindowController(
+      frame: frame, actions: nil, tabIndex: nil, isIncognito: false)
+    if newTabPage {
+      controller.showStartupNewTabPage()
+    }
+    return controller
   }
 }
 
@@ -49,12 +60,19 @@ final class BrowserWindowController: NSObject, FiberWindow {
   var extensions: any FiberExtensions { extensionsController }
 
   private let browserWindow: BrowserWindow
-  private let actions: any FiberWindowActions
+  var actions: (any FiberWindowActions)? {
+    didSet { browserWindow.menuActionTarget = actions }
+  }
+  var tabIndex: (any FiberTabIndex)?
   private let toolbar: Toolbar
   private let tabPicker = TabPicker()
   private let tabSidebar = TabSidebar()
   private let omnibar = Omnibar()
-  private let commandPalette: CommandPalette
+  /// Made the first time it opens (see makeCommandPalette()).
+  private var commandPalette: CommandPalette?
+  /// The window's tabs, for a command palette made later.
+  private var windowTabs: [FiberTabState] = []
+  private var activeTabID = 0
   private lazy var extensionsController = ExtensionsController(
     bar: toolbar.extensionsBar, bubbles: extensionBubbles,
     isBarShown: { [weak self] in self?.isToolbarVisible ?? false },
@@ -100,18 +118,22 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var isLoading = false
 
   init(
-    frame: NSRect, actions: any FiberWindowActions, tabIndex: TabIndex,
-    isIncognito: Bool
+    frame: NSRect, actions: (any FiberWindowActions)?,
+    tabIndex: (any FiberTabIndex)?, isIncognito: Bool
   ) {
     self.actions = actions
-    commandPalette = CommandPalette(index: tabIndex, actions: actions)
+    self.tabIndex = tabIndex
     toolbar = Toolbar(isIncognito: isIncognito)
     newTabView = NewTabView(isIncognito: isIncognito)
+    let styleMask: NSWindow.StyleMask = [
+      .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView,
+    ]
+    // At its final size, so that it's laid out once.
     browserWindow = BrowserWindow(
-      contentRect: NSRect(origin: .zero, size: Self.defaultWindowSize),
-      styleMask: [
-        .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView,
-      ],
+      contentRect: frame.isEmpty
+        ? NSRect(origin: .zero, size: Self.defaultWindowSize)
+        : NSWindow.contentRect(forFrameRect: frame, styleMask: styleMask),
+      styleMask: styleMask,
       backing: .buffered,
       defer: false)
     super.init()
@@ -172,8 +194,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     sadTabView.frame = pageView.bounds
     sadTabView.autoresizingMask = [.width, .height]
     sadTabView.isHidden = true
-    sadTabView.onButton = { [weak self] in self?.actions.pressSadTabButton() }
-    sadTabView.onHelp = { [weak self] in self?.actions.openSadTabHelp() }
+    sadTabView.onButton = { [weak self] in self?.actions?.pressSadTabButton() }
+    sadTabView.onHelp = { [weak self] in self?.actions?.openSadTabHelp() }
     pageView.addSubview(sadTabView)
 
     progressBar.frame = NSRect(
@@ -206,17 +228,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
       height: toolbar.frame.minY - 2 * Toolbar.spacing - Self.edgeInset)
     tabSidebar.autoresizingMask = [.height, .maxXMargin]
     tabSidebar.onSelect = { [weak self] tabID in
-      self?.actions.selectTab(withID: tabID)
+      self?.actions?.selectTab(withID: tabID)
     }
     tabSidebar.onClose = { [weak self] tabID in
-      self?.actions.closeTab(withID: tabID)
+      self?.actions?.closeTab(withID: tabID)
     }
     content.addSubview(tabSidebar)
     updateToolbar(animated: false)
 
     extensionBubbles.frame = content.bounds
     extensionBubbles.autoresizingMask = [.width, .height]
-    extensionBubbles.onFocusPage = { [weak self] in self?.actions.focusPage() }
+    extensionBubbles.onFocusPage = { [weak self] in self?.actions?.focusPage() }
     extensionBubbles.onRemove = { [weak self] in self?.updateActiveBrowser() }
     content.addSubview(extensionBubbles)
 
@@ -225,29 +247,23 @@ final class BrowserWindowController: NSObject, FiberWindow {
       height: content.bounds.height)
     tabPicker.autoresizingMask = [.height, .minXMargin]
     tabPicker.onSelect = { [weak self] tabID in
-      self?.actions.selectTab(withID: tabID)
+      self?.actions?.selectTab(withID: tabID)
     }
     tabPicker.onClose = { [weak self] tabID in
-      self?.actions.closeTab(withID: tabID)
+      self?.actions?.closeTab(withID: tabID)
     }
     content.addSubview(tabPicker)
 
-    // Over everything, one at a time.
-    for palette in [omnibar.view, commandPalette.view] {
-      palette.frame = content.bounds
-      palette.autoresizingMask = [.width, .height]
-      content.addSubview(palette)
-    }
+    // Over everything, one at a time, with the command palette (see
+    // makeCommandPalette()).
+    omnibar.view.frame = content.bounds
+    omnibar.view.autoresizingMask = [.width, .height]
+    content.addSubview(omnibar.view)
     omnibar.onOpen = { [weak self] in
       self?.tabPicker.close()
-      self?.commandPalette.close()
+      self?.commandPalette?.close()
     }
     omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
-    commandPalette.onOpen = { [weak self] in
-      self?.tabPicker.close()
-      self?.omnibar.close()
-    }
-    commandPalette.onDismiss = { [weak self] in self?.closeCommandPalette() }
 
     // Over everything; what the window waits on goes over it.
     veil.dimView.frame = content.bounds
@@ -268,6 +284,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
     toolbar.addressButton.target = self
     toolbar.addressButton.action = #selector(addressClicked(_:))
+  }
+
+  /// How a startup window looks until its browser says otherwise: the New Tab
+  /// page, with the omnibar open over it, as the browser opens it.
+  fileprivate func showStartupNewTabPage() {
+    isNewTabPage = true
+    newTabView.isHidden = false
+    omnibar.view.showPlaceholder()
   }
 
   fileprivate func toggleToolbar() {
@@ -426,9 +450,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     // They were for the tab being switched away from. (The browser opens the
-    // omnibar again on a New Tab page.)
-    omnibar.close()
-    commandPalette.close()
+    // omnibar again on a New Tab page.) A startup window's is for the tab
+    // coming in.
+    if !omnibar.view.isPlaceholder {
+      omnibar.close()
+    }
+    commandPalette?.close()
     historySwipe.reset()
     contentsView?.removeFromSuperview()
     contentsView = view
@@ -445,6 +472,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
     newTabView.isHidden = !isNewTabPage || state.sadTab != nil
+    // The startup window guessed the New Tab page, and it isn't.
+    if !isNewTabPage {
+      omnibar.view.hidePlaceholder()
+    }
     if let sadTab = state.sadTab {
       sadTabView.show(sadTab)
     }
@@ -460,7 +491,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
     tabPicker.setTabs(tabs, activeTabID: activeTabID)
     tabSidebar.setTabs(tabs, activeTabID: activeTabID)
-    commandPalette.setWindowTabs(tabs, activeTabID: activeTabID)
+    windowTabs = tabs
+    self.activeTabID = activeTabID
+    commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
   }
 
   func setLoading(_ loading: Bool, progress: Double) {
@@ -616,7 +649,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     omnibar.close()
-    actions.focusPage()
+    actions?.focusPage()
   }
 
   /// Not while a prompt waits on the user, or a page is fullscreen.
@@ -626,12 +659,35 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   func showCommandPalette() {
     if canShowCommandPalette {
-      commandPalette.open()
+      makeCommandPalette()?.open()
     }
   }
 
+  /// Most windows never open it. Nil until the window has its actions.
+  private func makeCommandPalette() -> CommandPalette? {
+    if let commandPalette {
+      return commandPalette
+    }
+    guard let actions, let content = window.contentView else {
+      return nil
+    }
+    let palette = CommandPalette(
+      index: tabIndex as? TabIndex ?? TabIndex(), actions: actions)
+    palette.setWindowTabs(windowTabs, activeTabID: activeTabID)
+    palette.view.frame = content.bounds
+    palette.view.autoresizingMask = [.width, .height]
+    content.addSubview(palette.view, positioned: .above, relativeTo: omnibar.view)
+    palette.onOpen = { [weak self] in
+      self?.tabPicker.close()
+      self?.omnibar.close()
+    }
+    palette.onDismiss = { [weak self] in self?.closeCommandPalette() }
+    commandPalette = palette
+    return palette
+  }
+
   fileprivate func toggleCommandPalette() {
-    if commandPalette.isOpen {
+    if commandPalette?.isOpen == true {
       closeCommandPalette()
     } else {
       showCommandPalette()
@@ -639,11 +695,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   private func closeCommandPalette() {
-    guard commandPalette.isOpen else {
+    guard let commandPalette, commandPalette.isOpen else {
       return
     }
     commandPalette.close()
-    actions.focusPage()
+    actions?.focusPage()
   }
 
   /// The browser focuses the page when something else navigates it (the
@@ -656,7 +712,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     omnibar.close()
-    commandPalette.close()
+    commandPalette?.close()
   }
 
   // MARK: Active browser
@@ -699,12 +755,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
     activeBrowser = next
     switch previous {
     case .none: break
-    case .window: actions.windowDidResignMain()
+    case .window: actions?.windowDidResignMain()
     case .extensionWindow(let bubble): bubble.didResignActive()
     }
     switch next {
     case .none: break
-    case .window: actions.windowDidBecomeMain()
+    case .window: actions?.windowDidBecomeMain()
     case .extensionWindow(let bubble): bubble.didBecomeActive()
     }
   }
@@ -715,18 +771,18 @@ final class BrowserWindowController: NSObject, FiberWindow {
   // page opens (e.g. Command-clicking Back opens it in a new tab).
 
   @objc private func goBack(_ sender: Any?) {
-    actions.goBack(with: NSApp.currentEvent)
+    actions?.goBack(with: NSApp.currentEvent)
   }
 
   @objc private func goForward(_ sender: Any?) {
-    actions.goForward(with: NSApp.currentEvent)
+    actions?.goForward(with: NSApp.currentEvent)
   }
 
   @objc private func reloadOrStop(_ sender: Any?) {
     if isLoading {
-      actions.stopLoading()
+      actions?.stopLoading()
     } else {
-      actions.reload(with: NSApp.currentEvent)
+      actions?.reload(with: NSApp.currentEvent)
     }
   }
 
@@ -739,6 +795,10 @@ extension BrowserWindowController: NSWindowDelegate {
   // Closing goes through the browser, which runs unload handlers and closes
   // the tabs first; the window really closes when its owner is done with it.
   func windowShouldClose(_ sender: NSWindow) -> Bool {
+    // A startup window no browser took over has nothing to close first.
+    guard let actions else {
+      return true
+    }
     // A prompt is waiting on the user first.
     if prompt == nil {
       actions.windowShouldClose()
@@ -779,12 +839,12 @@ extension BrowserWindowController: NSWindowDelegate {
   }
 
   func windowDidEnterFullScreen(_ notification: Notification) {
-    actions.windowDidChangeFullScreen()
+    actions?.windowDidChangeFullScreen()
   }
 
   func windowDidExitFullScreen(_ notification: Notification) {
     updateWindowControls(animated: true)
-    actions.windowDidChangeFullScreen()
+    actions?.windowDidChangeFullScreen()
   }
 }
 

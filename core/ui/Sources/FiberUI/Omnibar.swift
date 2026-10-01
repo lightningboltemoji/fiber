@@ -154,6 +154,7 @@ final class Omnibar: NSObject, FiberOmnibox {
   // MARK: Closing
 
   func close() {
+    view.hidePlaceholder()
     guard isOpen else {
       return
     }

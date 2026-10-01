@@ -1,6 +1,9 @@
 #include "fiber/browser/window/fiber_browser_window.h"
 
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/QuartzCore.h>
+
+#include <utility>
 
 #import "FiberBridge/FiberBridge.h"
 #include "base/logging.h"
@@ -42,6 +45,7 @@
 #include "fiber/browser/downloads/downloads_wait.h"
 #include "fiber/browser/extensions/fiber_extension_window.h"
 #include "fiber/browser/extensions/fiber_extensions_toolbar.h"
+#include "fiber/browser/hooks/startup_window.h"
 #include "fiber/browser/palette/tab_index_source.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
 #include "fiber/browser/swipe/page_snapshots.h"
@@ -196,12 +200,28 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
   chrome::GetSavedWindowBoundsAndShowState(browser_, &bounds, &show_state);
   actions_ = [[FiberBrowserWindowActions alloc] initWithOwner:this];
   tab_index_source_ = TabIndexSource::AddWindow(this);
-  ui_ = [FiberWindowFactory
-      windowWithFrame:bounds.IsEmpty() ? NSZeroRect
-                                       : gfx::ScreenRectToNSRect(bounds)
-              actions:actions_
-             tabIndex:tab_index_source_->index()
-            incognito:browser_->GetProfile()->IsIncognitoProfile()];
+  // The first browser takes over the window that's been showing since the
+  // process started, unless it's Incognito, which that window isn't.
+  if (browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL &&
+      !browser_->GetProfile()->IsIncognitoProfile()) {
+    ui_ = TakeStartupWindow();
+  }
+  if (ui_) {
+    showing_startup_window_ = true;
+    ui_.actions = actions_;
+    ui_.tabIndex = tab_index_source_->index();
+    // Usually where it already is.
+    if (!bounds.IsEmpty()) {
+      [ui_.window setFrame:gfx::ScreenRectToNSRect(bounds) display:YES];
+    }
+  } else {
+    ui_ = [FiberWindowFactory
+        windowWithFrame:bounds.IsEmpty() ? NSZeroRect
+                                         : gfx::ScreenRectToNSRect(bounds)
+                actions:actions_
+               tabIndex:tab_index_source_->index()
+              incognito:browser_->GetProfile()->IsIncognitoProfile()];
+  }
   location_bar_ = std::make_unique<FiberLocationBar>(this, ui_.omnibox);
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
   extensions_toolbar_ =
@@ -415,7 +435,7 @@ bool FiberBrowserWindow::IsOnCurrentWorkspace() const {
 }
 
 bool FiberBrowserWindow::IsVisibleOnScreen() const {
-  return GetNSWindow().visible &&
+  return IsVisible() &&
          (GetNSWindow().occlusionState & NSWindowOcclusionStateVisible);
 }
 
@@ -467,7 +487,7 @@ void FiberBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
   UpdateToolbar(new_contents);
   UpdateLoadProgress();
   // Like BrowserView, and only once the window is showing (see Show()).
-  if (GetNSWindow().visible) {
+  if (IsVisible()) {
     RestoreFocus();
   }
 }
@@ -783,11 +803,22 @@ void FiberBrowserWindow::Show() {
   // Like BrowserView::Show(): the browser has to count as the last active one
   // as soon as this returns, before AppKit reports the window becoming main.
   BrowserActiveStateManager::From(browser_)->DidBecomeActive();
+  shown_ = true;
   [GetNSWindow() makeKeyAndOrderFront:nil];
   RestoreFocus();
+  // On screen now, rather than once the main loop next goes idle, which at
+  // startup is well after the browser is ready.
+  [GetNSWindow() displayIfNeeded];
+  [CATransaction flush];
+  if (std::exchange(showing_startup_window_, false)) {
+    content::WebContents* contents = GetActiveWebContents();
+    RecordStartupWindow(GetNSWindow().frame,
+                        contents && IsNewTabPage(contents));
+  }
 }
 
 void FiberBrowserWindow::ShowInactive() {
+  shown_ = true;
   [GetNSWindow() orderFront:nil];
 }
 
@@ -796,7 +827,7 @@ void FiberBrowserWindow::Hide() {
 }
 
 bool FiberBrowserWindow::IsVisible() const {
-  return GetNSWindow().visible;
+  return shown_ && GetNSWindow().visible;
 }
 
 void FiberBrowserWindow::SetBounds(const gfx::Rect& bounds) {

@@ -5,6 +5,7 @@
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/preloading/prefetch/search_prefetch/field_trial_settings.h"
 #include "chrome/browser/preloading/preloading_features.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "components/omnibox/browser/aim_eligibility_service_features.h"
 #include "components/security_interstitials/core/features.h"
 #include "content/public/common/content_features.h"
@@ -40,6 +41,10 @@ void AddFeatureOverrides(
       &features::kWebIdentityDigitalCredentials,
       &features::kWebIdentityDigitalCredentialsCreation,
       &media_router::kMediaRouter,
+      // Google Wallet's passes in autofill, which come from a Google account.
+      // For them, every new tab asks macOS whether Touch ID is available: a
+      // few milliseconds on the main thread, the first as Fiber starts.
+      &autofill::features::kAutofillAiWalletPrivatePasses,
   };
   for (const base::Feature* feature : disabled) {
     overrides.emplace_back(std::cref(*feature),

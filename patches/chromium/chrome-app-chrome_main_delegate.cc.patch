@@ -1,0 +1,41 @@
+diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
+index c027a43eb3..920bad0cb5 100644
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -121,6 +121,7 @@
+ #include "chrome/browser/mac/code_sign_clone_manager.h"
+ #include "chrome/browser/mac/relauncher.h"
+ #include "components/crash/core/common/objc_zombie.h"
++#include "fiber/browser/hooks/startup_window.h"
+ #include "ui/base/l10n/l10n_util_mac.h"
+ #endif  // BUILDFLAG(IS_MAC)
+ 
+@@ -849,6 +850,15 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
+   }
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++  // Fiber: the first window shows now, while the browser starts up, and then
++  // the crash reporter starts, before any other process does.
++  if (!invoked_in_browser->is_running_test) {
++    fiber::ShowStartupWindow();
++  }
++  InitMacCrashReporter(*base::CommandLine::ForCurrentProcess(), std::string());
++#endif
++
+ #if BUILDFLAG(IS_WIN)
+   // Initialize the cleaner of left-behind tmp files now that the main thread
+   // has its SequencedTaskRunner; see https://crbug.com/40687964.
+@@ -1481,7 +1491,11 @@ void ChromeMainDelegate::PreSandboxStartup() {
+ #endif
+ 
+ #if BUILDFLAG(IS_MAC)
+-  InitMacCrashReporter(command_line, process_type);
++  // Fiber: the browser's starts after its startup window shows (see
++  // PostEarlyInitialization()), which doesn't wait for it.
++  if (!process_type.empty()) {
++    InitMacCrashReporter(command_line, process_type);
++  }
+   SetUpInstallerPreferences(command_line);
+ #endif
+ 

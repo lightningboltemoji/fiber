@@ -160,6 +160,53 @@ already the bridge identifies tabs by stable ID, never position, and the UI
 doesn't assume every tab has a live page. How spaces map onto Chrome's
 `Browser` is still open.
 
+## Startup
+
+Fiber's window shows before Chrome's startup is done. Chrome makes its first
+browser only after loading local state, the profile and its services, which
+on the main thread takes most of startup; its window then goes on screen at
+the main loop's first idle, later still.
+
+- **The startup window** (`hooks/startup_window.mm`). As soon as the process
+  holds the process singleton (so it's the browser, not a launch handing its
+  URLs to a running one), `ShowStartupWindow()` shows a Fiber window as
+  Chrome's startup usually leaves it: where the last startup's window went, on
+  the New Tab page with the omnibar open. If the last startup opened
+  something else (it restored the session, say), or there are URLs on the
+  command line, the page is empty instead. The first normal, non-Incognito
+  browser takes the window over rather than making one (`FiberBrowserWindow`'s
+  constructor), and tells it what to show from then on; the omnibar only
+  takes the keyboard when the browser opens it for real. Chrome starts up on
+  the main thread, so keys typed meanwhile wait in the event queue and reach
+  the omnibar once it can handle them. Until Chrome shows the window it counts
+  as hidden, as Chrome's startup expects. If no browser has taken it by the
+  time the main loop runs (Incognito by policy, say), it closes.
+- **Only what shows is built.** The command palette is made the first time it
+  opens, and the window is made at its final size so it's laid out once.
+- **What can wait, waits.** The browser process starts its crash reporter
+  (a handler process it waits on) just after the startup window, still before
+  any other process starts.
+- **Cold starts** (`hooks/framework_prefetch.cc`). Startup runs code from all
+  over the framework (in all, about half its code pages), which after a
+  restart comes off the disk a page at a time. The browser process reads it
+  in ahead on a background thread, as soon as `ChromeMain()` starts, at a
+  priority whose reads give way to the main thread's.
+- **Work nothing needs.** Chrome's first policy load asks whether the Mac is
+  managed, which runs `/usr/bin/profiles` on the main thread, even with no
+  policy to filter; Fiber's patch only asks when there is one. Out/Release
+  strips local symbols: besides their size, `atexit()` looks up its caller
+  with `dladdr()`, which scans the whole symbol table, and Chrome calls it at
+  startup.
+
+To measure: a launch through LaunchServices, as from the Dock, to the window
+on screen (`CGWindowListCopyWindowInfo`), warm and with the app's files
+evicted from the page cache (`msync(MS_INVALIDATE)` on each). On an M3
+MacBook Air, from the launch to the window: 420 ms before all this and about
+230 ms after (warm), 860 ms and 290 ms (cold). A freshly built app launches
+some 20 ms slower for its first few dozen launches, while macOS vets it, so
+measure a build once that's passed. Instruments' System Trace inflates child
+process launches (`/usr/bin/profiles` looks like 90 ms instead of 10).
+
 ## Build
 
 - `core/` is symlinked into the Chromium tree as `//fiber`, and

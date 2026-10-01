@@ -49,6 +49,9 @@ final class PaletteView: NSView {
   /// Called when the user clicks outside the panel.
   var onDismiss: () -> Void = {}
   private(set) var isOpen = false
+  /// Showing as it opens, before its owner can open it (see
+  /// showPlaceholder()).
+  private(set) var isPlaceholder = false
 
   private let shadowView = OutsetShadowView()
   private let panel = RimmedGlassView(rimWidth: PaletteView.rimWidth)
@@ -116,11 +119,44 @@ final class PaletteView: NSView {
     isOpen = true
     layoutPanel()
     isHidden = false
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = 0.15
-      animator().alphaValue = 1
+    if isPlaceholder {
+      // Already showing: it opens as it stands.
+      isPlaceholder = false
+      field.refusesFirstResponder = false
+    } else {
+      NSAnimationContext.runAnimationGroup { context in
+        context.duration = 0.15
+        animator().alphaValue = 1
+      }
     }
     window?.makeFirstResponder(field)
+  }
+
+  /// Shows the panel as it opens, empty, for a window that shows before its
+  /// browser exists; open() then opens it for real, and gives the field the
+  /// keyboard.
+  func showPlaceholder() {
+    guard !isOpen else {
+      return
+    }
+    isPlaceholder = true
+    // Not even as the window becomes key, when AppKit would give the keyboard
+    // to the first field it finds: that sets up text editing, which can wait.
+    field.refusesFirstResponder = true
+    layoutPanel()
+    isHidden = false
+    alphaValue = 1
+  }
+
+  /// Hides a placeholder that wasn't opened, at once.
+  func hidePlaceholder() {
+    guard isPlaceholder else {
+      return
+    }
+    isPlaceholder = false
+    field.refusesFirstResponder = false
+    isHidden = true
+    alphaValue = 0
   }
 
   func close() {

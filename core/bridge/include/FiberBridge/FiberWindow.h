@@ -79,6 +79,11 @@ NS_SWIFT_UI_ACTOR
 // The omnibar, where the user enters an address or search.
 @property(readonly) id<FiberOmnibox> omnibox;
 @property(readonly) id<FiberExtensions> extensions;
+// A startup window's are set once, by the browser that takes it over (see
+// FiberWindowFactory); what the user does before then waits in the event
+// queue, since the browser starts up on the main thread.
+@property(nonatomic, nullable) id<FiberWindowActions> actions;
+@property(nonatomic, nullable) id<FiberTabIndex> tabIndex;
 
 // Opens the command palette, which searches the profile's tabs and runs
 // commands. If it's open, its text is selected.
@@ -133,6 +138,13 @@ NS_SWIFT_UI_ACTOR
                            actions:(id<FiberWindowActions>)actions
                           tabIndex:(id<FiberTabIndex>)tabIndex
                          incognito:(BOOL)incognito;
+
+// A window for the browser that's starting up, to show before the browser
+// exists: the New Tab page with the omnibar open, as a browser usually starts,
+// when `newTabPage`, or else an empty page. The first browser takes it over,
+// and tells it what to show from then on. It isn't Incognito.
++ (id<FiberWindow>)startupWindowWithFrame:(NSRect)frame
+                               newTabPage:(BOOL)newTabPage;
 
 - (instancetype)init NS_UNAVAILABLE;
 

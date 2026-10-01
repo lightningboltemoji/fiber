@@ -56,6 +56,8 @@ source_set("browser") {
     "hooks/feature_overrides.cc",
     "hooks/feature_overrides.h",
     "hooks/file_system_access_prompt.h",
+    "hooks/framework_prefetch.cc",
+    "hooks/framework_prefetch.h",
     "hooks/javascript_dialog_factory.h",
     "hooks/javascript_dialog_factory.mm",
     "hooks/local_state_pref_defaults.cc",
@@ -70,6 +72,8 @@ source_set("browser") {
     "hooks/resource_bundle_delegate.h",
     "hooks/resource_bundle_delegate.mm",
     "hooks/sad_tab.h",
+    "hooks/startup_window.h",
+    "hooks/startup_window.mm",
     "hooks/web_ui_configs.cc",
     "hooks/web_ui_configs.h",
     "hooks/web_ui_favicons.h",
@@ -139,11 +143,13 @@ source_set("browser") {
     "//chrome/browser/ui/webauthn",
     "//chrome/browser/web_applications",
     "//components/autofill/core/browser",
+    "//components/autofill/core/common",
     "//components/bookmarks/browser",
     "//components/content_settings/core/browser",
     "//components/content_extraction/content/browser",
     "//components/download/content/public",
     "//components/download/public/common:public",
+    "//components/embedder_support",
     "//components/favicon/content",
     "//components/find_in_page",
     "//components/input",
@@ -182,5 +188,8 @@ source_set("browser") {
     "//ui/strings",
     "//url",
   ]
-  frameworks = [ "AppKit.framework" ]
+  frameworks = [
+    "AppKit.framework",
+    "QuartzCore.framework",
+  ]
 }
