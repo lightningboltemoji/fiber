@@ -2,8 +2,11 @@
 
 Fiber is a Chromium-based browser for macOS with its own native UI. These are
 the rules the rest follows from. How it's built is in
-[IMPLEMENTATION.md](IMPLEMENTATION.md).
+[IMPLEMENTATION.md](IMPLEMENTATION.md), and how to check UI changes by eye in
+[TESTING.md](TESTING.md).
 
+- Don't save memories. Anything worth keeping across sessions goes in the repo,
+  in the relevant doc in `.agents/` or a new one.
 - **Chrome is the engine and the model.** Every Fiber window is a Chrome
   `Browser`, so anything in Chrome that opens or manages windows and tabs (menus,
   links from other apps, session restore, extensions) lands in Fiber's UI.

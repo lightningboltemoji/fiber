@@ -106,7 +106,7 @@ Each surface Fiber replaces, and where it lives:
 | Surface | Chrome integration | UI |
 |---|---|---|
 | Browser window, toolbar, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift`, `Toolbar.swift` |
-| Tabs (picker on the window's edge, sidebar with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift` |
+| Tabs (picker of the 15 most recent on the window's edge, sidebar of them all in order with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift` |
 | Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
