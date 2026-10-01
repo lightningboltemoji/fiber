@@ -2,9 +2,9 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-/// The window's tabs, behind a glass bump on the window's right edge that
-/// opens into a panel, which scrolls like a picker wheel, selecting on
-/// lift-off. Dragging the bump moves the window. This view takes the events
+/// The window's most recent tabs, behind a glass bump on the window's right
+/// edge that opens into a panel, which scrolls like a picker wheel, selecting
+/// on lift-off. Dragging the bump moves the window. This view takes the events
 /// and keeps the model; TabPickerView draws it.
 @MainActor
 final class TabPicker: NSView {
@@ -56,6 +56,9 @@ final class TabPicker: NSView {
   }
 
   private let model = TabPickerModel()
+  /// All the window's tabs, in the tab strip's order.
+  private var tabs: [FiberTabState] = []
+  private var recentTabs = RecentTabs()
   private let hostingView: NSHostingView<TabPickerView>
   private var openTimer: Timer?
   private var closeTimer: Timer?
@@ -101,7 +104,12 @@ final class TabPicker: NSView {
   }
 
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
-    model.tabs = tabs
+    self.tabs = tabs
+    recentTabs.update(tabs, activeTabID: activeTabID)
+    // The panel takes its order as it opens and keeps it, so a tab picked by
+    // scrolling stays under the pointer.
+    let tabsByID = Dictionary(uniqueKeysWithValues: tabs.map { ($0.tabID, $0) })
+    model.tabs = model.tabs.compactMap { tabsByID[$0.tabID] }
     model.activeTabID = activeTabID
     if tabs.isEmpty {
       close()
@@ -363,11 +371,12 @@ final class TabPicker: NSView {
   /// Opens the panel with the active tab level with `y`.
   private func open(anchoredAt y: CGFloat) {
     openTimer?.invalidate()
-    guard model.isPanelEnabled, !model.isExpanded, !model.tabs.isEmpty,
+    guard model.isPanelEnabled, !model.isExpanded, !tabs.isEmpty,
       !isCovered(at: CGPoint(x: hotZone.midX, y: y))
     else {
       return
     }
+    model.tabs = recentTabs.ordered(tabs)
     let row = model.activeRow
     model.panelTop = y - TabListLayout.rowCenter(row)
     model.highlightedTabID = model.tabs[row].tabID
@@ -586,6 +595,7 @@ final class TabPicker: NSView {
 @MainActor
 @Observable
 final class TabPickerModel {
+  /// The panel's tabs, as RecentTabs ordered them when it opened.
   var tabs: [FiberTabState] = []
   var activeTabID = 0
   var isExpanded = false
@@ -623,5 +633,40 @@ final class TabPickerModel {
       x: size.width - Self.panelInset - TabListLayout.panelWidth, y: panelTop,
       width: TabListLayout.panelWidth,
       height: TabListLayout.panelHeight(rows: tabs.count))
+  }
+}
+
+/// Orders a window's tabs for the tab picker: the active tab, then the rest
+/// by when each was last active, as many as are easy to keep in mind.
+struct RecentTabs {
+  static let limit = 15
+
+  private var activeTabID: Int?
+  /// When each tab stopped being the active one. Chrome's last active time is
+  /// when a tab was last shown or opened, so a tab opened in the background
+  /// would otherwise pass the one it was opened from once that's left.
+  private var leftTimes: [Int: Date] = [:]
+
+  mutating func update(
+    _ tabs: [FiberTabState], activeTabID: Int, now: Date = .now
+  ) {
+    guard activeTabID != self.activeTabID else {
+      return
+    }
+    if let previous = self.activeTabID {
+      leftTimes[previous] = now
+      let tabIDs = Set(tabs.map(\.tabID))
+      leftTimes = leftTimes.filter { tabIDs.contains($0.key) }
+    }
+    self.activeTabID = activeTabID
+  }
+
+  func ordered(_ tabs: [FiberTabState]) -> [FiberTabState] {
+    Array(tabs.sorted { lastActive($0) > lastActive($1) }.prefix(Self.limit))
+  }
+
+  private func lastActive(_ tab: FiberTabState) -> Date {
+    tab.tabID == activeTabID
+      ? .distantFuture : leftTimes[tab.tabID] ?? tab.lastActiveTime
   }
 }

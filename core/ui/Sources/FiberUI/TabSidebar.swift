@@ -2,9 +2,10 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-/// The window's tabs while the toolbar shows: the tab picker's panel, kept
-/// open below the toolbar. It fills the column the panel can grow into, but
-/// only the panel takes clicks. TabSidebarView draws it.
+/// The window's tabs while the toolbar shows: all of them, in the tab strip's
+/// order, in a panel like the tab picker's kept open below the toolbar. It
+/// fills the column the panel can grow into, but only the panel takes clicks.
+/// TabSidebarView draws it.
 @MainActor
 final class TabSidebar: NSView {
   static let width = TabListLayout.panelWidth
