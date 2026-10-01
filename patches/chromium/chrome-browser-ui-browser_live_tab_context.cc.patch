@@ -1,0 +1,35 @@
+diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
+index b220ba6c8f..d8da93c7fc 100644
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -15,6 +15,7 @@
+ #include "base/token.h"
+ #include "base/uuid.h"
+ #include "base/values.h"
++#include "build/build_config.h"
+ #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/glic/glic_tab_restore_helper.h"
+ #include "chrome/browser/performance_manager/public/background_tab_loading_policy.h"
+@@ -61,6 +62,10 @@
+ #include "ui/base/mojom/window_show_state.mojom.h"
+ #include "ui/base/window_open_disposition.h"
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/tab_extra_data.h"
++#endif
++
+ using content::NavigationController;
+ using content::SessionStorageNamespaceHandle;
+ using content::WebContents;
+@@ -172,6 +177,11 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
+ 
+   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
+                               &extra_data);
++#if BUILDFLAG(IS_MAC)
++  // Fiber: its data for the tab.
++  extra_data.merge(
++      fiber::TabExtraData(tab_strip_model_->GetWebContentsAt(index)));
++#endif
+ 
+   return extra_data;
+ }

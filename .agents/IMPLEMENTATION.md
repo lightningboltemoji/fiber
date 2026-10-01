@@ -106,8 +106,8 @@ Each surface Fiber replaces, and where it lives:
 | Surface | Chrome integration | UI |
 |---|---|---|
 | Browser window, toolbar, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift`, `Toolbar.swift` |
-| Tabs (picker of the 15 most recent on the window's edge, sidebar of them all in order with the toolbar) | `browser/window/` | `TabPicker.swift`, `TabSidebar.swift` |
-| Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
+| Tabs (picker of the 15 most recent on the window's edge, sidebar of them all in order with the toolbar), and pins above the sidebar's list (see [Tabs and spaces](#tabs-and-spaces)) | `browser/window/`, `browser/pins/` | `TabPicker.swift`, `TabSidebar.swift`, `PinGrid.swift`, `TabMenus.swift` |
+| Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest, as does pressing Option and the number shown under that part | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
 | Find in page, a bar in the window's top-right corner (see [FIND-BAR.md](FIND-BAR.md)) | `browser/find_bar/` | `FindBar.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
@@ -138,7 +138,7 @@ the rest, and what's still broken):
   chip) are ignored (`hooks/permission_prompt.h`, `hooks/webauthn_dialog.h`,
   and patches marked `Fiber:` in Chrome's views code).
 - **Not offered:** installing a page as an app; Save and fill on card forms;
-  Task Manager, pinning, tab groups, split view and side panels
+  Task Manager, tab groups, split view and side panels
   (`hooks/commands.cc`); the profile switcher at startup
   (`hooks/local_state_pref_defaults.cc`), and signing in to a profile Chrome
   locks until then (`browser/profiles/profile_picker.cc`); Chrome's sharing
@@ -155,17 +155,34 @@ the rest, and what's still broken):
 
 ## Tabs and spaces
 
-Today each Fiber window is one Chrome `Browser`, and the UI shows its
-`TabStripModel` directly.
+Each Fiber window is one Chrome `Browser`, and the UI shows its
+`TabStripModel`, with the profile's pins above it.
 
-Arc-style spaces are coming. Chrome has no concept of them, so Fiber will own a
-per-profile model (spaces, pinned entries without a live page, archived tabs)
-alongside Chrome's. It lives in `browser/`, since it has to react to what
-happens inside Chrome (extensions opening tabs, session restore) and persist
-with the profile, and the UI will render it instead of `TabStripModel`. So
-already the bridge identifies tabs by stable ID, never position, and the UI
-doesn't assume every tab has a live page. How spaces map onto Chrome's
-`Browser` is still open.
+Arc-style spaces are coming. Chrome has no concept of them, so Fiber owns a
+per-profile model alongside Chrome's. It lives in `browser/`, since it has to
+react to what happens inside Chrome (extensions opening tabs, session restore)
+and persist with the profile. So the bridge identifies tabs by stable ID,
+never position, and the UI doesn't assume every tab has a live page. How
+spaces map onto Chrome's `Browser` is still open.
+
+Pins are its first part (`browser/pins/`). A pin is a URL the user keeps to
+come back to, in the order they arranged it, which every window of the
+profile shows whether or not it has the pin open:
+
+- `PinStore` keeps a profile's pins (URL, title, last favicon) in its prefs.
+  Incognito and Guest have none.
+- A pin open in a window is a Chrome-pinned tab there, so extensions see
+  `pinned: true`. `PinnedTabs` keeps each window's pinned tabs in step with
+  the store: one tab per pin, in the pins' order. A tab Chrome pins (the Tab
+  menu's Pin Tab, an extension) becomes a new pin's; unpinning a pin's tab
+  unpins the page from every window. The tab strip can't change while it
+  notifies, so reordering and unpinning wait for a posted task.
+- Which pin a tab is the page of is `WebContents` user data, kept in its
+  session's extra data, which patches carry through session rebuilds and
+  closed-tab restore (`hooks/tab_extra_data.h`). A tab restored for a pin
+  that's gone, or already open in its window, is unpinned.
+- Chrome's own pinned-tab persistence (`PinnedTabService`, and pinned tabs
+  reopened at startup) is cut: pins open only when clicked.
 
 ## Startup
 

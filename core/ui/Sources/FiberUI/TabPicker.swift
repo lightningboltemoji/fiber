@@ -16,6 +16,8 @@ final class TabPicker: NSView {
   /// Called with the ID of a tab whose close button was clicked. The panel
   /// stays open.
   var onClose: (Int) -> Void = { _ in }
+  /// Right-clicks (or Control-clicks) on a tab, for its menu.
+  var onMenu: (Int, NSEvent) -> Void = { _, _ in }
 
   /// Off while the toolbar's sidebar (TabSidebar) lists the tabs instead; the
   /// bump still moves the window.
@@ -297,6 +299,10 @@ final class TabPicker: NSView {
     guard model.isExpanded else {
       return
     }
+    if event.modifierFlags.contains(.control) {
+      rightMouseDown(with: event)
+      return
+    }
     pressedCloseButtonTabID = closeButtonTab(at: point)
     if pressedCloseButtonTabID == nil {
       pressedTabID = tab(at: point)?.tabID
@@ -322,6 +328,13 @@ final class TabPicker: NSView {
       return
     }
     pick(tabID)
+  }
+
+  override func rightMouseDown(with event: NSEvent) {
+    guard model.isExpanded, let tab = tab(at: location(of: event)) else {
+      return
+    }
+    onMenu(tab.tabID, event)
   }
 
   private func pointerMoved(to point: CGPoint) {

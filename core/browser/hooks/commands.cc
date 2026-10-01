@@ -1,6 +1,8 @@
 #include "fiber/browser/hooks/commands.h"
 
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "fiber/browser/hooks/browser_window_factory.h"
 
 namespace fiber {
@@ -28,8 +30,11 @@ bool IsCommandSupported(BrowserWindowInterface* browser, int command) {
     case IDC_TASK_MANAGER_MAIN_MENU:
     case IDC_TASK_MANAGER_SHORTCUT:
     case IDC_BOOKMARK_ALL_TABS:
-    // Pinned, grouped and split tabs, which Fiber's tabs don't show.
+    // Pins are the profile's (fiber/browser/pins), which Incognito's has none
+    // of.
     case IDC_WINDOW_PIN_TAB:
+      return !browser->GetProfile()->IsOffTheRecord();
+    // Selected, grouped and split tabs, which Fiber's tabs don't show.
     case IDC_PIN_TARGET_TAB:
     case IDC_WINDOW_GROUP_TAB:
     case IDC_GROUP_TARGET_TAB:

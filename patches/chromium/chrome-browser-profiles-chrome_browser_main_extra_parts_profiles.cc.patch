@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
+index f594d3b3ab..562e85da9a 100644
+--- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
++++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
+@@ -1320,7 +1320,11 @@ void ChromeBrowserMainExtraPartsProfiles::
+   PersonalContextFirstRunServiceFactory::GetInstance();
+   PersonalContextServiceFactory::GetInstance();
+ #if !BUILDFLAG(IS_ANDROID)
++#if !BUILDFLAG(IS_MAC)
++  // Fiber: cut. Fiber's pins are the profile's (fiber/browser/pins), and
++  // aren't opened at startup.
+   PinnedTabServiceFactory::GetInstance();
++#endif
+   PinnedToolbarActionsModelFactory::GetInstance();
+ #endif
+   PlatformNotificationServiceFactory::GetInstance();

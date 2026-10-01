@@ -21,6 +21,7 @@ source_set("bridge") {
     "include/FiberBridge/FiberJavaScriptDialog.h",
     "include/FiberBridge/FiberOmnibox.h",
     "include/FiberBridge/FiberPageState.h",
+    "include/FiberBridge/FiberPinState.h",
     "include/FiberBridge/FiberProfileSwitcher.h",
     "include/FiberBridge/FiberPrompt.h",
     "include/FiberBridge/FiberQuitConfirmation.h",

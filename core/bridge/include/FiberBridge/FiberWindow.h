@@ -2,6 +2,7 @@
 
 @class FiberDevTools;
 @class FiberPageState;
+@class FiberPinState;
 @class FiberTabState;
 @protocol FiberExtensions;
 @protocol FiberFindBar;
@@ -47,6 +48,18 @@ NS_SWIFT_UI_ACTOR
 // Closes one of the window's tabs, as its close button would: the page may
 // ask the user first.
 - (void)closeTabWithID:(NSInteger)tabID;
+// Pins the tab's page (see FiberPinState): the tab becomes its pin's.
+- (void)pinTabWithID:(NSInteger)tabID;
+// Selects the pin's tab, or opens its URL in a new one.
+- (void)openPinWithID:(NSString*)pinID;
+// The pin's tab goes back to the URL the pin opens.
+- (void)resetPinWithID:(NSString*)pinID;
+// The pin opens the page its tab is on from now on.
+- (void)updateURLOfPinWithID:(NSString*)pinID;
+// Unpins the page, from every window. Its tabs stay, as ordinary tabs.
+- (void)unpinPinWithID:(NSString*)pinID;
+// Moves the pin to `index` among the pins, in every window.
+- (void)movePinWithID:(NSString*)pinID toIndex:(NSInteger)index;
 - (BOOL)canRunCommand:(FiberCommand)command;
 - (void)runCommand:(FiberCommand)command;
 // The command palette opened. The active tab's page text may have changed
@@ -107,6 +120,9 @@ NS_SWIFT_UI_ACTOR
 // page is in the content area.
 - (void)setTabs:(NSArray<FiberTabState*>*)tabs
     activeTabID:(NSInteger)activeTabID;
+// Replaces the pins with `pins`, in order. Their open tabs are among the tabs
+// too. Never called for a window that can't have pins, like an Incognito one.
+- (void)setPins:(NSArray<FiberPinState*>*)pins;
 // Shows the page's load progress (0 to 1) while `loading`, and completes and
 // hides it once not.
 - (void)setLoading:(BOOL)loading progress:(double)progress;

@@ -3,6 +3,7 @@
 #include "base/values.h"
 #include "chrome/common/pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
+#include "fiber/browser/pins/pin_store.h"
 
 namespace fiber {
 
@@ -21,6 +22,10 @@ void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry) {
   // through the Share menu.
   registry->SetDefaultPrefValue(prefs::kDesktopSharingHubEnabled,
                                 base::Value(false));
+}
+
+void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+  PinStore::RegisterProfilePrefs(registry);
 }
 
 }  // namespace fiber

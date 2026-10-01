@@ -1,0 +1,27 @@
+diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
+index 0fdde07d4d..1fe890b11d 100644
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -62,6 +62,7 @@
+ 
+ #if BUILDFLAG(IS_MAC)
+ #include "chrome/browser/app_controller_mac.h"
++#include "fiber/browser/hooks/tab_extra_data.h"
+ #endif
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -672,6 +673,14 @@ void SessionServiceBase::BuildCommandsForTab(
+         sessions::CreatePinnedStateCommand(session_id, true));
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  // Fiber: its data for the tab, which a rebuild would otherwise drop.
++  for (const auto& [key, value] : fiber::TabExtraData(tab)) {
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddTabExtraDataCommand(session_id, key, value));
++  }
++#endif
++
+   // Record the association between the sessionStorage namespace and the tab.
+   content::SessionStorageNamespaceHandle* session_storage_namespace =
+       tab->GetController().GetDefaultSessionStorageNamespace();

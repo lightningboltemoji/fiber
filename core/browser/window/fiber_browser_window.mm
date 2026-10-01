@@ -6,6 +6,7 @@
 #include <utility>
 
 #import "FiberBridge/FiberBridge.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/notimplemented.h"
@@ -49,6 +50,8 @@
 #include "fiber/browser/find_bar/fiber_find_bar.h"
 #include "fiber/browser/hooks/startup_window.h"
 #include "fiber/browser/palette/tab_index_source.h"
+#include "fiber/browser/pins/pin_store.h"
+#include "fiber/browser/pins/pinned_tabs.h"
 #include "fiber/browser/profiles/profile_switcher.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
 #include "fiber/browser/swipe/page_snapshots.h"
@@ -236,10 +239,21 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
   extensions_toolbar_ =
       std::make_unique<FiberExtensionsToolbar>(browser_, ui_.extensions);
+  // Before the window observes its tab strip, so it sees which tabs are pins'.
+  PinStore* pin_store = PinStore::FromProfile(GetProfile());
+  if (pin_store &&
+      browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+    pinned_tabs_ = std::make_unique<PinnedTabs>(
+        browser_, pin_store,
+        base::BindRepeating(&FiberBrowserWindow::UpdatePins,
+                            base::Unretained(this)));
+    UpdatePins();
+  }
   browser_->GetTabStripModel()->AddObserver(this);
 }
 
 FiberBrowserWindow::~FiberBrowserWindow() {
+  pinned_tabs_.reset();
   // Its popup and actions go while the browser's features are still there.
   extensions_toolbar_.reset();
   if (downloads_wait_) {
@@ -304,6 +318,11 @@ void FiberBrowserWindow::ExecuteCommand(int command,
 bool FiberBrowserWindow::IsCommandEnabled(int command) const {
   // Including whether Fiber supports it (see hooks/commands.h).
   return chrome::IsCommandEnabled(browser_, command);
+}
+
+bool FiberBrowserWindow::IsActiveTabPinned() const {
+  tabs::TabInterface* tab = browser_->GetTabStripModel()->GetActiveTab();
+  return tab && tab->IsPinned();
 }
 
 void FiberBrowserWindow::FocusWebContents() {
@@ -440,6 +459,13 @@ void FiberBrowserWindow::UpdateTabs() {
                          : tabs::TabHandle::NullValue];
   if (tab_index_source_) {
     tab_index_source_->TabsChanged();
+  }
+  UpdatePins();
+}
+
+void FiberBrowserWindow::UpdatePins() {
+  if (pinned_tabs_) {
+    [ui_ setPins:pinned_tabs_->GetPinStates()];
   }
 }
 

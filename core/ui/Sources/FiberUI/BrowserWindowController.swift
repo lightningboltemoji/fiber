@@ -74,6 +74,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// The window's tabs, for a command palette made later.
   private var windowTabs: [FiberTabState] = []
   private var activeTabID = 0
+  private var pins: [FiberPinState] = []
+  /// Whether the window has pins at all, which Incognito's don't.
+  private var canPin = false
   private lazy var extensionsController = ExtensionsController(
     bar: toolbar.extensionsBar, bubbles: extensionBubbles,
     isBarShown: { [weak self] in self?.isToolbarVisible ?? false },
@@ -290,6 +293,21 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabSidebar.onClose = { [weak self] tabID in
       self?.actions?.closeTab(withID: tabID)
     }
+    tabSidebar.onOpenPin = { [weak self] pinID in
+      self?.actions?.openPin(withID: pinID)
+    }
+    tabSidebar.onMovePin = { [weak self] pinID, index in
+      self?.actions?.movePin(withID: pinID, to: index)
+    }
+    tabSidebar.onUnpin = { [weak self] pinID in
+      self?.actions?.unpinPin(withID: pinID)
+    }
+    tabSidebar.onPinMenu = { [weak self] pin, event in
+      self?.showMenu(for: pin, event: event)
+    }
+    tabSidebar.onTabMenu = { [weak self] tabID, event in
+      self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabSidebar)
+    }
     controlsView.addSubview(tabSidebar)
     updateToolbar(animated: false)
 
@@ -308,6 +326,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     tabPicker.onClose = { [weak self] tabID in
       self?.actions?.closeTab(withID: tabID)
+    }
+    tabPicker.onMenu = { [weak self] tabID, event in
+      self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabPicker)
     }
     controlsView.addSubview(tabPicker)
 
@@ -633,6 +654,35 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowTabs = tabs
     self.activeTabID = activeTabID
     commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
+  }
+
+  func setPins(_ pins: [FiberPinState]) {
+    self.pins = pins
+    canPin = true
+    tabSidebar.setPins(pins)
+  }
+
+  private func showMenu(for pin: FiberPinState, event: NSEvent) {
+    guard let actions else {
+      return
+    }
+    NSMenu.popUpContextMenu(
+      TabMenus.menu(for: pin, actions: actions), with: event, for: tabSidebar)
+  }
+
+  /// A pin's tab, in the tab picker, has its pin's menu.
+  private func showMenu(
+    forTabWithID tabID: Int, event: NSEvent, in view: NSView?
+  ) {
+    guard let actions, let view else {
+      return
+    }
+    let menu =
+      pins.first { $0.tabID == tabID }.map {
+        TabMenus.menu(for: $0, actions: actions)
+      }
+      ?? TabMenus.menu(forTabWithID: tabID, canPin: canPin, actions: actions)
+    NSMenu.popUpContextMenu(menu, with: event, for: view)
   }
 
   func setLoading(_ loading: Bool, progress: Double) {

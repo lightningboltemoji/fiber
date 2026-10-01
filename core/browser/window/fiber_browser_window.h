@@ -30,6 +30,7 @@ class FiberExtensionsToolbar;
 class HistorySwipeNavigation;
 class FiberLocationBar;
 class FiberStatusBubble;
+class PinnedTabs;
 class TabIndexSource;
 
 // Chrome's BrowserWindow for Fiber's native windows (//fiber/ui, created
@@ -70,6 +71,7 @@ class FiberBrowserWindow : public BrowserWindow,
   // Called by FiberBrowserWindowActions for what the user does in the window.
   void ExecuteCommand(int command, WindowOpenDisposition disposition);
   bool IsCommandEnabled(int command) const;
+  bool IsActiveTabPinned() const;
   void FocusWebContents();
   // Selects the tab, in whichever of the profile's windows has it, and brings
   // that window forward.
@@ -79,6 +81,8 @@ class FiberBrowserWindow : public BrowserWindow,
   // Closes one of this window's tabs as the user would, so its page can ask
   // first and it can be reopened.
   void CloseTab(int32_t tab_id);
+  // The window's pins and their tabs; null if its profile has none.
+  PinnedTabs* pinned_tabs() const { return pinned_tabs_.get(); }
   void OnCommandPaletteOpened();
   void OnWindowCloseRequested();
   void OnWindowActivationChanged(bool active);
@@ -277,8 +281,9 @@ class FiberBrowserWindow : public BrowserWindow,
   NSWindow* GetNSWindow() const;
   content::WebContents* GetActiveWebContents() const;
   void UpdateLoadProgress();
-  // Sends the UI the tab list, in tab strip order.
+  // Sends the UI the tab list, in tab strip order, and the pins.
   void UpdateTabs();
+  void UpdatePins();
   // Focuses the active tab as Chrome would on switching to it.
   void RestoreFocus();
 
@@ -288,6 +293,7 @@ class FiberBrowserWindow : public BrowserWindow,
   std::unique_ptr<FiberLocationBar> location_bar_;
   std::unique_ptr<FiberStatusBubble> status_bubble_;
   std::unique_ptr<FiberExtensionsToolbar> extensions_toolbar_;
+  std::unique_ptr<PinnedTabs> pinned_tabs_;
   // The profile's, shared with its other windows.
   raw_ptr<TabIndexSource> tab_index_source_;
   // Set while closing the window waits for its downloads.

@@ -20,11 +20,18 @@ final class PaletteView: NSView {
   private static let hintInnerSpacing: CGFloat = 6
   private static let hintSpacing: CGFloat = 18
   static let horizontalInset: CGFloat = 18
+  static let fadeInDuration: TimeInterval = 0.15
+  static let fadeOutDuration: TimeInterval = 0.12
 
   let field = NSTextField()
   /// Shown between the field's icon and the field, like the omnibar's keyword.
   var fieldAccessory: NSView? {
     didSet { content.fieldRow.accessory = fieldAccessory }
+  }
+  /// Laid over the field's row, as large as it, like the omnibar's part
+  /// numbers.
+  var fieldOverlay: NSView? {
+    didSet { content.fieldRow.overlay = fieldOverlay }
   }
   /// The list's view, in a scroll view under the field. It's as wide as the
   /// panel and `listContentHeight` tall.
@@ -136,7 +143,7 @@ final class PaletteView: NSView {
 
   private func fadeIn() {
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = 0.15
+      context.duration = Self.fadeInDuration
       animator().alphaValue = 1
     }
   }
@@ -150,7 +157,7 @@ final class PaletteView: NSView {
       window?.makeFirstResponder(nil)
     }
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = 0.12
+      context.duration = Self.fadeOutDuration
       animator().alphaValue = 0
     } completionHandler: { [weak self] in
       MainActor.assumeIsolated {
@@ -310,6 +317,15 @@ private final class FieldRowView: NSView {
       needsLayout = true
     }
   }
+  var overlay: NSView? {
+    didSet {
+      oldValue?.removeFromSuperview()
+      if let overlay {
+        addSubview(overlay)
+      }
+      needsLayout = true
+    }
+  }
 
   private let icon: NSView
   private let field: NSView
@@ -345,6 +361,7 @@ private final class FieldRowView: NSView {
         spacing: Self.accessorySpacing)
     }
     place(field, width: max(bounds.width - inset - x, 0), spacing: 0)
+    overlay?.frame = bounds
   }
 
   override func layout() {

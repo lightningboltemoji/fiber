@@ -1,9 +1,13 @@
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 
+#include <algorithm>
+
+#include "base/apple/foundation_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "fiber/browser/pins/pinned_tabs.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 #import "ui/base/cocoa/cocoa_base_utils.h"
 #include "ui/base/window_open_disposition.h"
@@ -41,6 +45,10 @@ int CommandID(FiberCommand command) {
 
 - (void)detachOwner {
   _owner = nullptr;
+}
+
+- (fiber::PinnedTabs*)pinnedTabs {
+  return _owner ? _owner->pinned_tabs() : nullptr;
 }
 
 - (void)executeCommand:(int)command
@@ -105,6 +113,43 @@ int CommandID(FiberCommand command) {
   }
 }
 
+- (void)pinTabWithID:(NSInteger)tabID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->PinTab(static_cast<int32_t>(tabID));
+  }
+}
+
+- (void)openPinWithID:(NSString*)pinID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->Open(base::SysNSStringToUTF8(pinID));
+  }
+}
+
+- (void)resetPinWithID:(NSString*)pinID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->Reset(base::SysNSStringToUTF8(pinID));
+  }
+}
+
+- (void)updateURLOfPinWithID:(NSString*)pinID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->UpdateURL(base::SysNSStringToUTF8(pinID));
+  }
+}
+
+- (void)unpinPinWithID:(NSString*)pinID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->Unpin(base::SysNSStringToUTF8(pinID));
+  }
+}
+
+- (void)movePinWithID:(NSString*)pinID toIndex:(NSInteger)index {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->Move(base::SysNSStringToUTF8(pinID),
+                      static_cast<size_t>(std::max<NSInteger>(index, 0)));
+  }
+}
+
 - (BOOL)canRunCommand:(FiberCommand)command {
   return _owner && _owner->IsCommandEnabled(CommandID(command));
 }
@@ -163,7 +208,16 @@ int CommandID(FiberCommand command) {
       item.action != @selector(commandDispatchUsingKeyModifiers:)) {
     return YES;
   }
-  return _owner && _owner->IsCommandEnabled(item.tag);
+  if (!_owner) {
+    return NO;
+  }
+  // Pin Tab has a checkmark on a pinned tab, as in Chrome.
+  NSMenuItem* menu_item = base::apple::ObjCCast<NSMenuItem>(item);
+  if (menu_item && item.tag == IDC_WINDOW_PIN_TAB) {
+    menu_item.state = _owner->IsActiveTabPinned() ? NSControlStateValueOn
+                                                  : NSControlStateValueOff;
+  }
+  return _owner->IsCommandEnabled(item.tag);
 }
 
 @end

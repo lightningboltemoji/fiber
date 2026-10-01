@@ -34,6 +34,11 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private let tabIndex: any FiberTabIndex
   private(set) var tabs: [MockTab] = []
   private var activeTab: MockTab!
+  /// The pins open here, by ID. Their tabs come first, as in Chrome's tab
+  /// strip.
+  private var pinTabs: [String: MockTab] = [:]
+  /// The profile's, which an Incognito window has none of.
+  private var pins: MockPins? { isIncognito ? nil : app?.pins }
   private var dialog: (any FiberJavaScriptDialog)?
   private var controlsVisible = true
   private var omnibox: MockOmnibox!
@@ -75,6 +80,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     for url in urls {
       openTab(url, activate: true)
     }
+    pinsDidChange()
   }
 
   var window: NSWindow { ui.window }
@@ -135,6 +141,67 @@ final class MockBrowser: NSObject, FiberWindowActions {
     // Like Chrome, the tab comes forward to ask.
     activate(tab)
     confirmLeaving { [weak self] in self?.close(tab) }
+  }
+
+  func pinTab(withID tabID: Int) {
+    guard let pins, let tab = tabs.first(where: { $0.id == tabID }),
+      !pinTabs.values.contains(tab)
+    else {
+      return
+    }
+    let id = pins.add(url: tab.url, title: tab.page.title)
+    pinTabs[id] = tab
+    pinsDidChange()
+  }
+
+  func openPin(withID pinID: String) {
+    if let tab = pinTabs[pinID] {
+      activate(tab)
+      return
+    }
+    guard let pin = pins?.pin(withID: pinID) else {
+      return
+    }
+    pinTabs[pinID] = openTab(pin.url, activate: true)
+    pinsDidChange()
+  }
+
+  func resetPin(withID pinID: String) {
+    guard let tab = pinTabs[pinID], let pin = pins?.pin(withID: pinID) else {
+      openPin(withID: pinID)
+      return
+    }
+    activate(tab)
+    open(pin.url, in: tab)
+  }
+
+  func updateURLOfPin(withID pinID: String) {
+    guard let tab = pinTabs[pinID] else {
+      return
+    }
+    pins?.update(pinID, url: tab.url, title: tab.page.title)
+  }
+
+  func unpinPin(withID pinID: String) {
+    pins?.remove(pinID)
+  }
+
+  func movePin(withID pinID: String, to index: Int) {
+    pins?.move(pinID, to: index)
+  }
+
+  /// The pins changed, here or in another window: tabs of pins that are
+  /// gone stay, as ordinary tabs, and the rest keep the pins' order.
+  func pinsDidChange() {
+    guard let pins else {
+      return
+    }
+    pinTabs = pinTabs.filter { pins.pin(withID: $0.key) != nil }
+    let pinned = pins.pins.compactMap { pinTabs[$0.id] }
+    tabs = pinned + tabs.filter { !pinned.contains($0) }
+    if activeTab != nil {
+      pushTabs()
+    }
   }
 
   func canRun(_ command: FiberCommand) -> Bool {
@@ -303,7 +370,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
     }
   }
 
-  private func openTab(_ url: String, activate: Bool) {
+  @discardableResult
+  private func openTab(_ url: String, activate: Bool) -> MockTab {
     let tab = MockTab()
     tab.page.browser = self
     tab.history = [url]
@@ -315,6 +383,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
       self.activate(tab)
     }
     startLoading(tab)
+    return tab
   }
 
   /// Brings the window forward, showing the tab.
@@ -346,6 +415,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     }
     tab.loadTimer?.invalidate()
     tabs.remove(at: index)
+    pinTabs = pinTabs.filter { $0.value !== tab }
     guard !tabs.isEmpty else {
       close()
       return
@@ -568,12 +638,23 @@ final class MockBrowser: NSObject, FiberWindowActions {
     tabs.map {
       FiberTabState(
         id: $0.id, title: $0.page.title, url: Self.displayURL($0.url),
-        favicon: nil, loading: $0.isLoading, lastActiveTime: $0.lastActive)
+        favicon: MockFavicon.image(for: $0.url), loading: $0.isLoading,
+        lastActiveTime: $0.lastActive)
     }
   }
 
   private func pushTabs() {
     ui.setTabs(tabStates, activeTabID: activeTab.id)
+    if let pins {
+      ui.setPins(
+        pins.pins.map { pin in
+          let tab = pinTabs[pin.id]
+          return FiberPinState(
+            id: pin.id, title: pin.title, url: Self.displayURL(pin.url),
+            favicon: MockFavicon.image(for: pin.url), tabID: tab?.id ?? 0,
+            loading: tab?.isLoading ?? false, atPinnedURL: tab?.url == pin.url)
+        })
+    }
     app?.tabsDidChange()
   }
 

@@ -41,6 +41,7 @@ final class Omnibar: NSObject, FiberOmnibox {
     field.delegate = self
     keywordChip.isHidden = true
     view.fieldAccessory = keywordChip
+    view.fieldOverlay = fieldEditor.partNumbersView
     // Command-Return, unlisted, opens a new tab in the background, as in
     // Chrome.
     view.hints = [("Open", "↩"), ("New Tab", "⌥↩"), ("Close", "esc")]

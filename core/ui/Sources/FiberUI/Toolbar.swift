@@ -6,8 +6,8 @@ import AppKit
 @MainActor
 final class Toolbar: NSView {
   /// The capsules' height, which matches the traffic lights' capsule.
-  static let height: CGFloat = 40
-  static let spacing: CGFloat = 8
+  nonisolated static let height: CGFloat = 40
+  nonisolated static let spacing: CGFloat = 8
   private static let rimWidth: CGFloat = 5
   static let buttonSize: CGFloat = 28
   /// Between the buttons at each end of a capsule and its rim.

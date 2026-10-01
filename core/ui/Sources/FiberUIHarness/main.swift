@@ -4,6 +4,7 @@
 // `--palette QUERY` (the command palette, open with QUERY typed),
 // `--find QUERY` (the find bar, likewise), `--extension-window` (a window an extension opened, as its bubble),
 // `--incognito` (the first window is Incognito, on the New Tab page),
+// `--pins N` (made-up pinned sites, the first two open),
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page).
 
 import AppKit
@@ -22,6 +23,8 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   /// Incognito profile's.
   let tabIndex = FiberTabIndexFactory.tabIndex()
   let incognitoTabIndex = FiberTabIndexFactory.tabIndex()
+  /// The profile's pins, which its windows share.
+  let pins = MockPins()
   private lazy var downloads = MockDownloads(count: launchDownloadCount)
   private lazy var profiles = MockProfiles(app: self)
   /// Set once the downloads are done, so the quit they held up goes ahead.
@@ -29,6 +32,11 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.mainMenu = makeMainMenu()
+    pins.onChange = { [weak self] in
+      for browser in self?.browsers ?? [] {
+        browser.pinsDidChange()
+      }
+    }
     if CommandLine.arguments.contains("--incognito") {
       openWindow(
         urls: [MockBrowser.newTabURL]
@@ -36,6 +44,15 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         isIncognito: true)
     } else {
       openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
+    }
+    if let count = launchValue(of: "--pins").flatMap(Int.init), count > 0 {
+      let urls = MockBrowser.sampleURLs(count: count + 5).suffix(count)
+      for url in urls {
+        pins.add(url: url, title: URL(string: url)?.host() ?? url)
+      }
+      for pin in pins.pins.prefix(2) {
+        browsers.last?.openPin(withID: pin.id)
+      }
     }
     NSApp.activate()
     if CommandLine.arguments.contains("--extension-window") {

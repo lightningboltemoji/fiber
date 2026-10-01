@@ -1,0 +1,26 @@
+diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
+index 6aca93a450..6dd3fd27f1 100644
+--- a/chrome/browser/ui/browser_tabrestore.cc
++++ b/chrome/browser/ui/browser_tabrestore.cc
+@@ -40,6 +40,10 @@
+ #include "ui/gfx/geometry/size.h"
+ #include "ui/gfx/range/range.h"
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/tab_extra_data.h"
++#endif
++
+ using content::NavigationEntry;
+ using content::RestoreType;
+ using content::WebContents;
+@@ -85,6 +89,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+   glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+   send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
+       web_contents.get(), extra_data);
++#if BUILDFLAG(IS_MAC)
++  // Fiber: its data for the tab.
++  fiber::RestoreTabExtraData(web_contents.get(), extra_data);
++#endif
+ 
+   std::vector<std::unique_ptr<NavigationEntry>> entries =
+       ContentSerializedNavigationBuilder::ToNavigationEntries(

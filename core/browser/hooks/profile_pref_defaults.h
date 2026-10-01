@@ -12,6 +12,9 @@ namespace fiber {
 // patches/chromium/chrome-browser-prefs-browser_prefs.cc.patch).
 void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry);
 
+// Registers Fiber's own profile prefs. Called from the same place.
+void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
+
 }  // namespace fiber
 
 #endif  // FIBER_BROWSER_HOOKS_PROFILE_PREF_DEFAULTS_H_
