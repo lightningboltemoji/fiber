@@ -172,7 +172,8 @@ the main loop's first idle, later still.
 - **The startup window** (`hooks/startup_window.mm`). As soon as the process
   holds the process singleton (so it's the browser, not a launch handing its
   URLs to a running one), `ShowStartupWindow()` shows a Fiber window where the
-  last startup's window went, with nothing on its page. The first normal,
+  last startup's window went, with only the New Tab page's mark on its page,
+  since that's usually what it turns out to be. The first normal,
   non-Incognito browser takes the window over rather than making one
   (`FiberBrowserWindow`'s constructor), and tells it what to show from then
   on, but the page, and the omnibar the browser opens over a New Tab page,
@@ -185,11 +186,18 @@ the main loop's first idle, later still.
   startup expects. If no browser has taken it by the time AppKit has finished
   launching (Incognito by policy, say), it closes.
 - **Only what shows is built.** The command palette is made the first time it
-  opens, and the window is made at its final size so it's laid out once.
-- **What can wait, waits.** The browser process starts its crash reporter
-  (a handler process it waits on) just after the startup window, still before
-  any other process starts.
-- **Cold starts** (`hooks/framework_prefetch.cc`). Startup runs code from all
+  opens, and the omnibar when the browser takes the startup window. The window
+  is made at its final size so it's laid out once.
+- **Off the main thread.** Until the browser's threads start, the main thread
+  does nearly all of startup, much of it waiting on other processes. The crash
+  reporter starts on a thread of its own just after the startup window (it
+  launches a handler process and waits for it to answer), and the main thread
+  waits for it only before the browser's threads start: child processes
+  inherit its exception port as they launch (`hooks/crash_reporter.h`). As
+  `ChromeMain()` starts, another thread gets the displays from the window
+  server, which `NSApplication`'s init otherwise waits for
+  (`hooks/startup_prefetch.cc`).
+- **Cold starts** (`hooks/startup_prefetch.cc`). Startup runs code from all
   over the framework (in all, about half its code pages), which after a
   restart comes off the disk a page at a time. The browser process reads it
   in ahead on a background thread, as soon as `ChromeMain()` starts, at a
@@ -199,7 +207,10 @@ the main loop's first idle, later still.
   policy to filter; Fiber's patch only asks when there is one. Out/Release
   strips local symbols: besides their size, `atexit()` looks up its caller
   with `dladdr()`, which scans the whole symbol table, and Chrome calls it at
-  startup.
+  startup. Fitting a window to the screen (`setFrame:`, `isZoomed`) asks the
+  window server, a few milliseconds each while the app starts, so the startup
+  window isn't moved to where it already is, and `Show()` doesn't force a
+  display of a window that's already on screen.
 
 To measure: a launch through LaunchServices, as from the Dock, to the window
 on screen (`CGWindowListCopyWindowInfo`), warm and with the app's files
@@ -209,6 +220,11 @@ MacBook Air, from the launch to the window: 420 ms before all this and about
 some 20 ms slower for its first few dozen launches, while macOS vets it, so
 measure a build once that's passed. Instruments' System Trace inflates child
 process launches (`/usr/bin/profiles` looks like 90 ms instead of 10).
+`xctrace record --launch` starts the copy of Fiber that LaunchServices finds
+for its bundle ID, `/Applications/Fiber.app` if there is one, not the build it
+names; record `--all-processes` and start the build yourself. Chrome's startup
+tracing (`--trace-startup`) only starts after `PostEarlyInitialization()`, so
+everything up to the startup window shows only in Instruments.
 
 ## Build
 

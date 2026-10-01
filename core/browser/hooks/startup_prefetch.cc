@@ -1,5 +1,6 @@
-#include "fiber/browser/hooks/framework_prefetch.h"
+#include "fiber/browser/hooks/startup_prefetch.h"
 
+#include <CoreGraphics/CoreGraphics.h>
 #include <fcntl.h>
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
@@ -34,7 +35,7 @@ std::string_view SegmentName(const segment_command_64& segment) {
 
 // The image this code is in, and how much of its file to read.
 bool FindFramework(Prefetch& prefetch) {
-  const auto self = reinterpret_cast<uintptr_t>(&PrefetchFramework);
+  const auto self = reinterpret_cast<uintptr_t>(&StartPrefetching);
   for (uint32_t i = 0; i < _dyld_image_count(); ++i) {
     const auto* header =
         reinterpret_cast<const mach_header_64*>(_dyld_get_image_header(i));
@@ -94,15 +95,36 @@ void* ReadAhead(void* context) {
   return nullptr;
 }
 
+void* GetDisplays(void*) {
+  CGMainDisplayID();
+  return nullptr;
+}
+
+bool StartThread(void* (*run)(void*), void* context, qos_class_t qos) {
+  pthread_attr_t attributes;
+  pthread_attr_init(&attributes);
+  pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
+  pthread_attr_set_qos_class_np(&attributes, qos, 0);
+  pthread_t thread;
+  const bool started = pthread_create(&thread, &attributes, run, context) == 0;
+  pthread_attr_destroy(&attributes);
+  return started;
+}
+
 }  // namespace
 
-void PrefetchFramework(int argc, const char** argv) {
-  // Other processes start once the browser has (mostly) read it.
+void StartPrefetching(int argc, const char** argv) {
+  // Other processes start once the browser has (mostly) read the framework,
+  // and don't show windows.
   for (int i = 1; i < argc; ++i) {
     if (std::string_view(UNSAFE_BUFFERS(argv[i])).starts_with("--type=")) {
       return;
     }
   }
+  // At user-initiated QoS: NSApplication's init, on the main thread, waits for
+  // whatever's left of it.
+  StartThread(&GetDisplays, nullptr, QOS_CLASS_USER_INITIATED);
+
   auto* prefetch = new Prefetch;
   if (!FindFramework(*prefetch)) {
     delete prefetch;
@@ -111,15 +133,9 @@ void PrefetchFramework(int argc, const char** argv) {
   // At utility QoS, whose reads give way to the main thread's: those are for
   // what startup needs now, and waiting behind the read-ahead slows the
   // window by 20 ms.
-  pthread_attr_t attributes;
-  pthread_attr_init(&attributes);
-  pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
-  pthread_attr_set_qos_class_np(&attributes, QOS_CLASS_UTILITY, 0);
-  pthread_t thread;
-  if (pthread_create(&thread, &attributes, &ReadAhead, prefetch) != 0) {
+  if (!StartThread(&ReadAhead, prefetch, QOS_CLASS_UTILITY)) {
     delete prefetch;
   }
-  pthread_attr_destroy(&attributes);
 }
 
 }  // namespace fiber

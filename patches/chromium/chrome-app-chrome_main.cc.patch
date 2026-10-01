@@ -1,22 +1,23 @@
 diff --git a/chrome/app/chrome_main.cc b/chrome/app/chrome_main.cc
-index 199142d671..9aba07e3f9 100644
+index 199142d671..75ebac5108 100644
 --- a/chrome/app/chrome_main.cc
 +++ b/chrome/app/chrome_main.cc
 @@ -34,6 +34,7 @@
  #if BUILDFLAG(IS_MAC)
  #include "chrome/app/chrome_main_mac.h"
  #include "chrome/common/mac/detect_inappropriate_exit.h"
-+#include "fiber/browser/hooks/framework_prefetch.h"
++#include "fiber/browser/hooks/startup_prefetch.h"
  #endif
  
  #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
-@@ -106,6 +107,10 @@ DLLEXPORT int __cdecl ChromeMain(HINSTANCE instance,
+@@ -106,6 +107,11 @@ DLLEXPORT int __cdecl ChromeMain(HINSTANCE instance,
                                   int64_t preread_end_ticks) {
  #elif BUILDFLAG(IS_POSIX)
  int ChromeMain(int argc, const char** argv) {
 +#if BUILDFLAG(IS_MAC)
-+  // Fiber: start reading the framework in, for a cold start.
-+  fiber::PrefetchFramework(argc, argv);
++  // Fiber: start fetching what startup will wait on: the framework, for a
++  // cold start, and the displays.
++  fiber::StartPrefetching(argc, argv);
 +#endif
  #else
  #error Unknown platform.

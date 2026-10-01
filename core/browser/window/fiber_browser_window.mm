@@ -210,9 +210,11 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
   if (ui_) {
     ui_.actions = actions_;
     ui_.tabIndex = tab_index_source_->index();
-    // Usually where it already is.
-    if (!bounds.IsEmpty()) {
-      [ui_.window setFrame:gfx::ScreenRectToNSRect(bounds) display:YES];
+    // Usually where it already is. Setting it anyway waits on the window
+    // server, to fit it to the screen.
+    const NSRect frame = gfx::ScreenRectToNSRect(bounds);
+    if (!bounds.IsEmpty() && !NSEqualRects(frame, ui_.window.frame)) {
+      [ui_.window setFrame:frame display:YES];
     }
   } else {
     ui_ = [FiberWindowFactory
@@ -806,12 +808,15 @@ void FiberBrowserWindow::Show() {
   // as soon as this returns, before AppKit reports the window becoming main.
   BrowserActiveStateManager::From(browser_)->DidBecomeActive();
   shown_ = true;
+  const bool was_visible = GetNSWindow().visible;
   [GetNSWindow() makeKeyAndOrderFront:nil];
   RestoreFocus();
   // On screen now, rather than once the main loop next goes idle, which at
-  // startup is well after the browser is ready.
-  [GetNSWindow() displayIfNeeded];
-  [CATransaction flush];
+  // startup is well after the browser is ready. The startup window already is.
+  if (!was_visible) {
+    [GetNSWindow() displayIfNeeded];
+    [CATransaction flush];
+  }
 }
 
 void FiberBrowserWindow::ShowInactive() {

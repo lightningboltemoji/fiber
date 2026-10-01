@@ -97,6 +97,9 @@ final class PaletteView: NSView {
         .foregroundColor: NSColor.tertiaryLabelColor,
       ])
     field.cell?.sendsActionOnEndEditing = false
+    // Without a content type, AppKit's AutoFill guesses one, and offers
+    // one-time codes in a list that flashes up under the field as it focuses.
+    field.contentType = .URL
 
     hintsView.spacing = Self.hintInnerSpacing
 

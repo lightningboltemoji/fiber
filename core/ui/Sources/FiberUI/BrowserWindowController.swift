@@ -63,7 +63,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let toolbar: Toolbar
   private let tabPicker = TabPicker()
   private let tabSidebar = TabSidebar()
-  private let omnibar = Omnibar()
+  /// Nil until first used (see makeOmnibar()).
+  private var madeOmnibar: Omnibar?
+  private var omnibar: Omnibar { madeOmnibar ?? makeOmnibar() }
   /// Made the first time it opens (see makeCommandPalette()).
   private var commandPalette: CommandPalette?
   /// The window's tabs, for a command palette made later.
@@ -94,13 +96,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// draws over the (empty) page.
   private var isNewTabPage = false
   /// A startup window's page, and the omnibar over it, don't show until
-  /// showPage().
+  /// showPage(). The New Tab page's mark, which is usually what the page turns
+  /// out to be, stands in meanwhile.
   fileprivate var isPageHeld = false {
     didSet {
       pageArea.alphaValue = isPageHeld ? 0 : 1
-      omnibar.view.isHeld = isPageHeld
+      madeOmnibar?.view.isHeld = isPageHeld
+      updateHeldPagePlaceholder()
     }
   }
+  /// Under the page while it's held.
+  private var heldPagePlaceholder: NewTabView?
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
   /// Blurs the page and darkens the window while it waits on the user.
@@ -258,17 +264,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     content.addSubview(tabPicker)
 
-    // Over everything, one at a time, with the command palette (see
-    // makeCommandPalette()).
-    omnibar.view.frame = content.bounds
-    omnibar.view.autoresizingMask = [.width, .height]
-    content.addSubview(omnibar.view)
-    omnibar.onOpen = { [weak self] in
-      self?.tabPicker.close()
-      self?.commandPalette?.close()
-    }
-    omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
-
     // Over everything; what the window waits on goes over it.
     veil.dimView.frame = content.bounds
     veil.dimView.autoresizingMask = [.width, .height]
@@ -276,9 +271,46 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
     if frame.isEmpty {
       window.center()
-    } else {
+    } else if window.frame != frame {
       window.setFrame(frame, display: false)
     }
+  }
+
+  /// Over everything but the veil, one at a time with the command palette
+  /// (see makeCommandPalette()). Made on first use, which for a startup window
+  /// is once the browser takes it, so the window shows sooner.
+  private func makeOmnibar() -> Omnibar {
+    let omnibar = Omnibar()
+    let content = window.contentView!
+    omnibar.view.frame = content.bounds
+    omnibar.view.autoresizingMask = [.width, .height]
+    omnibar.view.isHeld = isPageHeld
+    content.addSubview(
+      omnibar.view, positioned: .below, relativeTo: veil.dimView)
+    omnibar.onOpen = { [weak self] in
+      self?.tabPicker.close()
+      self?.commandPalette?.close()
+    }
+    omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
+    madeOmnibar = omnibar
+    return omnibar
+  }
+
+  private func updateHeldPagePlaceholder() {
+    guard isPageHeld else {
+      heldPagePlaceholder?.removeFromSuperview()
+      heldPagePlaceholder = nil
+      return
+    }
+    guard heldPagePlaceholder == nil, let content = window.contentView else {
+      return
+    }
+    // Only startup windows hold their page, and they're never Incognito.
+    let placeholder = NewTabView(isIncognito: false)
+    placeholder.frame = pageArea.frame
+    placeholder.autoresizingMask = [.width, .height]
+    content.addSubview(placeholder, positioned: .below, relativeTo: pageArea)
+    heldPagePlaceholder = placeholder
   }
 
   private func configureToolbar() {
@@ -447,7 +479,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     // They were for the tab being switched away from. (The browser opens the
     // omnibar again on a New Tab page.)
-    omnibar.close()
+    madeOmnibar?.close()
     commandPalette?.close()
     historySwipe.reset()
     contentsView?.removeFromSuperview()
@@ -638,7 +670,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   private func closeOmnibar() {
-    guard omnibar.isOpen else {
+    guard madeOmnibar?.isOpen == true else {
       return
     }
     omnibar.close()
@@ -677,7 +709,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     content.addSubview(palette.view, positioned: .above, relativeTo: omnibar.view)
     palette.onOpen = { [weak self] in
       self?.tabPicker.close()
-      self?.omnibar.close()
+      self?.madeOmnibar?.close()
     }
     palette.onDismiss = { [weak self] in self?.closeCommandPalette() }
     commandPalette = palette
@@ -709,7 +741,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     else {
       return
     }
-    omnibar.close()
+    madeOmnibar?.close()
     commandPalette?.close()
   }
 
@@ -807,7 +839,11 @@ extension BrowserWindowController: NSWindowDelegate {
   func windowWillReturnFieldEditor(_ sender: NSWindow, to client: Any?)
     -> Any?
   {
-    client as? NSTextField === omnibar.view.field ? omnibar.fieldEditor : nil
+    guard let madeOmnibar, client as? NSTextField === madeOmnibar.view.field
+    else {
+      return nil
+    }
+    return madeOmnibar.fieldEditor
   }
 
   func windowDidBecomeMain(_ notification: Notification) {
