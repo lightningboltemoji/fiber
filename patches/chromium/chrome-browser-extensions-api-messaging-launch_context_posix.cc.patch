@@ -1,0 +1,49 @@
+diff --git a/chrome/browser/extensions/api/messaging/launch_context_posix.cc b/chrome/browser/extensions/api/messaging/launch_context_posix.cc
+index ebc06e1203..d899d53aab 100644
+--- a/chrome/browser/extensions/api/messaging/launch_context_posix.cc
++++ b/chrome/browser/extensions/api/messaging/launch_context_posix.cc
+@@ -19,10 +19,16 @@
+ #include "chrome/common/chrome_paths.h"
+ #include "net/base/file_stream.h"
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/native_messaging.h"
++#endif
++
+ namespace extensions {
+ 
+ namespace {
+ 
++// Fiber: Fiber's search takes the place of this one (see FindManifest()).
++#if !BUILDFLAG(IS_MAC)
+ base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
+   base::FilePath base_path;
+   if (base::PathService::Get(dir_key, &base_path)) {
+@@ -33,6 +39,7 @@ base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
+   }
+   return base::FilePath();
+ }
++#endif  // !BUILDFLAG(IS_MAC)
+ 
+ }  // namespace
+ 
+@@ -40,6 +47,11 @@ base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
+ base::FilePath LaunchContext::FindManifest(const std::string& host_name,
+                                            bool allow_user_level_hosts,
+                                            std::string& error_message) {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: Chrome's hosts too, which is where apps register them.
++  base::FilePath result =
++      fiber::FindNativeMessagingManifest(host_name, allow_user_level_hosts);
++#else
+   base::FilePath result;
+   if (allow_user_level_hosts) {
+     result = FindManifestInDir(chrome::DIR_USER_NATIVE_MESSAGING, host_name);
+@@ -47,6 +59,7 @@ base::FilePath LaunchContext::FindManifest(const std::string& host_name,
+   if (result.empty()) {
+     result = FindManifestInDir(chrome::DIR_NATIVE_MESSAGING, host_name);
+   }
++#endif  // BUILDFLAG(IS_MAC)
+ 
+   if (result.empty()) {
+     error_message = "Can't find native messaging host " + host_name;

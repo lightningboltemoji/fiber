@@ -122,6 +122,7 @@ Each surface Fiber replaces, and where it lives:
 | DevTools, docked at the bottom or right of the window. The window's controls lay out over the page as if it were the window, and hide while DevTools emulates a device. DevTools' dock menu offers neither left nor a window of its own (patches in `third_party/devtools-frontend`) | `hooks/devtools_dock.mm`, `browser/window/` | `BrowserWindowController.swift` |
 | A page whose renderer crashed or was killed (Chrome's sad tab), drawn over it | `browser/window/fiber_sad_tab.mm` | `SadTabView.swift` |
 | The page's scrollbar, clear of the tab picker | `renderer/hooks/` | |
+| Native messaging hosts, found in Chrome's folders as well as Fiber's, since apps only register them with browsers they know | `hooks/native_messaging.cc` | |
 | Media codecs | `media/` | |
 
 Where Fiber has no replacement yet ([UNIMPLEMENTED.md](UNIMPLEMENTED.md) has
