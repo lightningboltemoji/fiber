@@ -433,14 +433,22 @@ final class ExtensionBadge: NSView {
 /// An extension's popup: its page, in a popover fitted to the page's size.
 @MainActor
 final class ExtensionPopup: NSObject, FiberExtensionPopup, NSPopoverDelegate {
-  /// Called when the user closes the popup, by clicking away from it.
+  /// Called when the user closes the popup, by clicking in the window it
+  /// opened from.
   var onUserClose: () -> Void = {}
 
   private let popover = NSPopover()
   private let container = PopupBackground()
   private let actions: any FiberExtensionPopupActions
   private let anchor: () -> (NSView, NSRect)?
+  private weak var anchorWindow: NSWindow?
   private var isClosed = false
+
+  /// AppKit asks to close during either half of the click.
+  private static let clicks: Set<NSEvent.EventType> = [
+    .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
+    .otherMouseDown, .otherMouseUp,
+  ]
 
   init(
     contentsView: NSView, actions: any FiberExtensionPopupActions,
@@ -473,12 +481,29 @@ final class ExtensionPopup: NSObject, FiberExtensionPopup, NSPopoverDelegate {
       DispatchQueue.main.async { [weak self] in self?.userDidClose() }
       return
     }
+    anchorWindow = view.window
     popover.show(relativeTo: rect, of: view, preferredEdge: .minY)
   }
 
   func close() {
     isClosed = true
     popover.close()
+  }
+
+  func popoverShouldClose(_ popover: NSPopover) -> Bool {
+    // As in Chrome, it stays open while another window has the focus (a save
+    // panel the page opened, which needs the page alive to save), and closes
+    // on a click in the window it opened from.
+    guard let event = NSApp.currentEvent, Self.clicks.contains(event.type),
+      let anchorWindow
+    else {
+      return false
+    }
+    var window = event.window
+    while let current = window, current !== anchorWindow {
+      window = current.parent
+    }
+    return window != nil
   }
 
   func popoverWillClose(_ notification: Notification) {
