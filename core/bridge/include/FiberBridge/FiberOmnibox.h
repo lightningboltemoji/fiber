@@ -147,9 +147,11 @@ NS_SWIFT_UI_ACTOR
 // Set once, before the omnibar opens.
 @property(nonatomic, nullable) id<FiberOmniboxActions> actions;
 
-// Opens the omnibar (Command-L, and new tabs). If it's already open, it stays
-// as it is.
-- (void)focus;
+// Opens the omnibar: for Command-L if `userInitiated`, otherwise as the
+// browser restores a tab's focus, like a New Tab page's as it becomes active.
+// If it's already open, it stays as it is.
+- (void)focusUserInitiated:(BOOL)userInitiated
+    NS_SWIFT_NAME(focus(userInitiated:));
 // What the field shows, with `selectedRange` selected; an empty range is the
 // caret. Inline autocompletion is the selected end of `text`.
 - (void)setText:(NSString*)text selectedRange:(NSRange)selectedRange;

@@ -3,14 +3,14 @@ import AppKit
 /// A glass panel over the dimmed window (see PanelDimming), with a search
 /// field above a list: the omnibar's and the command palette's. Its owner
 /// fills in the list, handles the field, and closes it. The tab overlay's
-/// panel shares its placement and look.
+/// panel shares its width and look.
 @MainActor
 final class PaletteView: NSView {
   private static let maxWidth: CGFloat = 640
   private static let sideMargin: CGFloat = 32
   /// The panel's top sits this far down the window, and at least `minTop`.
   private static let topFraction: CGFloat = 0.2
-  private static let minTop: CGFloat = 72
+  static let minTop: CGFloat = 72
   /// Space kept below the panel when there's more in the list than fits.
   static let bottomMargin: CGFloat = 24
   static let cornerRadius: CGFloat = 26

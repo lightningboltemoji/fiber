@@ -117,6 +117,14 @@ final class MockBrowser: NSObject, FiberWindowActions {
     ui.window.makeFirstResponder(activeTab.page)
   }
 
+  func restoreFocus() {
+    if activeTab.url == Self.newTabURL {
+      ui.omnibox.focus(userInitiated: false)
+    } else {
+      focusPage()
+    }
+  }
+
   func selectTab(withID tabID: Int) {
     guard let tab = tabs.first(where: { $0.id == tabID }) else {
       app?.selectTab(withID: tabID)
@@ -240,7 +248,6 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   @objc func newTab(_ sender: Any?) {
     openTab(Self.newTabURL, activate: true)
-    ui.omnibox.focus()
   }
 
   @objc func closeTab(_ sender: Any?) {
@@ -265,7 +272,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   @objc func openLocation(_ sender: Any?) {
-    ui.omnibox.focus()
+    ui.omnibox.focus(userInitiated: true)
   }
 
   @objc func findInPage(_ sender: Any?) {
@@ -407,6 +414,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
     pushPageState()
     pushTabs()
     ui.setLoading(tab.isLoading, progress: tab.progress)
+    // As Chrome does on switching tabs, once the window's showing.
+    if ui.window.isVisible {
+      restoreFocus()
+    }
   }
 
   private func close(_ tab: MockTab) {

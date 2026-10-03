@@ -370,7 +370,7 @@ void FiberOmniboxView::UpdatePopup() {
 }
 
 void FiberOmniboxView::SetFocus(bool is_user_initiated) {
-  [ui_ focus];
+  [ui_ focusUserInitiated:is_user_initiated];
   // As Chrome does: if Control is down (e.g. Control-L), it isn't also taken
   // for Control-Return.
   edit_model()->ConsumeCtrlKey();

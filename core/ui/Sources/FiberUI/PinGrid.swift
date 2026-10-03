@@ -2,13 +2,12 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-/// The layout of the pins at the top of the tab overlay's panel: circles in
-/// rows that wrap at the panel's width.
+/// The layout of the pins in rows as wide as the tab overlay's panel, the
+/// first just above it. Points are from the grid's bottom-left corner, y
+/// growing down as in the overlay, so the circles are at negative y.
 enum PinGridLayout {
-  /// With the grid as far in from the panel's edge as the tabs' rows, each
-  /// pin's icon is in line with the tabs' icons.
   static let diameter: CGFloat = 36
-  /// Between circles, across and down.
+  /// Between circles, across and up, and from the first row to the panel.
   static let spacing: CGFloat = GlassCapsule.spacing
   /// How long a pin takes to pop out (see pinPop).
   static let popOutDuration: TimeInterval = 0.2
@@ -22,7 +21,8 @@ enum PinGridLayout {
   static func origin(of index: Int, width: CGFloat) -> CGPoint {
     let columns = columns(width: width)
     return CGPoint(
-      x: CGFloat(index % columns) * step, y: CGFloat(index / columns) * step)
+      x: CGFloat(index % columns) * step,
+      y: -CGFloat(index / columns) * step - diameter)
   }
 
   static func height(count: Int, width: CGFloat) -> CGFloat {
@@ -43,6 +43,16 @@ enum PinGridLayout {
     }
   }
 
+  /// Whether `point` is on a circle or in the gaps between them, rather than
+  /// past the last one.
+  static func covers(_ point: CGPoint, count: Int, width: CGFloat) -> Bool {
+    let columns = columns(width: width)
+    let column = Int(((point.x + spacing / 2) / step).rounded(.down))
+    let row = Int(((spacing / 2 - point.y) / step).rounded(.down))
+    return (0..<columns).contains(column) && row >= 0
+      && row * columns + column < count
+  }
+
   /// The place nearest `center`, for a circle dragged there.
   static func nearestIndex(to center: CGPoint, count: Int, width: CGFloat)
     -> Int
@@ -52,7 +62,7 @@ enum PinGridLayout {
     let column = min(
       max(Int(((center.x - diameter / 2) / step).rounded()), 0), columns - 1)
     let row = min(
-      max(Int(((center.y - diameter / 2) / step).rounded()), 0), rows - 1)
+      max(Int(((-center.y - diameter / 2) / step).rounded()), 0), rows - 1)
     return min(row * columns + column, max(count - 1, 0))
   }
 }
@@ -83,8 +93,8 @@ struct PinGrid: View {
   var body: some View {
     let width = model.gridWidth
     let shown = model.shownPins
-    ZStack(alignment: .topLeading) {
-      // Holds the grid's top-left corner where the pins are placed from.
+    ZStack(alignment: .bottomLeading) {
+      // Holds the grid's bottom-left corner, which the rows rise from.
       Color.clear.frame(width: width, height: 0)
 
       ForEach(model.pins, id: \.pinID) { pin in
@@ -133,11 +143,12 @@ struct PinGrid: View {
 }
 
 extension View {
-  /// Lays the view out with its top-left corner at `origin` in a top-leading
-  /// ZStack, so its own effects (a transition's scale) center on it.
+  /// Lays the view out with its top-left corner at `origin` from the
+  /// bottom-left corner of a bottom-leading ZStack, so its own effects (a
+  /// transition's scale) center on it.
   fileprivate func place(at origin: CGPoint) -> some View {
     alignmentGuide(.leading) { _ in -origin.x }
-      .alignmentGuide(.top) { _ in -origin.y }
+      .alignmentGuide(.bottom) { _ in -origin.y }
   }
 }
 
@@ -258,8 +269,8 @@ extension NSImage {
   }
 }
 
-/// A pin: its page's icon in a circle, ringed while its tab is the active
-/// one, and dimmed while it isn't open in the window.
+/// A pin: its page's icon in a circle of glass, ringed while its tab is the
+/// active one, and dimmed while it isn't open in the window.
 private struct PinCircle: View {
   private static let closedIconOpacity = 0.5
 
@@ -268,10 +279,15 @@ private struct PinCircle: View {
   let isSelected: Bool
 
   var body: some View {
+    let rim = GlassCapsule.rimWidth
     ZStack {
+      RimmedGlass(cornerRadius: PinGridLayout.diameter / 2, rimWidth: rim)
       Circle()
-        .fill(Color.primary.opacity(isSelected ? 0.22 : 0.06))
+        .inset(by: rim)
+        .fill(Color.primary.opacity(0.22))
+        .opacity(isSelected ? 1 : 0)
       Circle()
+        .inset(by: rim)
         .strokeBorder(Color.primary.opacity(0.5), lineWidth: 1.5)
         .opacity(isActive ? 1 : 0)
       icon

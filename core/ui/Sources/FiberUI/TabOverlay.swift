@@ -2,11 +2,12 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-/// The window's tabs, over the dimmed page with Command-S, in a panel placed
-/// like the command palette's: the pins (PinGrid), then the other tabs in the
-/// tab strip's order, with the page's address and the extensions beside it.
-/// The arrow keys, Return and Command-Delete move through, switch to and close
-/// them. This view takes the events and keeps the model; TabOverlayView draws.
+/// The window's tabs, over the dimmed page with Command-S: those that aren't
+/// pins', in the tab strip's order, in a panel as wide as the command
+/// palette's, with the pins (PinGrid) in rows above it, and the page's address
+/// and the extensions beside it. The arrow keys, Return and Command-Delete
+/// move through, switch to and close them. This view takes the events and
+/// keeps the model; TabOverlayView draws.
 @MainActor
 final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Not called for the tab that's already active.
@@ -31,9 +32,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Between the panel and the address and extensions beside it.
   private static let bubbleSpacing: CGFloat = 12
   /// How close the address and extensions come to the window's edge before
-  /// they move above the panel.
+  /// they move above the panel and its pins.
   private static let bubbleMargin: CGFloat = 16
   private static let maxAddressWidth: CGFloat = 260
+  /// How much of the window's height the panel and what's above it leave
+  /// free goes above them, a little less than below.
+  private static let topShare: CGFloat = 0.45
   /// How far a pressed pin moves before it's dragged rather than clicked.
   private static let dragThreshold: CGFloat = 4
 
@@ -54,9 +58,13 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Set once the window has its first pins, which appear without a flourish.
   private var hasPins = false
   /// The pins the list is below, and whose tabs it leaves out. They catch up
-  /// with pins leaving once those have popped out, so the list waits to move.
+  /// with pins leaving once those have popped out, so the list waits to
+  /// change.
   private var panelPins: [FiberPinState] = []
   private var isPanelCatchUpPending = false
+  /// The panel's top as it opened, kept while it fits so that closing a tab
+  /// brings the next under the pointer rather than recentering the panel.
+  private var heldTop: CGFloat?
 
   init(isIncognito: Bool) {
     self.isIncognito = isIncognito
@@ -112,6 +120,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     isOpen = true
     model.selection = initialSelection
     model.closeButton = nil
+    heldTop = nil
     layoutPanel()
     revealSelection(animated: false)
     isHidden = false
@@ -265,7 +274,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       let row = previous.firstIndex { $0.tabID == tabID } ?? 0
       model.selection =
         model.tabs.isEmpty
-        ? model.pins.last.map { .pin($0.pinID) }
+        ? model.pins.first.map { .pin($0.pinID) }
         : .tab(model.tabs[min(row, model.tabs.count - 1)].tabID)
     }
     layoutPanel()
@@ -296,25 +305,45 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func resizeSubviews(withOldSize oldSize: NSSize) {
     hostingView.frame = bounds
+    heldTop = nil
     layoutPanel()
   }
 
-  /// The panel where the command palette's goes, as tall as its list, as far
-  /// as fits; the address and extensions to its left, or above it in a
-  /// narrow window.
+  /// The panel as wide as the command palette's, as tall as its list as far
+  /// as fits, and with what's above it a little above the window's middle;
+  /// the address and extensions to its left, or above the pins if narrow.
   private func layoutPanel() {
     guard bounds.width > 0 else {
       return
     }
-    let (x, width, placementTop) = PaletteView.panelPlacement(in: bounds.size)
-    var top = placementTop
+    let (x, width, _) = PaletteView.panelPlacement(in: bounds.size)
     let height = GlassCapsule.height
     let padding = 2 * (GlassCapsule.rimWidth + GlassCapsule.endInset)
     var addressWidth = min(
       addressButton.fittingSize.width + padding, Self.maxAddressWidth)
     let extensionsWidth = extensionsBar.fittingSize.width + padding
     let columnEnd = x - Self.bubbleSpacing
-    if columnEnd - max(addressWidth, extensionsWidth) >= Self.bubbleMargin {
+    let isBeside =
+      columnEnd - max(addressWidth, extensionsWidth) >= Self.bubbleMargin
+    let pinsHeight = model.pinsHeight(width: width)
+    let above = pinsHeight + (isBeside ? 0 : height + Self.bubbleSpacing)
+    let footerHeight = TabOverlayModel.footerHeight
+    let highest = PaletteView.minTop + above
+    let listHeight = min(
+      model.listContentHeight,
+      max(bounds.height - PaletteView.bottomMargin - footerHeight - highest, 0)
+    )
+    let lowest = max(
+      bounds.height - PaletteView.bottomMargin - footerHeight - listHeight,
+      highest)
+    let placed =
+      ((bounds.height - above - footerHeight - listHeight) * Self.topShare)
+      .rounded() + above
+    let top = min(max(heldTop ?? placed, highest), lowest)
+    if isOpen {
+      heldTop = top
+    }
+    if isBeside {
       addressBubble.frame = NSRect(
         x: columnEnd - addressWidth, y: top, width: addressWidth,
         height: height)
@@ -326,20 +355,14 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       addressWidth = max(
         min(addressWidth, width - extensionsWidth - GlassCapsule.spacing), 0)
       addressBubble.frame = NSRect(
-        x: x, y: top, width: addressWidth, height: height)
+        x: x, y: top - above, width: addressWidth, height: height)
       extensionsBubble.frame = NSRect(
-        x: x + addressWidth + GlassCapsule.spacing, y: top,
+        x: x + addressWidth + GlassCapsule.spacing, y: top - above,
         width: extensionsWidth, height: height)
-      top += height + Self.bubbleSpacing
     }
 
-    let fixedHeight =
-      model.pinsHeight(panelWidth: width) + TabOverlayModel.footerHeight
-    let available = max(
-      bounds.height - top - PaletteView.bottomMargin - fixedHeight, 0)
     let frame = CGRect(
-      x: x, y: top, width: width,
-      height: fixedHeight + min(model.listContentHeight, available))
+      x: x, y: top, width: width, height: footerHeight + listHeight)
     if frame != model.panelFrame {
       model.panelFrame = frame
       updatePinToolTips()
@@ -402,14 +425,23 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       x: point.x - model.panelFrame.minX, y: point.y - model.panelFrame.minY)
   }
 
+  /// `point` in the pins' grid (see PinGridLayout).
+  private func inPins(_ point: CGPoint) -> CGPoint {
+    CGPoint(x: point.x - model.pinsOrigin.x, y: point.y - model.pinsOrigin.y)
+  }
+
   /// The pin at `point`, as it's shown.
   private func pin(at point: CGPoint) -> FiberPinState? {
-    let point = inPanel(point)
-    return PinGridLayout.index(
-      at: CGPoint(
-        x: point.x - TabOverlayModel.inset, y: point.y - TabOverlayModel.inset),
-      count: model.pins.count, width: model.gridWidth
+    PinGridLayout.index(
+      at: inPins(point), count: model.pins.count, width: model.gridWidth
     ).map { model.pins[$0] }
+  }
+
+  /// Whether `point` is on the panel, or on or between the pins.
+  private func isOnPanelOrPins(_ point: CGPoint) -> Bool {
+    model.panelFrame.contains(point)
+      || PinGridLayout.covers(
+        inPins(point), count: model.pins.count, width: model.gridWidth)
   }
 
   /// The tab at `point`, where the list is scrolled to now.
@@ -483,12 +515,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// A pin shows only its icon, so its title shows on hover.
   private func updatePinToolTips() {
     removeAllToolTips()
+    let pins = model.pinsOrigin
     for index in model.pins.indices {
       let origin = PinGridLayout.origin(of: index, width: model.gridWidth)
       addToolTip(
         NSRect(
-          x: model.panelFrame.minX + TabOverlayModel.inset + origin.x,
-          y: model.panelFrame.minY + TabOverlayModel.inset + origin.y,
+          x: pins.x + origin.x, y: pins.y + origin.y,
           width: PinGridLayout.diameter, height: PinGridLayout.diameter),
         owner: self, userData: nil)
     }
@@ -577,38 +609,38 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     select(next)
   }
 
-  /// Through the pins as a grid, then the tabs as a column below it.
+  /// Through the pins as a grid whose rows rise from the tabs, then the tabs
+  /// as a column.
   private func selection(
     after selection: TabOverlaySelection?, moving direction: Direction
   ) -> TabOverlaySelection? {
     let pins = model.pins
     let tabs = model.tabs
     let columns = PinGridLayout.columns(width: model.gridWidth)
-    let lastRowStart = (max(pins.count, 1) - 1) / columns * columns
+    let topRowStart = (max(pins.count, 1) - 1) / columns * columns
     switch selection {
     case .pin(let pinID)?:
       guard let index = pins.firstIndex(where: { $0.pinID == pinID }) else {
         return initialSelection
       }
-      let next: Int? =
-        switch direction {
-        case .left: index - 1
-        case .right: index + 1
-        case .up: index - columns
-        case .down:
-          index >= lastRowStart ? nil : min(index + columns, pins.count - 1)
-        }
-      if let next {
+      switch direction {
+      case .left, .right:
+        let next = index + (direction == .left ? -1 : 1)
         return pins.indices.contains(next) ? .pin(pins[next].pinID) : nil
+      case .up:
+        return index >= topRowStart
+          ? nil : .pin(pins[min(index + columns, pins.count - 1)].pinID)
+      case .down:
+        return index < columns
+          ? tabs.first.map { .tab($0.tabID) } : .pin(pins[index - columns].pinID)
       }
-      return tabs.first.map { .tab($0.tabID) }
     case .tab(let tabID)?:
       guard let index = tabs.firstIndex(where: { $0.tabID == tabID }) else {
         return initialSelection
       }
       switch direction {
       case .up where index == 0:
-        return pins.isEmpty ? nil : .pin(pins[lastRowStart].pinID)
+        return pins.first.map { .pin($0.pinID) }
       case .up:
         return .tab(tabs[index - 1].tabID)
       case .down:
@@ -721,7 +753,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func mouseDown(with event: NSEvent) {
     let point = location(of: event)
-    guard model.panelFrame.contains(point) else {
+    guard isOnPanelOrPins(point) else {
       onDismiss()
       return
     }
@@ -887,8 +919,6 @@ enum TabOverlaySelection: Equatable {
 @MainActor
 @Observable
 final class TabOverlayModel {
-  /// From the panel's edge to the pins, and to the tabs' rows.
-  nonisolated static let inset = TabListLayout.contentInset
   /// The hints under the list, and the rim below them.
   static let footerHeight = PaletteView.footerHeight + PaletteView.rimWidth
 
@@ -911,7 +941,12 @@ final class TabOverlayModel {
   @ObservationIgnored var onOpenPin: (String) -> Void = { _ in }
   @ObservationIgnored var onUnpin: (String) -> Void = { _ in }
 
-  var gridWidth: CGFloat { panelFrame.width - 2 * Self.inset }
+  var gridWidth: CGFloat { panelFrame.width }
+
+  /// The bottom-left corner of the pins' grid, just above the panel.
+  var pinsOrigin: CGPoint {
+    CGPoint(x: panelFrame.minX, y: panelFrame.minY - PinGridLayout.spacing)
+  }
 
   var selectedTabID: Int? {
     if case .tab(let tabID)? = selection {
@@ -933,16 +968,13 @@ final class TabOverlayModel {
     return shown
   }
 
-  var hasSeparator: Bool { panelPinCount > 0 && !tabs.isEmpty }
-
-  /// The pins, the space around them, and the line under them.
-  func pinsHeight(panelWidth: CGFloat) -> CGFloat {
+  /// The pins' rows over a panel `width` wide, and the space under them.
+  func pinsHeight(width: CGFloat) -> CGFloat {
     guard panelPinCount > 0 else {
       return 0
     }
-    return PinGridLayout.height(
-      count: panelPinCount, width: panelWidth - 2 * Self.inset)
-      + 2 * Self.inset + (hasSeparator ? 1 : 0)
+    return PinGridLayout.height(count: panelPinCount, width: width)
+      + PinGridLayout.spacing
   }
 
   var listContentHeight: CGFloat {
@@ -951,10 +983,9 @@ final class TabOverlayModel {
 
   /// From the panel's top-left corner.
   var listRect: CGRect {
-    let top = pinsHeight(panelWidth: panelFrame.width)
-    return CGRect(
-      x: 0, y: top, width: panelFrame.width,
-      height: max(panelFrame.height - top - Self.footerHeight, 0))
+    CGRect(
+      x: 0, y: 0, width: panelFrame.width,
+      height: max(panelFrame.height - Self.footerHeight, 0))
   }
 
   var scrollRange: ClosedRange<CGFloat> {
@@ -962,8 +993,8 @@ final class TabOverlayModel {
   }
 }
 
-/// Draws the tab overlay's panel; TabOverlay handles all input. The highlight
-/// glides to the selected tab.
+/// Draws the tab overlay's panel and pins; TabOverlay handles all input. The
+/// highlight glides to the selected tab.
 struct TabOverlayView: View {
   let model: TabOverlayModel
 
@@ -971,48 +1002,50 @@ struct TabOverlayView: View {
     let panel = model.panelFrame
     let list = model.listRect
     let rim = PaletteView.rimWidth
+    let pins = model.pinsOrigin
     ZStack(alignment: .topLeading) {
-      PanelShadow(cornerRadius: PaletteView.cornerRadius)
-      RimmedGlass(cornerRadius: PaletteView.cornerRadius, rimWidth: rim)
-        .accessibilityHidden(true)
+      ZStack(alignment: .topLeading) {
+        PanelShadow(cornerRadius: PaletteView.cornerRadius)
+        RimmedGlass(cornerRadius: PaletteView.cornerRadius, rimWidth: rim)
+          .accessibilityHidden(true)
+
+        TabList(
+          width: panel.width, showsURL: true, tabs: model.tabs,
+          activeTabID: model.activeTabID,
+          highlightedTabID: model.selectedTabID,
+          closeButton: model.closeButton, onSelect: model.onSelect,
+          onClose: model.onClose
+        )
+        .fixedSize(horizontal: false, vertical: true)
+        .offset(y: -model.scrollOffset)
+        .frame(width: panel.width, height: list.height, alignment: .top)
+        .clipped()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tabs")
+
+        HintsView()
+          .frame(
+            width: max(
+              panel.width - 2 * (rim + PaletteView.horizontalInset), 0),
+            height: PaletteView.footerHeight, alignment: .trailing
+          )
+          .offset(
+            x: rim + PaletteView.horizontalInset,
+            y: panel.height - TabOverlayModel.footerHeight)
+      }
+      .frame(width: panel.width, height: panel.height, alignment: .topLeading)
+      .offset(x: panel.minX, y: panel.minY)
 
       PinGrid(model: model)
-        .offset(x: TabOverlayModel.inset, y: TabOverlayModel.inset)
-
-      if model.hasSeparator {
-        Rectangle()
-          .fill(.separator)
-          .frame(width: panel.width - 2 * rim, height: 1)
-          .offset(x: rim, y: list.minY - 1)
-      }
-
-      TabList(
-        width: panel.width, showsURL: true, tabs: model.tabs,
-        activeTabID: model.activeTabID,
-        highlightedTabID: model.selectedTabID,
-        closeButton: model.closeButton, onSelect: model.onSelect,
-        onClose: model.onClose
-      )
-      .fixedSize(horizontal: false, vertical: true)
-      .offset(y: -model.scrollOffset)
-      .frame(width: panel.width, height: list.height, alignment: .top)
-      .clipped()
-      .offset(y: list.minY)
-      .accessibilityElement(children: .contain)
-      .accessibilityLabel("Tabs")
-
-      HintsView()
         .frame(
-          width: max(panel.width - 2 * (rim + PaletteView.horizontalInset), 0),
-          height: PaletteView.footerHeight, alignment: .trailing
+          width: panel.width, height: max(pins.y, 0), alignment: .bottomLeading
         )
-        .offset(
-          x: rim + PaletteView.horizontalInset,
-          y: panel.height - TabOverlayModel.footerHeight)
+        .offset(x: pins.x)
+        // Read before the tabs, as they show.
+        .accessibilitySortPriority(1)
     }
-    .frame(width: panel.width, height: panel.height, alignment: .topLeading)
-    .offset(x: panel.minX, y: panel.minY)
-    // Tabs opening and closing, and pins coming and going, grow and shrink it.
+    // Tabs opening and closing grow and shrink the panel, and rows of pins
+    // coming and going can move it.
     .animation(
       .spring(duration: 0.3, bounce: 0), value: model.tabs.map(\.tabID))
     .animation(.spring(duration: 0.3, bounce: 0), value: model.panelPinCount)

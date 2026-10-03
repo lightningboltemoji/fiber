@@ -82,6 +82,12 @@ int CommandID(FiberCommand command) {
   }
 }
 
+- (void)restoreFocus {
+  if (_owner) {
+    _owner->RestoreFocus();
+  }
+}
+
 - (void)pressSadTabButton {
   if (_owner) {
     _owner->PerformSadTabAction(SadTab::Action::kButton);

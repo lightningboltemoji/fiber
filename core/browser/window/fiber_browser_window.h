@@ -73,6 +73,8 @@ class FiberBrowserWindow : public BrowserWindow,
   bool IsCommandEnabled(int command) const;
   bool IsActiveTabPinned() const;
   void FocusWebContents();
+  // Focuses the active tab as Chrome would on switching to it.
+  void RestoreFocus();
   // Selects the tab, in whichever of the profile's windows has it, and brings
   // that window forward.
   void SelectTab(int32_t tab_id);
@@ -284,8 +286,6 @@ class FiberBrowserWindow : public BrowserWindow,
   // Sends the UI the tab list, in tab strip order, and the pins.
   void UpdateTabs();
   void UpdatePins();
-  // Focuses the active tab as Chrome would on switching to it.
-  void RestoreFocus();
 
   const raw_ptr<BrowserWindowInterface> browser_;
   FiberBrowserWindowActions* __strong actions_;

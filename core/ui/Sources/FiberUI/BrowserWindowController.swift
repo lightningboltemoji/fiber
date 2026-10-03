@@ -327,9 +327,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     omnibar.onOpen = { [weak self] in
       self?.tabPicker.close()
       self?.commandPalette?.close()
-      self?.closeTabOverlay(focusingPage: false)
+      self?.closeTabOverlay(restoringFocus: false)
     }
     omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
+    omnibar.canOpenForTab = { [weak self] in self?.tabOverlay.isOpen != true }
     omnibar.view.onShowOrHide = { [weak self] in
       self?.schedulePanelDimmingUpdate()
     }
@@ -348,7 +349,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.tabPicker.close()
       self?.madeOmnibar?.close()
       self?.commandPalette?.close()
-      self?.closeTabOverlay(focusingPage: false)
+      self?.closeTabOverlay(restoringFocus: false)
     }
     findBar.onShowOrHide = { [weak self] in
       self?.placeFindBar(animated: true)
@@ -470,17 +471,18 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  /// Gives the page the keyboard back, unless what's opening in the
-  /// overlay's place takes it.
-  private func closeTabOverlay(focusingPage: Bool = true) {
+  /// Gives the active tab the keyboard back, unless what's opening in the
+  /// overlay's place takes it. A New Tab page that became active under the
+  /// overlay opens the omnibar only now.
+  private func closeTabOverlay(restoringFocus: Bool = true) {
     guard tabOverlay.isOpen else {
       return
     }
     tabOverlay.close()
     extensionsController.closeMenu()
     updateWindowControls(animated: true)
-    if focusingPage {
-      actions?.focusPage()
+    if restoringFocus {
+      actions?.restoreFocus()
     }
   }
 
@@ -607,6 +609,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
     tabPicker.setTabs(tabs, activeTabID: activeTabID)
     tabOverlay.setTabs(tabs, activeTabID: activeTabID)
+    // A tab opened in front (Command-T, a link from another app) is where the
+    // user's going; tabs already open can become active under the overlay.
+    if !windowTabs.isEmpty,
+      !windowTabs.contains(where: { $0.tabID == activeTabID })
+    {
+      closeTabOverlay()
+    }
     windowTabs = tabs
     self.activeTabID = activeTabID
     commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
@@ -666,7 +675,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     let isVisible = areControlsVisible
     if !isVisible {
       tabPicker.close()
-      closeTabOverlay(focusingPage: false)
+      closeTabOverlay(restoringFocus: false)
     }
     tabPicker.isHidden = !isVisible
     extensionBubbles.isHidden = !isVisible
@@ -783,7 +792,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabPicker.close()
     closeOmnibar()
     closeCommandPalette()
-    closeTabOverlay(focusingPage: false)
+    closeTabOverlay(restoringFocus: false)
 
     let content = window.contentView!
     prompt.frame = content.bounds
@@ -856,7 +865,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   /// Opens the omnibar, where the browser puts the page's URL.
   private func showOmnibar() {
-    omnibar.focus()
+    omnibar.focus(userInitiated: true)
   }
 
   private func closeOmnibar() {
@@ -900,7 +909,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     palette.onOpen = { [weak self] in
       self?.tabPicker.close()
       self?.madeOmnibar?.close()
-      self?.closeTabOverlay(focusingPage: false)
+      self?.closeTabOverlay(restoringFocus: false)
     }
     palette.onDismiss = { [weak self] in self?.closeCommandPalette() }
     palette.view.onShowOrHide = { [weak self] in

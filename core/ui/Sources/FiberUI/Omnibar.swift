@@ -9,6 +9,9 @@ final class Omnibar: NSObject, FiberOmnibox {
   let view = PaletteView(placeholder: "Search or enter address")
   var actions: (any FiberOmniboxActions)?
   var onOpen: () -> Void = {}
+  /// Whether the browser can open it as it restores a tab's focus. While
+  /// false, what has the keyboard restores the tab's focus once it's done.
+  var canOpenForTab: () -> Bool = { true }
   /// Called when the omnibar is done: the user opened something from it,
   /// pressed Escape, or clicked outside it. Its owner closes it.
   var onDismiss: () -> Void = {} {
@@ -64,7 +67,10 @@ final class Omnibar: NSObject, FiberOmnibox {
 
   // MARK: FiberOmnibox
 
-  func focus() {
+  func focus(userInitiated: Bool) {
+    guard userInitiated || canOpenForTab() else {
+      return
+    }
     guard !isOpen else {
       // Command-L again: everything selected, ready to replace.
       field.currentEditor()?.selectAll(nil)

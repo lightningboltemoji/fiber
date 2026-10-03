@@ -36,6 +36,9 @@ NS_SWIFT_UI_ACTOR
 - (void)reloadWithEvent:(nullable NSEvent*)event;
 - (void)stopLoading;
 - (void)focusPage;
+// Focuses the active tab as switching to it does: its page, or the omnibar on
+// a New Tab page.
+- (void)restoreFocus;
 // The active tab's sad tab (see FiberSadTab): its button, and its help link.
 - (void)pressSadTabButton;
 - (void)openSadTabHelp;
