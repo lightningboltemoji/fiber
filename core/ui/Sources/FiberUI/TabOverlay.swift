@@ -10,10 +10,13 @@ import SwiftUI
 /// keeps the model; TabOverlayView draws.
 @MainActor
 final class TabOverlay: NSView, NSViewToolTipOwner {
-  /// Not called for the tab that's already active.
+  /// Called with a tab to switch to, never the active one. Its owner closes
+  /// the overlay.
   var onSelect: (Int) -> Void = { _ in }
   /// Called with the ID of a tab to close.
   var onClose: (Int) -> Void = { _ in }
+  /// Called with a pin to open, never the active tab's. Its owner closes the
+  /// overlay.
   var onOpenPin: (String) -> Void = { _ in }
   /// Called with a pin dropped in a new place, and its index there.
   var onMovePin: (String, Int) -> Void = { _, _ in }
@@ -22,8 +25,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   var onPinMenu: (FiberPinState, NSEvent) -> Void = { _, _ in }
   var onTabMenu: (Int, NSEvent) -> Void = { _, _ in }
   var onAddressClick: () -> Void = {}
-  /// Called when the overlay is done: the user picked something, pressed
-  /// Escape, or clicked outside it. Its owner closes it.
+  /// Called when the overlay is done without switching tabs: the user picked
+  /// the active tab, pressed Escape, or clicked outside it. Its owner closes
+  /// it.
   var onDismiss: () -> Void = {}
   var onShowOrHide: () -> Void = {}
   let extensionsBar = ExtensionsBar()
@@ -65,6 +69,16 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// The panel's top as it opened, kept while it fits so that closing a tab
   /// brings the next under the pointer rather than recentering the panel.
   private var heldTop: CGFloat?
+  /// From when it starts to close until it has faded out, it shows the tabs,
+  /// pins and address it closed with, and the window's wait here.
+  private var isClosing = false
+  private var heldAddress: String?
+  private var heldTabs: (tabs: [FiberTabState], activeTabID: Int)?
+  private var heldPins: [FiberPinState]?
+  /// Its fade out as it closes, which waits for what's on it to leave.
+  private var pendingFadeOut: DispatchWorkItem?
+  /// Counts its closings, so that a fade out from one cut short does nothing.
+  private var closings = 0
 
   init(isIncognito: Bool) {
     self.isIncognito = isIncognito
@@ -117,6 +131,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     guard !isOpen else {
       return
     }
+    stopClosing()
     isOpen = true
     model.selection = initialSelection
     model.closeButton = nil
@@ -124,6 +139,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     layoutPanel()
     revealSelection(animated: false)
     isHidden = false
+    model.isOpen = true
+    moveBubbles()
     NSAnimationContext.runAnimationGroup { context in
       context.duration = PaletteView.fadeInDuration
       animator().alphaValue = 1
@@ -132,32 +149,104 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     onShowOrHide()
   }
 
-  func close() {
-    guard isOpen else {
+  /// Plays the overlay's opening back, quicker, then fades it out. For what
+  /// opens in its place, it fades out at once, even partway through closing.
+  func close(forReplacement: Bool = false) {
+    if isOpen {
+      isOpen = false
+      isClosing = true
+      closings += 1
+      model.isOpen = false
+      moveBubbles()
+      pressedPin = nil
+      model.pinDrag = nil
+      if window?.firstResponder === self {
+        window?.makeFirstResponder(nil)
+      }
+    } else if !forReplacement || pendingFadeOut == nil {
       return
     }
-    isOpen = false
-    pressedPin = nil
-    model.pinDrag = nil
-    if window?.firstResponder === self {
-      window?.makeFirstResponder(nil)
+    pendingFadeOut?.cancel()
+    pendingFadeOut = nil
+    let delay =
+      forReplacement
+      ? 0 : TabOverlayMotion.fadeOutDelay(span: model.motionSpan)
+    guard delay > 0 else {
+      fadeOut()
+      return
     }
+    let fadeOut = DispatchWorkItem { [weak self] in
+      MainActor.assumeIsolated {
+        self?.fadeOut()
+      }
+    }
+    pendingFadeOut = fadeOut
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: fadeOut)
+  }
+
+  private func fadeOut() {
+    pendingFadeOut = nil
+    let closing = closings
     NSAnimationContext.runAnimationGroup { context in
       context.duration = PaletteView.fadeOutDuration
       animator().alphaValue = 0
     } completionHandler: { [weak self] in
       MainActor.assumeIsolated {
-        if let self, !self.isOpen {
-          self.isHidden = true
+        guard let self, self.isClosing, self.closings == closing else {
+          return
         }
+        self.isHidden = true
+        self.stopClosing()
       }
     }
     onShowOrHide()
   }
 
+  /// Faded out or opened again, it catches up with the window.
+  private func stopClosing() {
+    pendingFadeOut?.cancel()
+    pendingFadeOut = nil
+    guard isClosing else {
+      return
+    }
+    isClosing = false
+    if let address = heldAddress {
+      heldAddress = nil
+      setAddress(address)
+    }
+    if let pins = heldPins {
+      heldPins = nil
+      setPins(pins)
+    }
+    if let (tabs, activeTabID) = heldTabs {
+      heldTabs = nil
+      setTabs(tabs, activeTabID: activeTabID)
+    }
+  }
+
+  /// The address and extensions come and go with the pins (see
+  /// TabOverlayMotion), from the left beside the panel, or from above like
+  /// the pins when above them.
+  private func moveBubbles() {
+    let offset =
+      model.areBubblesBeside
+      ? CGSize(width: -TabOverlayMotion.sideTravel, height: 0)
+      : CGSize(width: 0, height: -TabOverlayMotion.travel)
+    for bubble in [addressBubble, extensionsBubble] {
+      TabOverlayMotion.move(
+        bubble, from: offset, isOpening: isOpen,
+        delay: model.motionDelay(ofBubble: bubble.frame),
+        span: model.motionSpan)
+    }
+  }
+
   /// Shows the page's short address (usually just its host), or a prompt when
   /// there's none, as on the New Tab page.
   func setAddress(_ address: String) {
+    guard !isClosing else {
+      heldAddress = address
+      return
+    }
     let paragraph = NSMutableParagraphStyle()
     paragraph.alignment = .center
     paragraph.lineBreakMode = .byTruncatingMiddle
@@ -189,12 +278,20 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   // MARK: Tabs and pins
 
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
+    guard !isClosing else {
+      heldTabs = (tabs, activeTabID)
+      return
+    }
     self.tabs = tabs
     model.activeTabID = activeTabID
     updateListedTabs()
   }
 
   func setPins(_ pins: [FiberPinState]) {
+    guard !isClosing else {
+      heldPins = pins
+      return
+    }
     let countChanged = pins.count != model.pins.count
     if hasPins, isOpen {
       burst(from: model.pins, to: pins)
@@ -343,6 +440,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     if isOpen {
       heldTop = top
     }
+    model.areBubblesBeside = isBeside
     if isBeside {
       addressBubble.frame = NSRect(
         x: columnEnd - addressWidth, y: top, width: addressWidth,
@@ -359,6 +457,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       extensionsBubble.frame = NSRect(
         x: x + addressWidth + GlassCapsule.spacing, y: top - above,
         width: extensionsWidth, height: height)
+    }
+    let bubbleFrames = [addressBubble.frame, extensionsBubble.frame]
+    if bubbleFrames != model.bubbleFrames {
+      model.bubbleFrames = bubbleFrames
     }
 
     let frame = CGRect(
@@ -692,18 +794,23 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
   }
 
-  // Dismissing after, so the page given the keyboard is the one switched to.
-
   private func pick(_ tabID: Int) {
-    if tabID != model.activeTabID {
+    if tabID == model.activeTabID {
+      onDismiss()
+    } else {
       onSelect(tabID)
     }
-    onDismiss()
   }
 
   private func openPin(_ pinID: String) {
-    onOpenPin(pinID)
-    onDismiss()
+    let isActive = model.pins.contains {
+      $0.pinID == pinID && $0.tabID != 0 && $0.tabID == model.activeTabID
+    }
+    if isActive {
+      onDismiss()
+    } else {
+      onOpenPin(pinID)
+    }
   }
 
   // MARK: Pointer
@@ -850,7 +957,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// The selection follows the pointer onto a pin or a tab. Nil for the
   /// pointer gone.
   private func hover(at point: CGPoint?) {
-    if let point, isOpen, model.pinDrag == nil {
+    guard isOpen else {
+      return
+    }
+    if let point, model.pinDrag == nil {
       if let pin = pin(at: point) {
         model.selection = .pin(pin.pinID)
       } else if let tab = tab(at: point) {
@@ -926,6 +1036,8 @@ final class TabOverlayModel {
   var tabs: [FiberTabState] = []
   var pins: [FiberPinState] = []
   var activeTabID = 0
+  /// What the pins and the panel come and go with (see TabOverlayMotion).
+  var isOpen = false
   var selection: TabOverlaySelection?
   var pinDrag: PinDrag?
   var pinBursts: [PinBurst] = []
@@ -936,6 +1048,10 @@ final class TabOverlayModel {
   var scrollOffset: CGFloat = 0
   /// In the overlay, as tall as fits.
   var panelFrame: CGRect = .zero
+  /// The address's and extensions' capsules, and whether they're beside the
+  /// panel rather than above it and its pins.
+  var bubbleFrames: [CGRect] = []
+  var areBubblesBeside = true
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
   @ObservationIgnored var onClose: (Int) -> Void = { _ in }
   @ObservationIgnored var onOpenPin: (String) -> Void = { _ in }
@@ -966,6 +1082,75 @@ final class TabOverlayModel {
     let pin = shown.remove(at: from)
     shown.insert(pin, at: min(pinDrag.targetIndex, shown.count))
     return shown
+  }
+
+  /// How long after the overlay starts to open the address or extensions at
+  /// `frame` start to move: beside the panel, by how near they come to its
+  /// top-left corner, or above it, with the pins.
+  func motionDelay(ofBubble frame: CGRect) -> TimeInterval {
+    areBubblesBeside
+      ? TabOverlayMotion.delay(at: distanceFromCorner(of: frame))
+      : motionDelay(amongPins: frame)
+  }
+
+  /// The same for something among or above the pins, by where it comes
+  /// between the nearest pin and the farthest, or with the panel's wave if
+  /// there are none.
+  func motionDelay(amongPins frame: CGRect) -> TimeInterval {
+    guard let (nearest, farthest) = pinDistances else {
+      return TabOverlayMotion.panelDelay(at: distanceFromCorner(of: frame))
+    }
+    let fraction =
+      farthest > nearest
+      ? (distanceFromCorner(of: frame) - nearest) / (farthest - nearest) : 0
+    return min(max(fraction, 0), 1)
+      * TabOverlayMotion.pinsDuration(reach: farthest - nearest)
+  }
+
+  /// How long opening takes, which closing plays back.
+  var motionSpan: TimeInterval {
+    let pinsDelay =
+      pinDistances.map {
+        TabOverlayMotion.pinsDuration(reach: $0.farthest - $0.nearest)
+      } ?? 0
+    let bubblesDelay = bubbleFrames.map(motionDelay(ofBubble:)).max() ?? 0
+    return TabOverlayMotion.span(
+      lastDelay: max(pinsDelay, bubblesDelay),
+      panelReach: PanelWave.reach(of: panelFrame.size))
+  }
+
+  /// How far the nearest pin and the farthest are from the panel's corner.
+  private var pinDistances: (nearest: CGFloat, farthest: CGFloat)? {
+    guard !pins.isEmpty else {
+      return nil
+    }
+    // The further across and up a pin is, the farther it is, so the farthest
+    // is the last, or the last of the row below it.
+    let columns = PinGridLayout.columns(width: gridWidth)
+    let topRowStart = (pins.count - 1) / columns * columns
+    let nearest = distanceFromCorner(of: pinFrame(0))
+    let farthest = [pins.count - 1, topRowStart - 1].filter { $0 >= 0 }
+      .map { distanceFromCorner(of: pinFrame($0)) }.max() ?? nearest
+    return (nearest, farthest)
+  }
+
+  func motionDelay(ofPin index: Int) -> TimeInterval {
+    motionDelay(amongPins: pinFrame(index))
+  }
+
+  /// The circle of the pin at `index`.
+  private func pinFrame(_ index: Int) -> CGRect {
+    let origin = PinGridLayout.origin(of: index, width: gridWidth)
+    return CGRect(
+      x: pinsOrigin.x + origin.x, y: pinsOrigin.y + origin.y,
+      width: PinGridLayout.diameter, height: PinGridLayout.diameter)
+  }
+
+  private func distanceFromCorner(of frame: CGRect) -> CGFloat {
+    let corner = panelFrame.origin
+    return hypot(
+      max(frame.minX - corner.x, corner.x - frame.maxX, 0),
+      max(frame.minY - corner.y, corner.y - frame.maxY, 0))
   }
 
   /// The pins' rows over a panel `width` wide, and the space under them.
@@ -1037,6 +1222,15 @@ struct TabOverlayView: View {
             y: panel.height - TabOverlayModel.footerHeight)
       }
       .frame(width: panel.width, height: panel.height, alignment: .topLeading)
+      .mask {
+        PanelWave(progress: model.isOpen ? 1 : 0, size: panel.size)
+          .animation(
+            TabOverlayMotion.panelAnimation(
+              reach: PanelWave.reach(of: panel.size), span: model.motionSpan,
+              isOpening: model.isOpen),
+            value: model.isOpen)
+          .padding(-PanelWave.outset)
+      }
       .offset(x: panel.minX, y: panel.minY)
 
       PinGrid(model: model)
@@ -1054,6 +1248,40 @@ struct TabOverlayView: View {
     .animation(.spring(duration: 0.3, bounce: 0), value: model.panelPinCount)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .accessibilityElement(children: .contain)
+  }
+}
+
+/// The tab overlay panel's mask as the wave (see TabOverlayMotion) spreads
+/// across it from its top-left corner: opaque behind the wave's soft edge, and
+/// dimmer past its front. It's `outset` larger than the panel all round.
+private struct PanelWave: View, Animatable {
+  /// As far as the panel's shadow reaches past it.
+  static let outset: CGFloat = 60
+
+  /// From the wave not yet started to past the far corner.
+  var progress: CGFloat
+  /// The panel's.
+  let size: CGSize
+
+  nonisolated var animatableData: CGFloat {
+    get { progress }
+    set { progress = newValue }
+  }
+
+  /// How far the far corner, shadow and all, is from the panel's.
+  static func reach(of size: CGSize) -> CGFloat {
+    hypot(size.width + outset, size.height + outset)
+  }
+
+  var body: some View {
+    let edge = TabOverlayMotion.panelEdgeWidth
+    let front = progress * (Self.reach(of: size) + edge)
+    RadialGradient(
+      colors: [.black, .black.opacity(TabOverlayMotion.panelFloorOpacity)],
+      center: UnitPoint(
+        x: Self.outset / (size.width + 2 * Self.outset),
+        y: Self.outset / (size.height + 2 * Self.outset)),
+      startRadius: max(front - edge, 0), endRadius: max(front, 1))
   }
 }
 

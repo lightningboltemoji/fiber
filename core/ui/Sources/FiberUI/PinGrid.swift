@@ -11,7 +11,7 @@ enum PinGridLayout {
   static let spacing: CGFloat = GlassCapsule.spacing
   /// How long a pin takes to pop out (see pinPop).
   static let popOutDuration: TimeInterval = 0.2
-  private static let step = diameter + spacing
+  static let step = diameter + spacing
 
   static func columns(width: CGFloat) -> Int {
     max(Int((width + spacing) / step), 1)
@@ -95,6 +95,7 @@ struct PinGrid: View {
   var body: some View {
     let width = model.gridWidth
     let shown = model.shownPins
+    let span = model.motionSpan
     ZStack(alignment: .bottomLeading) {
       // Holds the grid's bottom-left corner, which the rows rise from.
       Color.clear.frame(width: width, height: 0)
@@ -106,10 +107,22 @@ struct PinGrid: View {
         let origin = PinGridLayout.origin(
           of: isDragged ? index : slot, width: width)
         let offset = isDragged ? model.pinDrag?.offset ?? .zero : .zero
+        let delay = model.motionDelay(ofPin: index)
         PinCircle(
           pin: pin, isActive: pin.tabID != 0 && pin.tabID == model.activeTabID,
           isSelected: model.selection == .pin(pin.pinID) && model.pinDrag == nil
         )
+        // Not animation(_:body:), which doesn't animate an offset.
+        .offset(y: model.isOpen || reduceMotion ? 0 : -TabOverlayMotion.travel)
+        .animation(
+          TabOverlayMotion.animation(
+            .offset, delay: delay, span: span, isOpening: model.isOpen),
+          value: model.isOpen)
+        .opacity(model.isOpen || reduceMotion ? 1 : 0)
+        .animation(
+          TabOverlayMotion.animation(
+            .opacity, delay: delay, span: span, isOpening: model.isOpen),
+          value: model.isOpen)
         // A dragged pin follows the pointer from its place. Its place takes the
         // drag rather than an offset, which would animate apart from the place
         // and swing a dropped pin past it.

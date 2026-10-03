@@ -330,7 +330,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     omnibar.onOpen = { [weak self] in
       self?.tabPicker.close()
       self?.commandPalette?.close()
-      self?.closeTabOverlay(restoringFocus: false)
+      self?.replaceTabOverlay()
     }
     omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
     omnibar.canOpenForTab = { [weak self] in self?.tabOverlay.isOpen != true }
@@ -352,7 +352,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.tabPicker.close()
       self?.madeOmnibar?.close()
       self?.commandPalette?.close()
-      self?.closeTabOverlay(restoringFocus: false)
+      self?.replaceTabOverlay()
     }
     findBar.onShowOrHide = { [weak self] in
       self?.placeFindBar(animated: true)
@@ -406,12 +406,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabOverlay.frame = content.bounds
     tabOverlay.autoresizingMask = [.width, .height]
     tabOverlay.onSelect = { [weak self] tabID in
+      self?.closeTabOverlay(restoringFocus: false)
       self?.actions?.selectTab(withID: tabID)
     }
     tabOverlay.onClose = { [weak self] tabID in
       self?.actions?.closeTab(withID: tabID)
     }
     tabOverlay.onOpenPin = { [weak self] pinID in
+      self?.closeTabOverlay(restoringFocus: false)
       self?.actions?.openPin(withID: pinID)
     }
     tabOverlay.onMovePin = { [weak self] pinID, index in
@@ -430,6 +432,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabOverlay.onDismiss = { [weak self] in self?.closeTabOverlay() }
     tabOverlay.onShowOrHide = { [weak self] in
       self?.schedulePanelDimmingUpdate()
+      self?.updateWindowControls(animated: true)
     }
     panelDimming.frame = content.bounds
     panelDimming.autoresizingMask = [.width, .height]
@@ -506,23 +509,30 @@ final class BrowserWindowController: NSObject, FiberWindow {
       madeOmnibar?.close()
       commandPalette?.close()
       tabOverlay.open()
-      updateWindowControls(animated: true)
     }
   }
 
-  /// Gives the active tab the keyboard back, unless what's opening in the
-  /// overlay's place takes it. A New Tab page that became active under the
-  /// overlay opens the omnibar only now.
+  /// Gives the active tab the keyboard back, unless a tab switched to or
+  /// what's opening in the overlay's place takes it. A New Tab page that
+  /// became active under the overlay opens the omnibar only now.
   private func closeTabOverlay(restoringFocus: Bool = true) {
     guard tabOverlay.isOpen else {
       return
     }
     tabOverlay.close()
     extensionsController.closeMenu()
-    updateWindowControls(animated: true)
     if restoringFocus {
       actions?.restoreFocus()
     }
+  }
+
+  /// For what opens in its place, which it gets out of the way of at once,
+  /// even partway through closing.
+  private func replaceTabOverlay() {
+    if tabOverlay.isOpen {
+      extensionsController.closeMenu()
+    }
+    tabOverlay.close(forReplacement: true)
   }
 
   private var windowControlButtons: [NSButton] {
@@ -718,7 +728,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     let isVisible = areControlsVisible
     if !isVisible {
       tabPicker.close()
-      closeTabOverlay(restoringFocus: false)
+      replaceTabOverlay()
     }
     tabPicker.isHidden = !isVisible
     extensionBubbles.isHidden = !isVisible
@@ -838,7 +848,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabPicker.close()
     closeOmnibar()
     closeCommandPalette()
-    closeTabOverlay(restoringFocus: false)
+    replaceTabOverlay()
 
     let content = window.contentView!
     prompt.frame = content.bounds
@@ -955,7 +965,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     palette.onOpen = { [weak self] in
       self?.tabPicker.close()
       self?.madeOmnibar?.close()
-      self?.closeTabOverlay(restoringFocus: false)
+      self?.replaceTabOverlay()
     }
     palette.onDismiss = { [weak self] in self?.closeCommandPalette() }
     palette.view.onShowOrHide = { [weak self] in

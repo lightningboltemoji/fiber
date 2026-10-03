@@ -278,7 +278,7 @@ final class MixedColorLabel: NSTextField {
 /// them doesn't let the page brighten.
 @MainActor
 final class PanelDimming: DimView {
-  private static let dimming = Dimming(drop: 36, maxOpacity: 0.45)
+  private static let dimming = Dimming(drop: 60, maxOpacity: 0.45)
 
   private(set) var isShown = false
 
