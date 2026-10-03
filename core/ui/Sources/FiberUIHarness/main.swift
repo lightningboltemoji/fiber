@@ -6,7 +6,9 @@
 // `--incognito` (the first window is Incognito, on the New Tab page),
 // `--pins N` (made-up pinned sites, the first two open),
 // `--overlay` (the tab overlay, as Command-S opens it),
-// `--profiles` (the profile switcher), `--new-profile` (its New Profile page).
+// `--profiles` (the profile switcher), `--new-profile` (its New Profile page),
+// `--slow-motion N` (animations N times slower). Its own controls (see
+// HarnessControls) sit beside the window last used.
 
 import AppKit
 import FiberBridge
@@ -30,14 +32,24 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   private lazy var profiles = MockProfiles(app: self)
   /// Set once the downloads are done, so the quit they held up goes ahead.
   private var isDoneWaiting = false
+  private lazy var controls = makeControls()
+  /// The window last used, which the controls act on.
+  private weak var currentBrowser: MockBrowser?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.mainMenu = makeMainMenu()
+    if let factor = launchValue(of: "--slow-motion").flatMap(Double.init) {
+      FiberSlowMotion.factor = factor
+    }
     pins.onChange = { [weak self] in
       for browser in self?.browsers ?? [] {
         browser.pinsDidChange()
       }
+      self?.updateControls()
     }
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(windowDidBecomeKey(_:)),
+      name: NSWindow.didBecomeKeyNotification, object: nil)
     if CommandLine.arguments.contains("--incognito") {
       openWindow(
         urls: [MockBrowser.newTabURL]
@@ -47,10 +59,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
     }
     if let count = launchValue(of: "--pins").flatMap(Int.init), count > 0 {
-      let urls = MockBrowser.sampleURLs(count: count + 5).suffix(count)
-      for url in urls {
-        pins.add(url: url, title: URL(string: url)?.host() ?? url)
-      }
+      setPinCount(count)
       for pin in pins.pins.prefix(2) {
         browsers.last?.openPin(withID: pin.id)
       }
@@ -156,10 +165,17 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     browsers.append(browser)
     tabsDidChange()
     browser.show()
+    // Even if it isn't key, as when the harness starts in the background.
+    makeCurrent(browser)
   }
 
   func browserDidClose(_ browser: MockBrowser) {
     browsers.removeAll { $0 === browser }
+    if currentBrowser == nil || currentBrowser === browser,
+      let last = browsers.last
+    {
+      makeCurrent(last)
+    }
     tabsDidChange()
   }
 
@@ -167,6 +183,57 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     tabIndex.setTabs(browsers.filter { !$0.isIncognito }.flatMap(\.tabStates))
     incognitoTabIndex.setTabs(
       browsers.filter(\.isIncognito).flatMap(\.tabStates))
+    updateControls()
+  }
+
+  /// Adds made-up pins, or unpins from the end, until there are `count`.
+  private func setPinCount(_ count: Int) {
+    while pins.pins.count < count {
+      let url = MockBrowser.sampleURLs(count: pins.pins.count + 6).last!
+      pins.add(url: url, title: URL(string: url)?.host() ?? url)
+    }
+    while pins.pins.count > max(count, 0), let pin = pins.pins.last {
+      pins.remove(pin.id)
+    }
+  }
+
+  // MARK: Controls
+
+  private func makeControls() -> HarnessControls {
+    let controls = HarnessControls()
+    controls.model.setTabCount = { [weak self] count in
+      self?.currentBrowser?.setTabCount(count)
+    }
+    controls.model.setPinCount = { [weak self] count in
+      self?.setPinCount(count)
+    }
+    controls.model.showLocationPrompt = { [weak self] in
+      self?.currentBrowser?.showLocationPrompt()
+    }
+    return controls
+  }
+
+  private func makeCurrent(_ browser: MockBrowser) {
+    currentBrowser = browser
+    controls.attach(to: browser.window)
+    updateControls()
+  }
+
+  private func updateControls() {
+    controls.update(
+      tabCount: currentBrowser?.tabs.count ?? 0, pinCount: pins.pins.count)
+  }
+
+  @objc private func windowDidBecomeKey(_ notification: Notification) {
+    if let browser = browsers.first(where: {
+      $0.window === notification.object as? NSWindow
+    }) {
+      makeCurrent(browser)
+    }
+  }
+
+  @objc private func showControls(_ sender: Any?) {
+    controls.show()
   }
 
   func browser(withTab tabID: Int) -> MockBrowser? {
@@ -251,6 +318,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         item(
           "Find Previous", #selector(MockBrowser.findPreviousInPage(_:)), "G"),
       ])
+    let showControls = item(
+      "Harness Controls", #selector(showControls(_:)), "H")
+    showControls.target = self
     // Handled by the key window's MockBrowser, which the window forwards
     // menu actions to (like Chrome's main menu commands in the real app).
     submenu(
@@ -276,6 +346,8 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         item(
           "Simulate Extension Window",
           #selector(MockBrowser.simulateExtensionWindow(_:)), "E"),
+        .separator(),
+        showControls,
       ])
     let switchProfile = item("Switch Profile…", #selector(switchProfile(_:)), "M")
     switchProfile.target = self

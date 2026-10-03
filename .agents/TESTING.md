@@ -23,8 +23,13 @@ window, are listed at the top of `FiberUIHarness/main.swift`.
 2. Find its window with a small Swift script over `CGWindowListCopyWindowInfo`:
    owner name `FiberUIHarness`, layer 0. (JXA can't unwrap the window list.)
 3. `screencapture -x -o -l <window ID>`. Crop with `CGImage.cropping(to:)` in
-   Swift; `sips` crops from an unexpected origin.
+   Swift; `sips` crops from an unexpected origin. While the screen is locked,
+   every capture fails ("could not create image from window").
 
+- **Its controls:** a panel beside the window last used (View › Harness
+  Controls, ⇧⌘H, if closed) sets that window's tabs and the profile's pins,
+  shows a location prompt over its page, and plays animations slower. It
+  floats (layer 3), so step 2 still finds only browser windows.
 - **States without a flag** (omnibar open): a temporary hook after
   `NSApp.activate()` in `main.swift`, e.g. `openLocation(nil)`.
 - **Keys and clicks:** from the same hook, made with `NSEvent.keyEvent` or
@@ -39,9 +44,9 @@ window, are listed at the top of `FiberUIHarness/main.swift`.
   app, so even mouse events posted to its process do nothing. Set the hover
   state from a hook (a model's `hoveredID`). An inactive harness also dims
   glass buttons and drops prominent tints.
-- **Animations:** a temporary multiplier on the duration, read from an
-  environment variable, with captures about 0.45 s apart
-  (`CGWindowListCreateImage` is unavailable).
+- **Animations:** `--slow-motion 10`, with captures about 0.45 s apart
+  (`CGWindowListCreateImage` is unavailable). Open what animates from a
+  delayed hook, once the window has settled.
 - **Vibrant text:** sample pixels with `NSBitmapImageRep` to tell it apart
   from flat gray on glass.
 

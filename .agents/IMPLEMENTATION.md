@@ -110,7 +110,7 @@ Each surface Fiber replaces, and where it lives:
 | Surface | Chrome integration | UI |
 |---|---|---|
 | Browser window, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift` |
-| Tabs: a picker of the 15 most recent on the window's edge, and the tab overlay (⌘S): the rest of the tabs in order, in a panel as wide as the command palette's over the dimmed page, with the pins in rows of glass circles rising from its top, all a little above the middle of the window, and beside it the page's address (which opens the omnibar) and the extensions. Its arrow keys, Return and ⌘⌫ move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)); one picked is switched to at once, under the overlay as it closes, which plays its opening back, quicker, showing what it closed with until it's gone; the omnibar or command palette opening cuts that short. It keeps the keyboard until it closes, so a New Tab page that becomes active under it opens the omnibar only then; a tab opened in front (⌘T, a link from another app) closes it | `browser/window/`, `browser/pins/` | `TabPicker.swift`, `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift` |
+| Tabs: a picker of the 15 most recent on the window's edge, and the tab overlay (⌘S): the rest of the tabs in order, in a panel as wide as the command palette's over the dimmed page, with the pins in rows of glass circles rising from its top, all a little above the middle of the window, and beside it the page's address (which opens the omnibar) and the extensions. Its arrow keys, Return and ⌘W move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)); one picked is switched to at once, under the overlay as it closes, which plays its opening back, quicker, showing what it closed with until it's gone; the omnibar or command palette opening cuts that short. It keeps the keyboard until it closes, so a New Tab page that becomes active under it opens the omnibar only then; a tab opened in front (⌘T, a link from another app) closes it | `browser/window/`, `browser/pins/` | `TabPicker.swift`, `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift` |
 | Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest, as does pressing Option and the number shown under that part | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
 | Find in page, a bar in the window's top-right corner (see [FIND-BAR.md](FIND-BAR.md)) | `browser/find_bar/` | `FindBar.swift` |
@@ -275,6 +275,10 @@ everything up to the startup window shows only in Instruments.
 - `ui/Package.swift` builds the same sources with SwiftPM, for Xcode and for
   `FiberUIHarness`, which runs the UI against a mock browser (`make harness`).
   If `ui/` builds there, it doesn't depend on Chromium.
+- `FiberSlowMotion` (the harness's `--slow-motion`) slows the UI's animations:
+  AppKit's and Core Animation's through each browser window's layer clock, but
+  SwiftUI's only if they take `.slowMotion`, and delays that wait on an
+  animation only through `SlowMotion.duration(_:)`. New ones need the same.
 - Fiber's version is `branding/VERSION`, shown with the Chromium release it's
   built on (`0.1.0c155.8059.12`); Chrome's internal version stays Chromium's
   (`branding/version.gni`). `branding/BRANDING` sets the product name and

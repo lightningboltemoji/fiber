@@ -314,6 +314,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     } else if window.frame != frame {
       window.setFrame(frame, display: false)
     }
+    SlowMotion.pace(window)
   }
 
   /// Over everything but the veil, one at a time with the command palette
@@ -885,8 +886,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     } completionHandler: {
       MainActor.assumeIsolated { prompt.removeFromSuperview() }
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + Self.veilLingerDuration) {
-      [weak self] in
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + SlowMotion.duration(Self.veilLingerDuration)
+    ) { [weak self] in
       MainActor.assumeIsolated {
         guard let self, self.prompt == nil else {
           return

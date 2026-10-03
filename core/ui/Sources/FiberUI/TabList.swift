@@ -125,7 +125,7 @@ struct TabList: View {
         .offset(
           x: TabListLayout.contentInset,
           y: TabListLayout.contentInset + CGFloat(row) * TabListLayout.rowStep)
-        .animation(.spring(duration: 0.22, bounce: 0.15), value: row)
+        .animation(.spring(duration: 0.22, bounce: 0.15).slowMotion, value: row)
     }
   }
 }
@@ -146,22 +146,30 @@ private struct TabRow: View {
     HStack(spacing: 10) {
       icon
         .frame(width: 16, height: 16)
-      Text(tab.title.isEmpty ? "Untitled" : tab.title)
-        .lineLimit(1)
-        .truncationMode(.tail)
-        .layoutPriority(1)
-      Spacer(minLength: 0)
       if showsURL {
-        // The close button takes its place.
-        Text(tab.url)
+        TitleAndURLLayout {
+          title
+          // The close button takes its place.
+          Group {
+            Text(tab.origin)
+              .accessibilityLabel(tab.url)
+            Text(tab.url.dropFirst(tab.origin.count))
+              .truncationMode(.middle)
+              // Narrower than its ellipsis, it shows nothing.
+              .frame(minWidth: 0, alignment: .leading)
+              .clipped()
+              .accessibilityHidden(true)
+          }
           .font(.system(size: 12))
           .foregroundStyle(.tertiary)
           .lineLimit(1)
-          .truncationMode(.middle)
-          .frame(maxWidth: 220, alignment: .trailing)
-          .animation(Self.closeButtonFade) {
+          .animation(Self.closeButtonFade.slowMotion) {
             $0.opacity(isCloseButtonShown ? 0 : 1)
           }
+        }
+      } else {
+        title
+        Spacer(minLength: 0)
       }
     }
     .font(.system(size: 13, weight: isActive ? .semibold : .regular))
@@ -182,7 +190,7 @@ private struct TabRow: View {
       }
       .overlay {
         Rectangle()
-          .animation(Self.closeButtonFade) {
+          .animation(Self.closeButtonFade.slowMotion) {
             $0.opacity(isCloseButtonShown ? 0 : 1)
           }
       }
@@ -201,11 +209,17 @@ private struct TabRow: View {
             .opacity(closeButton?.isHovered == true ? 1 : 0)
         }
         .padding(.trailing, TabListLayout.closeButtonInset)
-        .animation(Self.closeButtonFade) {
+        .animation(Self.closeButtonFade.slowMotion) {
           $0.opacity(isCloseButtonShown ? 1 : 0)
         }
         .accessibilityHidden(true)
     }
+  }
+
+  private var title: some View {
+    Text(tab.title.isEmpty ? "Untitled" : tab.title)
+      .lineLimit(1)
+      .truncationMode(.tail)
   }
 
   @ViewBuilder private var icon: some View {
@@ -222,5 +236,55 @@ private struct TabRow: View {
       Image(systemName: "globe")
         .foregroundStyle(.secondary)
     }
+  }
+}
+
+/// A row's title, then its URL against the row's end: the URL's origin whole,
+/// as much of the title as fits beside it, then as much of the rest of the URL
+/// as fits in what's left.
+private struct TitleAndURLLayout: Layout {
+  /// Between the title and the URL.
+  private static let spacing: CGFloat = 20
+  /// The least of the rest of the URL worth showing, short of all of it.
+  private static let minPathWidth: CGFloat = 40
+
+  func sizeThatFits(
+    proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+  ) -> CGSize {
+    let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+    return CGSize(
+      width: proposal.width ?? sizes.map(\.width).reduce(Self.spacing, +),
+      height: sizes.map(\.height).max() ?? 0)
+  }
+
+  /// `subviews` are the title, the URL's origin and the rest of the URL.
+  func placeSubviews(
+    in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews,
+    cache: inout ()
+  ) {
+    let (title, origin, path) = (subviews[0], subviews[1], subviews[2])
+    let originWidth = min(
+      origin.sizeThatFits(.unspecified).width, bounds.width)
+    let titleWidth = min(
+      title.sizeThatFits(.unspecified).width,
+      max(bounds.width - originWidth - (originWidth > 0 ? Self.spacing : 0), 0))
+    let fullPathWidth = path.sizeThatFits(.unspecified).width
+    var pathWidth = min(
+      fullPathWidth,
+      max(bounds.width - titleWidth - Self.spacing - originWidth, 0))
+    if pathWidth < min(fullPathWidth, Self.minPathWidth) {
+      pathWidth = 0
+    }
+    pathWidth = path.sizeThatFits(.init(width: pathWidth, height: nil)).width
+
+    title.place(
+      at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading,
+      proposal: .init(width: titleWidth, height: nil))
+    origin.place(
+      at: CGPoint(x: bounds.maxX - pathWidth, y: bounds.midY),
+      anchor: .trailing, proposal: .init(width: originWidth, height: nil))
+    path.place(
+      at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing,
+      proposal: .init(width: pathWidth, height: nil))
   }
 }

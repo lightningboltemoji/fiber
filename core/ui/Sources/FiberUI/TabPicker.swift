@@ -123,7 +123,7 @@ final class TabPicker: NSView {
     guard model.isExpanded else {
       return
     }
-    withAnimation(.spring(duration: 0.3, bounce: 0)) {
+    withAnimation(.spring(duration: 0.3, bounce: 0).slowMotion) {
       model.isExpanded = false
     }
     model.highlightedTabID = nil
@@ -386,7 +386,7 @@ final class TabPicker: NSView {
     let row = model.activeRow
     model.panelTop = y - TabListLayout.rowCenter(row)
     model.highlightedTabID = model.tabs[row].tabID
-    withAnimation(.spring(duration: 0.42, bounce: 0.22)) {
+    withAnimation(.spring(duration: 0.42, bounce: 0.22).slowMotion) {
       model.isExpanded = true
     }
   }
@@ -554,7 +554,7 @@ final class TabPicker: NSView {
     let row = min(
       max(current + (event.scrollingDeltaY > 0 ? -1 : 1), 0),
       model.tabs.count - 1)
-    withAnimation(.spring(duration: 0.25, bounce: 0.1)) {
+    withAnimation(.spring(duration: 0.25, bounce: 0.1).slowMotion) {
       model.panelTop = point.y - TabListLayout.rowCenter(row)
     }
     model.highlightedTabID = model.tabs[row].tabID
@@ -588,7 +588,7 @@ final class TabPicker: NSView {
       return
     }
     let tabID = model.tabs[row].tabID
-    withAnimation(.spring(duration: 0.35, bounce: 0.18)) {
+    withAnimation(.spring(duration: 0.35, bounce: 0.18).slowMotion) {
       model.panelTop = y - TabListLayout.rowCenter(row)
     }
     model.highlightedTabID = tabID

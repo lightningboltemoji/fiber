@@ -157,7 +157,8 @@ enum MockPages {
         Cook the noodles for 90 seconds, then assemble in warm bowls.
         """),
     "forum.example": Page(
-      title: "Maintaining a Chromium fork — Forum",
+      title:
+        "Maintaining a Chromium fork: how do you stay rebased on every stable release without drowning in merge conflicts? — Forum",
       text: """
         Maintaining a Chromium fork
         How do you keep a Chromium fork rebased on every stable release without drowning in merge conflicts?

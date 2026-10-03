@@ -13,8 +13,8 @@ struct RecentTabsTests {
   {
     ids.map {
       FiberTabState(
-        id: $0, title: "", url: "", favicon: nil, loading: false,
-        lastActiveTime: now - minutes($0) * 60)
+        id: $0, title: "", url: "", origin: "", favicon: nil,
+        loading: false, lastActiveTime: now - minutes($0) * 60)
     }
   }
 

@@ -154,8 +154,8 @@ struct PinGrid: View {
     // Pins glide to make room, a dropped pin settles into its place, and the
     // rest close or open up as pins come and go. Set on the grid, since a pin's
     // place animates with the grid's transaction rather than its own.
-    .animation(Self.moveAnimation, value: shown.map(\.pinID))
-    .animation(Self.moveAnimation, value: model.pinDrag?.pinID)
+    .animation(Self.moveAnimation.slowMotion, value: shown.map(\.pinID))
+    .animation(Self.moveAnimation.slowMotion, value: model.pinDrag?.pinID)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Pinned")
   }
@@ -174,16 +174,16 @@ extension View {
 extension AnyTransition {
   /// A pin pops in, zooming up from small and past its size before it
   /// settles, and pops out, swelling as it fades.
-  fileprivate static var pinPop: AnyTransition {
+  @MainActor fileprivate static var pinPop: AnyTransition {
     .asymmetric(
       insertion: .modifier(
         active: PinPop(scale: 0.3, opacity: 0, blur: 6),
         identity: PinPop(scale: 1, opacity: 1, blur: 0)
-      ).animation(.spring(duration: 0.5, bounce: 0.5)),
+      ).animation(.spring(duration: 0.5, bounce: 0.5).slowMotion),
       removal: .modifier(
         active: PinPop(scale: 1.4, opacity: 0, blur: 3),
         identity: PinPop(scale: 1, opacity: 1, blur: 0)
-      ).animation(.easeOut(duration: PinGridLayout.popOutDuration)))
+      ).animation(.easeOut(duration: PinGridLayout.popOutDuration).slowMotion))
   }
 }
 
@@ -233,8 +233,8 @@ struct PinBurstView: View {
     .frame(width: PinGridLayout.diameter, height: PinGridLayout.diameter)
     .allowsHitTesting(false)
     .onAppear {
-      withAnimation(.easeOut(duration: Self.duration)) { travel = 1 }
-      withAnimation(.easeIn(duration: Self.duration)) { fade = 1 }
+      withAnimation(.easeOut(duration: Self.duration).slowMotion) { travel = 1 }
+      withAnimation(.easeIn(duration: Self.duration).slowMotion) { fade = 1 }
     }
   }
 }
@@ -314,8 +314,8 @@ private struct PinCircle: View {
         .opacity(pin.tabID == 0 ? Self.closedIconOpacity : 1)
     }
     .frame(width: PinGridLayout.diameter, height: PinGridLayout.diameter)
-    .animation(.easeInOut(duration: 0.15), value: isSelected)
-    .animation(.easeInOut(duration: 0.15), value: isActive)
+    .animation(.easeInOut(duration: 0.15).slowMotion, value: isSelected)
+    .animation(.easeInOut(duration: 0.15).slowMotion, value: isActive)
   }
 
   @ViewBuilder private var icon: some View {

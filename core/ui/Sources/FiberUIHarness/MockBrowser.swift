@@ -12,10 +12,12 @@ final class MockBrowser: NSObject, FiberWindowActions {
     "shop.example/cart", "wiki.example/Liquid_glass", "code.example/fiber/pulls",
     "music.example/playlist/focus", "weather.example/today",
     "calendar.example/week", "photos.example/albums/summer",
-    "recipes.example/ramen", "forum.example/t/chromium-forks",
+    "recipes.example/ramen",
+    "forum.example/t/keeping-a-chromium-fork-rebased-on-stable/4821?page=2",
     "bank.example/accounts", "travel.example/flights",
     "design.example/files/toolbar", "chat.example/general",
-    "papers.example/abs/2609.01234", "store.example/app/fiber",
+    "papers.example/abs/2609.01234v3?context=cs.IR&from=search",
+    "store.example/app/fiber",
   ]
 
   /// `count` URLs: home, then made-up sites.
@@ -40,6 +42,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   /// The profile's, which an Incognito window has none of.
   private var pins: MockPins? { isIncognito ? nil : app?.pins }
   private var dialog: (any FiberJavaScriptDialog)?
+  private var locationPrompt: (prompt: any FiberPrompt, actions: PromptActions)?
   private var controlsVisible = true
   private var omnibox: MockOmnibox!
   private var extensions: MockExtensions!
@@ -309,6 +312,41 @@ final class MockBrowser: NSObject, FiberWindowActions {
     findBar.open()
     (ui.window.firstResponder as? NSTextView)?.insertText(
       query, replacementRange: NSRange(location: NSNotFound, length: 0))
+  }
+
+  // MARK: Harness controls
+
+  /// Opens made-up sites, or closes tabs from the end, until there are
+  /// `count`.
+  func setTabCount(_ count: Int) {
+    while tabs.count < count {
+      openTab(Self.sampleURLs(count: tabs.count + 1).last!, activate: false)
+    }
+    while tabs.count > max(count, 1), let tab = tabs.last {
+      close(tab)
+    }
+  }
+
+  /// What a page asking for the user's location shows, worded as
+  /// FiberPermissionPrompt words it.
+  func showLocationPrompt() {
+    let site = URL(string: activeTab.url)?.host() ?? activeTab.url
+    let content = FiberPromptContent(
+      icon: nil, eyebrow: "", title: "\(site) wants to", message: "",
+      listHeading: "",
+      listItems: [FiberPromptListItem(text: "Know your location", detail: "")],
+      buttons: [
+        FiberPromptButton(buttonID: 0, title: "Never allow", role: .other),
+        FiberPromptButton(
+          buttonID: 1, title: "Allow this time", role: .confirm),
+        FiberPromptButton(buttonID: 2, title: "Allow", role: .confirm),
+      ])
+    let actions = PromptActions { _ in }
+    locationPrompt = (
+      FiberPromptFactory.prompt(
+        with: content, window: ui.window, actions: actions),
+      actions
+    )
   }
 
   // MARK: Omnibox
@@ -666,6 +704,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     tabs.map {
       FiberTabState(
         id: $0.id, title: $0.page.title, url: Self.displayURL($0.url),
+        origin: Self.displayOrigin($0.url),
         favicon: MockFavicon.image(for: $0.url), loading: $0.isLoading,
         lastActiveTime: $0.lastActive)
     }
@@ -699,6 +738,14 @@ final class MockBrowser: NSObject, FiberWindowActions {
       display.removeLast()
     }
     return display
+  }
+
+  /// The start of `displayURL(url)` through its host.
+  private static func displayOrigin(_ url: String) -> String {
+    let display = displayURL(url)
+    let host = display.range(of: "://")?.upperBound ?? display.startIndex
+    return String(
+      display[..<(display[host...].firstIndex(of: "/") ?? display.endIndex)])
   }
 
   /// Opens the command palette with `query` typed in it.

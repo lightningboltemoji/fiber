@@ -246,7 +246,7 @@ private final class PopupActions: NSObject, FiberExtensionPopupActions {
 
 /// Forwards the button pressed, or nil if the prompt was dismissed.
 @MainActor
-private final class PromptActions: NSObject, FiberPromptActions {
+final class PromptActions: NSObject, FiberPromptActions {
   private let onEnd: (Int?) -> Void
 
   init(onEnd: @escaping (Int?) -> Void) {

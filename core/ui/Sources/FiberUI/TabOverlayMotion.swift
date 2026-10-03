@@ -84,7 +84,7 @@ enum TabOverlayMotion {
     let timing = timing(
       delay: 0, duration: panelDuration(reach: reach), span: span,
       isOpening: isOpening)
-    return .linear(duration: timing.duration).delay(timing.delay)
+    return .linear(duration: timing.duration).delay(timing.delay).slowMotion
   }
 
   /// `reach`, and the panel's soft edge beyond, as the overlay opens.
@@ -107,7 +107,7 @@ enum TabOverlayMotion {
     let curve = timing.curve
     return .timingCurve(
       curve.0, curve.1, curve.2, curve.3, duration: timing.duration
-    ).delay(timing.delay)
+    ).delay(timing.delay).slowMotion
   }
 
   /// Moves `view` in from `offset` (y growing down) or out to it, from

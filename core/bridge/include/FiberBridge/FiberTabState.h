@@ -9,6 +9,7 @@ NS_SWIFT_SENDABLE
 - (instancetype)initWithID:(NSInteger)tabID
                      title:(NSString*)title
                        url:(NSString*)url
+                    origin:(NSString*)origin
                    favicon:(nullable NSImage*)favicon
                    loading:(BOOL)loading
             lastActiveTime:(NSDate*)lastActiveTime NS_DESIGNATED_INITIALIZER;
@@ -19,6 +20,9 @@ NS_SWIFT_SENDABLE
 @property(readonly, copy) NSString* title;
 // The page's URL, formatted to read: a Unicode host, and no "https://".
 @property(readonly, copy) NSString* url;
+// The start of `url` through its host and port, such as "carfax.com" or
+// "fiber://settings", or empty if it has no host.
+@property(readonly, copy) NSString* origin;
 @property(readonly, nullable) NSImage* favicon;
 @property(readonly) BOOL isLoading;
 // When the tab was last shown, or opened.

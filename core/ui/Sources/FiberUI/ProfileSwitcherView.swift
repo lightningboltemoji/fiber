@@ -159,7 +159,7 @@ final class ProfileSwitcherModel {
     }
     hoveredID = nil
     if animated {
-      withAnimation(.spring(duration: 0.5, bounce: 0.2)) {
+      withAnimation(.spring(duration: 0.5, bounce: 0.2).slowMotion) {
         self.page = page
       }
     } else {
@@ -357,7 +357,7 @@ private struct OrbitBubble: View {
         .opacity(labelOpacity)
         .accessibilityHidden(true)
     }
-    .animation(.spring(duration: 0.3, bounce: 0.3), value: isHovered)
+    .animation(.spring(duration: 0.3, bounce: 0.3).slowMotion, value: isHovered)
     .accessibilityLabel(
       item.isCurrent ? "\(item.title), current profile" : item.title)
   }
@@ -468,7 +468,7 @@ private struct NewProfilePanel: View {
     .frame(width: Self.previewDiameter, height: Self.previewDiameter)
     .clipShape(.circle)
     .contentTransition(.opacity)
-    .animation(.easeOut(duration: 0.15), value: selectedAvatar?.id)
+    .animation(.easeOut(duration: 0.15).slowMotion, value: selectedAvatar?.id)
     .accessibilityHidden(true)
   }
 

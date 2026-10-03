@@ -5,9 +5,9 @@ import SwiftUI
 /// The window's tabs, over the dimmed page with Command-S: those that aren't
 /// pins', in the tab strip's order, in a panel as wide as the command
 /// palette's, with the pins (PinGrid) in rows above it, and the page's address
-/// and the extensions beside it. The arrow keys, Return and Command-Delete
-/// move through, switch to and close them. This view takes the events and
-/// keeps the model; TabOverlayView draws.
+/// and the extensions beside it. The arrow keys, Return and Command-W move
+/// through, switch to and close them. This view takes the events and keeps the
+/// model; TabOverlayView draws.
 @MainActor
 final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Called with a tab to switch to, never the active one. Its owner closes
@@ -59,6 +59,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var pressedTabID: Int?
   private var pressedCloseButtonTabID: Int?
   private var pressedPin: (pinID: String, point: CGPoint)?
+  /// Where the pointer was as the overlay opened, in screen coordinates,
+  /// until it moves. What opened under it wasn't pointed at.
+  private var restingPointer: CGPoint?
   /// Set once the window has its first pins, which appear without a flourish.
   private var hasPins = false
   /// The pins the list is below, and whose tabs it leaves out. They catch up
@@ -135,6 +138,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     isOpen = true
     model.selection = initialSelection
     model.closeButton = nil
+    restingPointer = NSEvent.mouseLocation
     heldTop = nil
     layoutPanel()
     revealSelection(animated: false)
@@ -181,7 +185,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       }
     }
     pendingFadeOut = fadeOut
-    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: fadeOut)
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + SlowMotion.duration(delay), execute: fadeOut)
   }
 
   private func fadeOut() {
@@ -331,8 +336,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
     model.pinBursts += bursts
     let ids = Set(bursts.map(\.id))
-    DispatchQueue.main.asyncAfter(deadline: .now() + PinBurstView.duration) {
-      [weak self] in
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + SlowMotion.duration(PinBurstView.duration)
+    ) { [weak self] in
       MainActor.assumeIsolated {
         self?.model.pinBursts.removeAll { ids.contains($0.id) }
       }
@@ -344,8 +350,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       return
     }
     isPanelCatchUpPending = true
-    DispatchQueue.main.asyncAfter(deadline: .now() + PinGridLayout.popOutDuration)
-    { [weak self] in
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + SlowMotion.duration(PinGridLayout.popOutDuration)
+    ) { [weak self] in
       MainActor.assumeIsolated {
         self?.isPanelCatchUpPending = false
         self?.catchUpPanel()
@@ -607,7 +614,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     guard offset != model.scrollOffset else {
       return
     }
-    withAnimation(animation) {
+    withAnimation(animation?.slowMotion) {
       model.scrollOffset = offset
     }
   }
@@ -648,15 +655,20 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     !isOpen
   }
 
-  override func keyDown(with event: NSEvent) {
-    // The key bindings take Command-Delete as deleting to the line's start.
-    if event.charactersIgnoringModifiers == "\u{7F}",
-      event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        == .command
-    {
-      closeSelection()
-      return
+  /// Command-W closes the selection, not the tab behind the overlay.
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    guard isOpen,
+      event.modifierFlags.intersection([.command, .shift, .option, .control])
+        == .command,
+      event.charactersIgnoringModifiers?.lowercased() == "w"
+    else {
+      return super.performKeyEquivalent(with: event)
     }
+    closeSelection()
+    return true
+  }
+
+  override func keyDown(with event: NSEvent) {
     interpretKeyEvents([event])
   }
 
@@ -954,12 +966,13 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
   }
 
-  /// The selection follows the pointer onto a pin or a tab. Nil for the
-  /// pointer gone.
+  /// The selection follows the pointer onto a pin or a tab, once it has
+  /// moved. Nil for the pointer gone.
   private func hover(at point: CGPoint?) {
-    guard isOpen else {
+    guard isOpen, restingPointer != NSEvent.mouseLocation else {
       return
     }
+    restingPointer = nil
     if let point, model.pinDrag == nil {
       if let pin = pin(at: point) {
         model.selection = .pin(pin.pinID)
@@ -1020,7 +1033,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 }
 
-/// What Return and Command-Delete act on in the tab overlay.
+/// What Return and Command-W act on in the tab overlay.
 enum TabOverlaySelection: Equatable {
   case pin(String)
   case tab(Int)
@@ -1244,8 +1257,10 @@ struct TabOverlayView: View {
     // Tabs opening and closing grow and shrink the panel, and rows of pins
     // coming and going can move it.
     .animation(
-      .spring(duration: 0.3, bounce: 0), value: model.tabs.map(\.tabID))
-    .animation(.spring(duration: 0.3, bounce: 0), value: model.panelPinCount)
+      .spring(duration: 0.3, bounce: 0).slowMotion,
+      value: model.tabs.map(\.tabID))
+    .animation(
+      .spring(duration: 0.3, bounce: 0).slowMotion, value: model.panelPinCount)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .accessibilityElement(children: .contain)
   }
@@ -1288,7 +1303,7 @@ private struct PanelWave: View, Animatable {
 /// The keys, like the command palette's.
 private struct HintsView: View {
   private static let hints = [
-    ("Switch to Tab", "↩"), ("Close Tab", "⌘⌫"), ("Close", "esc"),
+    ("Switch to Tab", "↩"), ("Close Tab", "⌘W"), ("Close", "esc"),
   ]
 
   var body: some View {

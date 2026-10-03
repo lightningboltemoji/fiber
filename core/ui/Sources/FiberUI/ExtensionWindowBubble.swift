@@ -641,7 +641,7 @@ final class ExtensionBubbleView: NSView {
       width: size.width, height: size.height)
     frame = capsule.insetBy(dx: -Self.shadowRoom, dy: -Self.shadowRoom)
     if model.growsDown != growsDown {
-      withAnimation(.spring(duration: 0.3, bounce: 0.15)) {
+      withAnimation(.spring(duration: 0.3, bounce: 0.15).slowMotion) {
         model.growsDown = growsDown
       }
     }
@@ -653,7 +653,7 @@ final class ExtensionBubbleView: NSView {
   }
 
   func setExpanded(_ expanded: Bool) {
-    withAnimation(.spring(duration: 0.32, bounce: 0.2)) {
+    withAnimation(.spring(duration: 0.32, bounce: 0.2).slowMotion) {
       model.isExpanded = expanded
     }
     if !expanded {
@@ -662,7 +662,7 @@ final class ExtensionBubbleView: NSView {
   }
 
   func appear() {
-    withAnimation(.spring(duration: 0.35, bounce: 0.3)) {
+    withAnimation(.spring(duration: 0.35, bounce: 0.3).slowMotion) {
       model.isShown = true
     }
   }
@@ -757,7 +757,7 @@ final class ExtensionBubbleView: NSView {
             hypot(delta.x, delta.y) > Self.dragThreshold
           {
             isDragging = true
-            withAnimation(.spring(duration: 0.2)) {
+            withAnimation(.spring(duration: 0.2).slowMotion) {
               self.model.isDragging = true
             }
           }
@@ -768,7 +768,7 @@ final class ExtensionBubbleView: NSView {
         case .leftMouseUp:
           stop.pointee = true
           if isDragging {
-            withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
+            withAnimation(.spring(duration: 0.3, bounce: 0.2).slowMotion) {
               self.model.isDragging = false
             }
           } else if pressedClose {

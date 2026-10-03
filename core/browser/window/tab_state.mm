@@ -10,6 +10,7 @@
 #include "content/public/browser/web_contents.h"
 #include "fiber/browser/favicons/favicon_image.h"
 #include "ui/gfx/image/image.h"
+#include "url/third_party/mozilla/url_parse.h"
 
 namespace fiber {
 
@@ -21,16 +22,23 @@ FiberTabState* TabStateFor(tabs::TabInterface* tab) {
                          ? FaviconImage(favicon_driver->GetFavicon(),
                                         contents->GetLastCommittedURL())
                          : nil;
+  url::Parsed parsed;
   std::u16string url = url_formatter::FormatUrl(
       contents->GetVisibleURL(),
       url_formatter::kFormatUrlOmitDefaults |
           url_formatter::kFormatUrlOmitHTTPS |
           url_formatter::kFormatUrlOmitTrivialSubdomains,
-      base::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
+      base::UnescapeRule::SPACES, &parsed, nullptr, nullptr);
+  size_t origin_end = 0;
+  if (parsed.host.is_nonempty()) {
+    origin_end = static_cast<size_t>(
+        (parsed.port.is_valid() ? parsed.port : parsed.host).end());
+  }
   return [[FiberTabState alloc]
           initWithID:tab->GetHandle().raw_value()
                title:base::SysUTF16ToNSString(contents->GetTitle())
                  url:base::SysUTF16ToNSString(url)
+              origin:base::SysUTF16ToNSString(url.substr(0, origin_end))
              favicon:favicon
              loading:contents->ShouldShowLoadingUI()
       lastActiveTime:contents->GetLastActiveTime().ToNSDate()];

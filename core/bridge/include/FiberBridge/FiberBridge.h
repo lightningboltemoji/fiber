@@ -15,6 +15,7 @@
 #import "FiberProfileSwitcher.h"
 #import "FiberPrompt.h"
 #import "FiberQuitConfirmation.h"
+#import "FiberSlowMotion.h"
 #import "FiberTabIndex.h"
 #import "FiberTabState.h"
 #import "FiberWindow.h"
