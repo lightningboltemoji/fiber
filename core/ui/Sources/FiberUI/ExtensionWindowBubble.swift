@@ -527,6 +527,9 @@ private final class PanelContent: NSView {
     }
     view.frame = pageView.bounds
     view.autoresizingMask = [.width, .height]
+    // A tab moved here from the background may be hidden (see
+    // BrowserWindowController.setContentsView(_:)).
+    view.isHidden = false
     pageView.addSubview(view)
   }
 

@@ -600,6 +600,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // The toolbar and tab picker float over the page.
     view.frame = pageView.bounds
     view.autoresizingMask = [.width, .height]
+    // Chrome hides a page made in the background (a ⌘-clicked link, a restored
+    // tab) until its host shows it; hidden, it never draws.
+    view.isHidden = false
     pageView.addSubview(view, positioned: .below, relativeTo: newTabView)
   }
 
