@@ -18,7 +18,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window_state.h"
@@ -58,6 +60,7 @@
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
+#include "fiber/browser/window/page_thumbnail.h"
 #include "fiber/browser/window/tab_state.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
@@ -111,6 +114,14 @@ bool IsNewTabPage(content::WebContents* contents) {
   }
   return entry && entry->GetURL().SchemeIs(content::kChromeUIScheme) &&
          entry->GetURL().host() == chrome::kChromeUINewTabHost;
+}
+
+// Whether `contents` shows a New Tab page, Fiber's or an extension's.
+bool ShowsNewTabPage(content::WebContents* contents) {
+  content::NavigationEntry* entry = contents->GetController().GetVisibleEntry();
+  const GURL url = entry ? entry->GetVirtualURL() : GURL();
+  return url.SchemeIs(content::kChromeUIScheme) &&
+         url.host() == chrome::kChromeUINewTabHost;
 }
 
 }  // namespace
@@ -310,9 +321,14 @@ void FiberBrowserWindow::EndHistorySwipe(bool navigating) {
 
 void FiberBrowserWindow::ExecuteCommand(int command,
                                         WindowOpenDisposition disposition) {
-  if (IsCommandEnabled(command)) {
-    chrome::ExecuteCommandWithDisposition(browser_, command, disposition);
+  if (!IsCommandEnabled(command)) {
+    return;
   }
+  if (command == IDC_CLOSE_TAB &&
+      !WillCloseTabs(browser_->GetTabStripModel()->selection_model().size())) {
+    return;
+  }
+  chrome::ExecuteCommandWithDisposition(browser_, command, disposition);
 }
 
 bool FiberBrowserWindow::IsCommandEnabled(int command) const {
@@ -370,18 +386,43 @@ void FiberBrowserWindow::RevealText(int32_t tab_id,
 
 void FiberBrowserWindow::CloseTab(int32_t tab_id) {
   TabStripModel* model = browser_->GetTabStripModel();
-  int index = model->GetIndexOfTab(tabs::TabHandle(tab_id).Get());
-  if (index != TabStripModel::kNoTab) {
-    model->CloseWebContentsAt(index,
-                              TabCloseTypes::CLOSE_USER_GESTURE |
-                                  TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  if (model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
+      !WillCloseTabs(1)) {
+    return;
   }
+  model->CloseWebContentsAt(model->GetIndexOfTab(tab),
+                            TabCloseTypes::CLOSE_USER_GESTURE |
+                                TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+}
+
+bool FiberBrowserWindow::WillCloseTabs(size_t count) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  if (browser_->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL ||
+      count < static_cast<size_t>(model->count())) {
+    return true;
+  }
+  if (model->count() == 1 && ShowsNewTabPage(model->GetWebContentsAt(0))) {
+    RestoreFocus();
+    return false;
+  }
+  // In the background, so the closing page can still ask the user to stay
+  // (see BeforeUnloadFired()).
+  content::WebContents* replacement =
+      chrome::AddAndReturnTabAt(browser_, GURL(), -1, /*foreground=*/false);
+  last_tab_replacement_ = replacement ? replacement->GetWeakPtr() : nullptr;
+  return true;
 }
 
 void FiberBrowserWindow::OnCommandPaletteOpened() {
   if (content::WebContents* contents = GetActiveWebContents()) {
     tab_index_source_->ReadPageText(contents);
   }
+}
+
+void FiberBrowserWindow::CapturePageThumbnail(
+    void (^completion)(CGImageRef thumbnail)) {
+  fiber::CapturePageThumbnail(GetActiveWebContents(), completion);
 }
 
 id<FiberExtensionWindow> FiberBrowserWindow::AddExtensionWindow(
@@ -524,6 +565,8 @@ void FiberBrowserWindow::OnActiveTabChanged(content::WebContents* old_contents,
                                             int reason) {
   // The last tab's swipe is over (the UI takes it down with the view).
   history_swipe_navigation_.reset();
+  // The last tab closed, or the user went elsewhere: its replacement stays.
+  last_tab_replacement_.reset();
   // Swapping the view in and out of the window also updates each tab's
   // visibility, via WebContentsViewCocoa.
   [ui_ setContentsView:new_contents->GetNativeView().GetNativeNSView()];
@@ -1111,6 +1154,20 @@ void FiberBrowserWindow::DidStartNavigation(
   // The page being left, for a swipe back (or forward) to it.
   if (navigation_handle->IsInPrimaryMainFrame()) {
     CapturePageSnapshot(web_contents());
+  }
+}
+
+void FiberBrowserWindow::BeforeUnloadFired(bool proceed) {
+  content::WebContents* replacement = last_tab_replacement_.get();
+  last_tab_replacement_.reset();
+  if (proceed || !replacement) {
+    return;
+  }
+  // The user stayed on the last tab's page.
+  TabStripModel* model = browser_->GetTabStripModel();
+  const int index = model->GetIndexOfWebContents(replacement);
+  if (index != TabStripModel::kNoTab) {
+    model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
   }
 }
 

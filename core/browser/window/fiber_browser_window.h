@@ -1,6 +1,8 @@
 #ifndef FIBER_BROWSER_WINDOW_FIBER_BROWSER_WINDOW_H_
 #define FIBER_BROWSER_WINDOW_FIBER_BROWSER_WINDOW_H_
 
+#include <CoreGraphics/CoreGraphics.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -81,11 +83,13 @@ class FiberBrowserWindow : public BrowserWindow,
   // Selects the tab, and finds `text` in its page.
   void RevealText(int32_t tab_id, const std::u16string& text);
   // Closes one of this window's tabs as the user would, so its page can ask
-  // first and it can be reopened.
+  // first and it can be reopened (see WillCloseTabs()).
   void CloseTab(int32_t tab_id);
   // The window's pins and their tabs; null if its profile has none.
   PinnedTabs* pinned_tabs() const { return pinned_tabs_.get(); }
   void OnCommandPaletteOpened();
+  // A small image of the active tab's page, for the UI's dimming over it.
+  void CapturePageThumbnail(void (^completion)(CGImageRef thumbnail));
   void OnWindowCloseRequested();
   void OnWindowActivationChanged(bool active);
   void OnWindowFullscreenChanged();
@@ -272,6 +276,7 @@ class FiberBrowserWindow : public BrowserWindow,
   void DidStopLoading() override;
   void DidStartNavigation(
       content::NavigationHandle* navigation_handle) override;
+  void BeforeUnloadFired(bool proceed) override;
 
  protected:
   // BrowserWindow:
@@ -286,6 +291,10 @@ class FiberBrowserWindow : public BrowserWindow,
   // Sends the UI the tab list, in tab strip order, and the pins.
   void UpdateTabs();
   void UpdatePins();
+  // Before the user closes `count` of the window's tabs. Closing them all
+  // leaves a browser window open on a New Tab page, and a lone New Tab page
+  // stays. Returns whether to go ahead.
+  bool WillCloseTabs(size_t count);
 
   const raw_ptr<BrowserWindowInterface> browser_;
   FiberBrowserWindowActions* __strong actions_;
@@ -300,6 +309,9 @@ class FiberBrowserWindow : public BrowserWindow,
   base::WeakPtr<DownloadsWait> downloads_wait_;
   // After a history swipe lands, until the page it went to shows.
   std::unique_ptr<HistorySwipeNavigation> history_swipe_navigation_;
+  // The New Tab page opened for the last tab, while that tab's page may still
+  // ask the user to stay.
+  base::WeakPtr<content::WebContents> last_tab_replacement_;
   // Whether Chrome has shown the window. A startup window (see
   // ShowStartupWindow()) is on screen before then, but Chrome's startup
   // expects it hidden until it shows it.

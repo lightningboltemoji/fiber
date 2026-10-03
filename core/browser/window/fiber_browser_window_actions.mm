@@ -171,6 +171,14 @@ int CommandID(FiberCommand command) {
   }
 }
 
+- (void)capturePageThumbnail:(void (^)(CGImageRef thumbnail))completion {
+  if (_owner) {
+    _owner->CapturePageThumbnail(completion);
+  } else {
+    completion(nullptr);
+  }
+}
+
 - (void)windowShouldClose {
   if (_owner) {
     _owner->OnWindowCloseRequested();

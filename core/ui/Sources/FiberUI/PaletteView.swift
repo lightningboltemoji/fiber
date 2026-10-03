@@ -275,19 +275,18 @@ final class MixedColorLabel: NSTextField {
 
 /// Darkens the window under the omnibar, the command palette and the tab
 /// overlay. The window keeps it while any of them shows, so switching between
-/// them doesn't let the page brighten. It's only drawn: clicks go to them.
+/// them doesn't let the page brighten.
 @MainActor
-final class PanelDimming: NSView {
-  private static let color = NSColor.black.withAlphaComponent(0.2)
+final class PanelDimming: DimView {
+  private static let dimming = Dimming(drop: 36, maxOpacity: 0.45)
 
   private(set) var isShown = false
 
   override init(frame: NSRect) {
     super.init(frame: frame)
-    wantsLayer = true
-    layer?.backgroundColor = Self.color.cgColor
     isHidden = true
     alphaValue = 0
+    setPageLightness(100)
   }
 
   @available(*, unavailable)
@@ -295,8 +294,12 @@ final class PanelDimming: NSView {
     fatalError("init(coder:) is not supported")
   }
 
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    nil
+  /// Darkens it so that it dims a page whose mean L* is `lightness` by about
+  /// as much as any other (see Dimming).
+  func setPageLightness(_ lightness: Double) {
+    setOpacity(
+      Float(Self.dimming.opacity(forPageLightness: lightness)),
+      duration: isShown ? PaletteView.fadeInDuration : 0)
   }
 
   /// Fades in or out with the panels, from wherever it is now.

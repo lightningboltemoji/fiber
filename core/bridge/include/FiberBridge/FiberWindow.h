@@ -68,6 +68,10 @@ NS_SWIFT_UI_ACTOR
 // The command palette opened. The active tab's page text may have changed
 // since it was last read.
 - (void)commandPaletteDidOpen;
+// Calls `completion` with a small image of what the active tab's page shows
+// now, for the window to see how light it is, or with nil if it hasn't drawn.
+- (void)capturePageThumbnail:
+    (void (^)(CGImageRef _Nullable thumbnail))completion;
 
 // The user asked to close the window. The browser closes it when it's ready,
 // which may be never: a page's unload handler can keep it open.

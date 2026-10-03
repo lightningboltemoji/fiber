@@ -142,13 +142,25 @@ final class MockBrowser: NSObject, FiberWindowActions {
     guard let tab = tabs.first(where: { $0.id == tabID }) else {
       return
     }
+    // Like Fiber, the last tab leaves a New Tab page, which stays.
+    let isLast = tabs.count == 1
+    if isLast && tab.url == Self.newTabURL {
+      restoreFocus()
+      return
+    }
+    let leave = { [weak self] in
+      if isLast {
+        self?.openTab(Self.newTabURL, activate: false)
+      }
+      self?.close(tab)
+    }
     guard tab.page.asksBeforeLeaving else {
-      close(tab)
+      leave()
       return
     }
     // Like Chrome, the tab comes forward to ask.
     activate(tab)
-    confirmLeaving { [weak self] in self?.close(tab) }
+    confirmLeaving(then: leave)
   }
 
   func pinTab(withID tabID: Int) {
@@ -229,6 +241,11 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   func commandPaletteDidOpen() {}
+
+  func capturePageThumbnail(_ completion: @escaping (CGImage?) -> Void) {
+    let thumbnail = activeTab.page.thumbnail()
+    DispatchQueue.main.async { completion(thumbnail) }
+  }
 
   func windowShouldClose() {
     guard tabs.contains(where: \.page.asksBeforeLeaving) else {

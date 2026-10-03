@@ -44,6 +44,31 @@ final class MockPageView: NSView {
     return image
   }
 
+  /// What it looks like now, 32 pixels on its longer side, as //fiber/browser
+  /// captures pages for the window's dimming.
+  func thumbnail() -> CGImage? {
+    guard
+      let image = snapshot()?.cgImage(
+        forProposedRect: nil, context: nil, hints: nil)
+    else {
+      return nil
+    }
+    let scale = 32 / max(bounds.width, bounds.height)
+    let width = Int((bounds.width * scale).rounded(.up))
+    let height = Int((bounds.height * scale).rounded(.up))
+    guard
+      let context = CGContext(
+        data: nil, width: width, height: height, bitsPerComponent: 8,
+        bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else {
+      return nil
+    }
+    context.interpolationQuality = .high
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    return context.makeImage()
+  }
+
   override init(frame: NSRect) {
     super.init(frame: frame)
     // Like Chrome's pages, which follow the app's appearance, not the window's.

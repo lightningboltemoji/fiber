@@ -11,6 +11,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/CommandPalette.swift",
     "Sources/FiberUI/ContextMenu.swift",
     "Sources/FiberUI/DevTools.swift",
+    "Sources/FiberUI/Dimming.swift",
     "Sources/FiberUI/DownloadsWait.swift",
     "Sources/FiberUI/ExtensionWindowBubble.swift",
     "Sources/FiberUI/Extensions.swift",

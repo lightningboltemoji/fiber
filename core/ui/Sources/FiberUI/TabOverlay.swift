@@ -977,8 +977,11 @@ final class TabOverlayModel {
       + PinGridLayout.spacing
   }
 
+  /// With no tabs, the top rim's, so the hints sit as far from the panel's top
+  /// as from its bottom.
   var listContentHeight: CGFloat {
-    tabs.isEmpty ? 0 : TabListLayout.panelHeight(rows: tabs.count)
+    tabs.isEmpty
+      ? PaletteView.rimWidth : TabListLayout.panelHeight(rows: tabs.count)
   }
 
   /// From the panel's top-left corner.
