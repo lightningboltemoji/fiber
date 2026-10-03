@@ -89,6 +89,8 @@ struct PinBurst: Identifiable {
 struct PinGrid: View {
   let model: TabOverlayModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  private static let moveAnimation = Animation.spring(
+    duration: 0.3, bounce: 0.15)
 
   var body: some View {
     let width = model.gridWidth
@@ -101,19 +103,19 @@ struct PinGrid: View {
         let isDragged = model.pinDrag?.pinID == pin.pinID
         let index = model.pins.firstIndex { $0.pinID == pin.pinID } ?? 0
         let slot = shown.firstIndex { $0.pinID == pin.pinID } ?? index
+        let origin = PinGridLayout.origin(
+          of: isDragged ? index : slot, width: width)
+        let offset = isDragged ? model.pinDrag?.offset ?? .zero : .zero
         PinCircle(
           pin: pin, isActive: pin.tabID != 0 && pin.tabID == model.activeTabID,
           isSelected: model.selection == .pin(pin.pinID) && model.pinDrag == nil
         )
-        // A dragged pin follows the pointer from its place.
-        .offset(isDragged ? model.pinDrag?.offset ?? .zero : .zero)
+        // A dragged pin follows the pointer from its place. Its place takes the
+        // drag rather than an offset, which would animate apart from the place
+        // and swing a dropped pin past it.
         .place(
-          at: PinGridLayout.origin(of: isDragged ? index : slot, width: width)
-        )
+          at: CGPoint(x: origin.x + offset.width, y: origin.y + offset.height))
         .zIndex(isDragged ? 1 : 0)
-        // Others glide to make room; a dropped pin settles into its place.
-        .animation(
-          .spring(duration: 0.3, bounce: 0.15), value: isDragged ? -1 : slot)
         .transition(reduceMotion ? .opacity : .pinPop)
         .accessibilityElement()
         .accessibilityLabel(pin.title.isEmpty ? pin.url : pin.title)
@@ -136,7 +138,11 @@ struct PinGrid: View {
         }
       }
     }
-    .animation(.spring(duration: 0.3, bounce: 0), value: model.pins.map(\.pinID))
+    // Pins glide to make room, a dropped pin settles into its place, and the
+    // rest close or open up as pins come and go. Set on the grid, since a pin's
+    // place animates with the grid's transaction rather than its own.
+    .animation(Self.moveAnimation, value: shown.map(\.pinID))
+    .animation(Self.moveAnimation, value: model.pinDrag?.pinID)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Pinned")
   }
