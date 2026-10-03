@@ -17,16 +17,21 @@ launch flags, which open states like the command palette or an Incognito
 window, are listed at the top of `FiberUIHarness/main.swift`.
 
 1. `swift build --package-path core/ui --product FiberUIHarness`, then start
-   the binary from `--show-bin-path` in the background.
+   the binary from `--show-bin-path` in the background, in a subshell
+   (`(… &)`): started with a bare `&` from an agent's shell, it runs but never
+   gets its windows.
 2. Find its window with a small Swift script over `CGWindowListCopyWindowInfo`:
    owner name `FiberUIHarness`, layer 0. (JXA can't unwrap the window list.)
 3. `screencapture -x -o -l <window ID>`. Crop with `CGImage.cropping(to:)` in
    Swift; `sips` crops from an unexpected origin.
 
-- **States without a flag** (toolbar shown, omnibar open): a temporary hook
-  after `NSApp.activate()` in `main.swift`, e.g.
-  `NSApp.windows.first { $0.isVisible }?.toggleToolbarShown(nil)` or
-  `openLocation(nil)`.
+- **States without a flag** (omnibar open): a temporary hook after
+  `NSApp.activate()` in `main.swift`, e.g. `openLocation(nil)`.
+- **Keys and clicks:** from the same hook, made with `NSEvent.keyEvent` or
+  `mouseEvent` and sent with the window's `sendEvent(_:)`, so they go through
+  its real key bindings and hit testing. Post a click's mouse-up first
+  (`NSApp.postEvent`), for a button's tracking loop to end on. Menu shortcuts
+  don't reach a background app's menu; call their actions instead.
 - **Light appearance:** pass `-NSRequiresAquaSystemAppearance YES`; the system
   is usually dark.
 - **Hover** can't be driven from outside: the harness stays in the background
@@ -59,11 +64,28 @@ Run the dev build on a throwaway profile:
   Chrome command with
   `(actions as AnyObject).perform(Selector(("commandDispatch:")), with: item)`,
   where `item.tag` is its `IDC_` value, or a main menu item with
-  `menu.performActionForItem(at:)`. For the tab sidebar, a delayed
-  `toggleToolbar()`.
+  `menu.performActionForItem(at:)`. For the tab overlay, a delayed
+  `toggleTabOverlay()`.
 - **Light appearance:** a temporary
   `NSApp.appearance = NSAppearance(named: .aqua)` in the same place. Don't pass
   `-NSRequiresAquaSystemAppearance YES`: Chrome opens `YES` as a URL.
+
+## Measuring lag
+
+Typed keys that don't show right away mean the main thread is busy.
+
+- **A heavy profile:** a throwaway one whose `History`, `Favicons` and
+  `Bookmarks` are filled in with SQLite and JSON while the build isn't
+  running: 100k+ URLs, with a favicon per host, since favicons arriving drive
+  most of the omnibar's updates.
+- **Typing:** a temporary hook that sends key events on a timer (one every
+  80 ms), logging how late each is handled, and a 4 ms repeating timer whose
+  gaps are stalls.
+- **Where the time goes:** `xcrun xctrace record --template 'Time Profiler'
+  --attach <pid>`, then `xctrace export` its `time-profile` table and sum the
+  main thread's samples by frame.
+- The command palette with `--tabs 300` in a release build of the harness
+  (`swift build -c release`).
 
 ## Catching a one-frame flash
 

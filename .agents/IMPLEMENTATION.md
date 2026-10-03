@@ -27,7 +27,7 @@ chrome/ content/ components/
 |---|---|---|---|
 | `browser/` | C++ (`.mm` where it calls the bridge) | Implements Chrome's interfaces (`BrowserWindow`, `LocationBar`, dialog views…), watches Chrome's models, owns Fiber's own per-profile models. | Creates or lays out views. |
 | `bridge/` | Objective-C headers | Declares the protocols and immutable value types the other two talk through. | Mentions C++ or Chromium. |
-| `ui/` | Swift | Windows, toolbar, tabs, omnibar, command palette, prompts, design system. | Imports anything but the bridge and Apple frameworks. |
+| `ui/` | Swift | Windows, tabs, omnibar, command palette, prompts, design system. | Imports anything but the bridge and Apple frameworks. |
 
 `browser/` exists only because Chrome's extension points are C++ classes with
 virtual methods, which Swift can't subclass. It translates between Chrome and
@@ -48,6 +48,10 @@ Chromium it hooks and depending on nothing that part couldn't:
 - **Chrome → UI:** `browser/` pushes snapshots (immutable values keyed by
   stable IDs), which `ui/` keeps in `@Observable` models. So far only the tabs
   have one; the rest of the window applies snapshots straight to its views.
+- **Snapshots come whole and often:** the omnibox's suggestions again as each
+  favicon arrives or a provider answers, a tab's state as it loads. So `ui/`
+  keeps the views it has and sets only what changed (setting an image or text
+  redraws it), and a list that can be long makes views only for rows in sight.
 - **UI → Chrome:** `ui/` sends intents (navigate, close tab, run command)
   through actions protocols that `browser/` implements.
 - **Values and IDs cross, never pointers.** Swift never holds a C++ object; a
@@ -105,18 +109,18 @@ Each surface Fiber replaces, and where it lives:
 
 | Surface | Chrome integration | UI |
 |---|---|---|
-| Browser window, toolbar, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift`, `Toolbar.swift` |
-| Tabs (picker of the 15 most recent on the window's edge, sidebar of them all in order with the toolbar), and pins above the sidebar's list (see [Tabs and spaces](#tabs-and-spaces)) | `browser/window/`, `browser/pins/` | `TabPicker.swift`, `TabSidebar.swift`, `PinGrid.swift`, `TabMenus.swift` |
+| Browser window, status bubble, load progress | `browser/window/` | `BrowserWindowController.swift` |
+| Tabs: a picker of the 15 most recent on the window's edge, and the tab overlay (⌘S), placed like the command palette over the dimmed page, with the pins above the rest of the tabs in order, and beside them the page's address (which opens the omnibar) and the extensions. Its arrow keys, Return and ⌘⌫ move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)) | `browser/window/`, `browser/pins/` | `TabPicker.swift`, `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift` |
 | Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest, as does pressing Option and the number shown under that part | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
 | Find in page, a bar in the window's top-right corner (see [FIND-BAR.md](FIND-BAR.md)) | `browser/find_bar/` | `FindBar.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
-| Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `Toolbar.swift`, `NewTabView.swift` |
+| Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `TabOverlay.swift`, `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
 | Prompts over the veiled page: leave site, hold to quit, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth), a site's files from an earlier visit (File System Access), and Chrome's `ui::DialogModel` dialogs (confirming a folder upload, File System Access's questions, Name Window, extensions' notices) | `browser/dialogs/`, `hooks/confirm_quit.mm`, `browser/downloads/`, `browser/extensions/` | `Veil.swift`, `VeilPrompt.swift`, `Prompt.swift` |
 | Profile switcher, in place of Chrome's Profile Picker and avatar menu (Profiles › Switch Profile…, ⇧⌘M): the profiles turning slowly around a hub over the veiled page, making one, and making one from a Chrome profile (its bookmarks, history, passwords and cookies). Fiber's avatars stand in for Chrome's wherever Chrome draws one | `browser/profiles/`, `hooks/resource_bundle_delegate.mm` | `ProfileSwitcher.swift`, `ProfileSwitcherView.swift`, `ProfileAvatar.swift` |
 | Page context menus | `browser/context_menu/` | `ContextMenu.swift` |
-| Extensions toolbar, menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
+| Extensions' buttons (in the tab overlay), menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
 | Windows extensions open (`chrome.windows.create` popups), as bubbles over the page | `browser/extensions/fiber_extension_window.mm` | `ExtensionWindowBubble.swift` |
 | Swiping between pages | `browser/swipe/` | `HistorySwipe.swift` |
 | DevTools, docked at the bottom or right of the window. The window's controls lay out over the page as if it were the window, and hide while DevTools emulates a device. DevTools' dock menu offers neither left nor a window of its own (patches in `third_party/devtools-frontend`) | `hooks/devtools_dock.mm`, `browser/window/` | `BrowserWindowController.swift` |

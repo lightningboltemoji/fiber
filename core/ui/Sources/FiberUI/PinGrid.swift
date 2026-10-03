@@ -2,17 +2,14 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-/// The layout of the pins above the tab sidebar's list: glass circles the
-/// toolbar's height, spaced like its capsules, in rows that wrap at the
-/// list's width.
+/// The layout of the pins at the top of the tab overlay's panel: circles in
+/// rows that wrap at the panel's width.
 enum PinGridLayout {
-  static let diameter: CGFloat = Toolbar.height
-  static let rimWidth: CGFloat = 5
+  /// With the grid as far in from the panel's edge as the tabs' rows, each
+  /// pin's icon is in line with the tabs' icons.
+  static let diameter: CGFloat = 36
   /// Between circles, across and down.
-  static let spacing: CGFloat = Toolbar.spacing
-  /// Between the pins and the list: as far as the sidebar is from the
-  /// toolbar.
-  static let listSpacing: CGFloat = 2 * Toolbar.spacing
+  static let spacing: CGFloat = GlassCapsule.spacing
   /// How long a pin takes to pop out (see pinPop).
   static let popOutDuration: TimeInterval = 0.2
   private static let step = diameter + spacing
@@ -77,14 +74,14 @@ struct PinBurst: Identifiable {
   let color: NSColor?
 }
 
-/// Draws the pins; TabSidebar handles their input. While one's dragged, the
+/// Draws the pins; TabOverlay handles their input. While one's dragged, the
 /// rest make room where it would go.
 struct PinGrid: View {
-  let model: TabSidebarModel
+  let model: TabOverlayModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    let width = model.size.width
+    let width = model.gridWidth
     let shown = model.shownPins
     ZStack(alignment: .topLeading) {
       // Holds the grid's top-left corner where the pins are placed from.
@@ -96,7 +93,7 @@ struct PinGrid: View {
         let slot = shown.firstIndex { $0.pinID == pin.pinID } ?? index
         PinCircle(
           pin: pin, isActive: pin.tabID != 0 && pin.tabID == model.activeTabID,
-          isHovered: model.hoveredPinID == pin.pinID && model.pinDrag == nil
+          isSelected: model.selection == .pin(pin.pinID) && model.pinDrag == nil
         )
         // A dragged pin follows the pointer from its place.
         .offset(isDragged ? model.pinDrag?.offset ?? .zero : .zero)
@@ -261,38 +258,29 @@ extension NSImage {
   }
 }
 
-/// A pin: its page's icon on glass. Its tab, if it's the active one, is
-/// highlighted, and hovering it shows the button that closes it.
+/// A pin: its page's icon in a circle, ringed while its tab is the active
+/// one, and dimmed while it isn't open in the window.
 private struct PinCircle: View {
-  /// A pin that isn't open in the window.
   private static let closedIconOpacity = 0.5
 
   let pin: FiberPinState
   let isActive: Bool
-  let isHovered: Bool
+  let isSelected: Bool
 
   var body: some View {
-    let isCloseButtonShown = isActive && isHovered
     ZStack {
-      RimmedGlass(
-        cornerRadius: PinGridLayout.diameter / 2,
-        rimWidth: PinGridLayout.rimWidth)
       Circle()
-        .fill(Color.primary.opacity(0.1))
-        .padding(PinGridLayout.rimWidth)
-        .opacity(isActive || isHovered ? 1 : 0)
+        .fill(Color.primary.opacity(isSelected ? 0.22 : 0.06))
+      Circle()
+        .strokeBorder(Color.primary.opacity(0.5), lineWidth: 1.5)
+        .opacity(isActive ? 1 : 0)
       icon
         .frame(width: 16, height: 16)
         .opacity(pin.tabID == 0 ? Self.closedIconOpacity : 1)
-        .opacity(isCloseButtonShown ? 0 : 1)
-      Image(systemName: "xmark")
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(.primary)
-        .opacity(isCloseButtonShown ? 1 : 0)
     }
     .frame(width: PinGridLayout.diameter, height: PinGridLayout.diameter)
-    .animation(.easeInOut(duration: 0.2), value: isCloseButtonShown)
-    .animation(.easeInOut(duration: 0.15), value: isActive || isHovered)
+    .animation(.easeInOut(duration: 0.15), value: isSelected)
+    .animation(.easeInOut(duration: 0.15), value: isActive)
   }
 
   @ViewBuilder private var icon: some View {

@@ -24,7 +24,7 @@ import FiberBridge
 final class BrowserWindowController: NSObject, FiberWindow {
   private static let defaultWindowSize = NSSize(width: 1280, height: 820)
   private static let minWindowSize = NSSize(width: 480, height: 320)
-  /// How far the toolbar and the traffic lights' capsule float from the
+  /// How far the traffic lights' capsule and the find bar float from the
   /// window's edges.
   fileprivate static let edgeInset: CGFloat = 16
   /// The glass capsule behind the traffic lights extends this far past them,
@@ -61,9 +61,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
     didSet { browserWindow.menuActionTarget = actions }
   }
   var tabIndex: (any FiberTabIndex)?
-  private let toolbar: Toolbar
   private let tabPicker = TabPicker()
-  private let tabSidebar = TabSidebar()
+  /// Toggled with Command-S. Over everything but the traffic lights' capsule
+  /// and the veil, one at a time with the omnibar and the command palette.
+  fileprivate let tabOverlay: TabOverlay
+  /// Under the tab overlay, the omnibar and the command palette.
+  private let panelDimming = PanelDimming()
+  private var isPanelDimmingUpdateScheduled = false
   /// Nil until first used (see makeOmnibar()).
   private var madeOmnibar: Omnibar?
   private var omnibar: Omnibar { madeOmnibar ?? makeOmnibar() }
@@ -78,17 +82,26 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Whether the window has pins at all, which Incognito's don't.
   private var canPin = false
   private lazy var extensionsController = ExtensionsController(
-    bar: toolbar.extensionsBar, bubbles: extensionBubbles,
-    isBarShown: { [weak self] in self?.isToolbarVisible ?? false },
+    bar: tabOverlay.extensionsBar, bubbles: extensionBubbles,
+    isBarShown: { [weak self] in self?.tabOverlay.isOpen ?? false },
     hiddenMenuButtonRect: { [weak self] in
       guard let self, let content = self.window.contentView else {
         return nil
       }
-      return (content, self.toolbar.extensionsMenuButtonRect(in: content))
+      // In the window's top-right corner, where the find bar's close button
+      // goes.
+      let size = GlassCapsule.buttonSize
+      let inset = Self.edgeInset + (GlassCapsule.height - size) / 2
+      return (
+        content,
+        NSRect(
+          x: content.bounds.maxX - inset - size,
+          y: content.bounds.maxY - inset - size, width: size, height: size)
+      )
     })
   private let newTabView: NewTabView
   private let sadTabView = SadTabView()
-  /// Over the page and the toolbar, under the tab picker.
+  /// Over the page, under the tab picker.
   private let extensionBubbles = ExtensionBubbles()
   /// Whose browser the user is in: the window's, or an extension window's,
   /// while its page has focus.
@@ -136,20 +149,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private weak var responderBeforePrompt: NSResponder?
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
-  /// Toggled with Command-S; the tab sidebar shows with the toolbar.
-  private var isToolbarShown = false
   /// Set while a page is fullscreen (a video, say), which shows alone.
   private var isPageFullScreen = false
-  /// The toolbar, tab sidebar and tab picker hide while a page is fullscreen,
-  /// and while DevTools emulates a device, whose controls take their place.
+  /// The tab overlay and tab picker hide while a page is fullscreen, and
+  /// while DevTools emulates a device, whose controls take their place.
   private var areControlsVisible: Bool {
     !isPageFullScreen && devTools?.emulatesDevice != true
   }
-  fileprivate var isToolbarVisible: Bool {
-    isToolbarShown && areControlsVisible
-  }
   private weak var contentsView: NSView?
-  private var isLoading = false
 
   init(
     frame: NSRect, actions: (any FiberWindowActions)?,
@@ -157,7 +164,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   ) {
     self.actions = actions
     self.tabIndex = tabIndex
-    toolbar = Toolbar(isIncognito: isIncognito)
+    tabOverlay = TabOverlay(isIncognito: isIncognito)
     newTabView = NewTabView(isIncognito: isIncognito)
     let styleMask: NSWindow.StyleMask = [
       .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView,
@@ -269,48 +276,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     controlsView.layer?.masksToBounds = true
     content.addSubview(controlsView)
 
-    configureWindowControls()
-
-    // Level with the traffic lights' capsule, and past it.
-    configureToolbar()
-    let controls = windowControlsBackground.frame
-    let toolbarX = controls.maxX + Toolbar.spacing
-    toolbar.frame = NSRect(
-      x: toolbarX, y: content.bounds.height - Self.edgeInset - Toolbar.height,
-      width: content.bounds.width - toolbarX - Self.edgeInset,
-      height: Toolbar.height)
-    toolbar.autoresizingMask = [.width, .minYMargin]
-    controlsView.addSubview(toolbar)
-
-    // Below the traffic lights' capsule, level with its left end.
-    tabSidebar.frame = NSRect(
-      x: Self.edgeInset, y: Self.edgeInset, width: TabSidebar.width,
-      height: toolbar.frame.minY - 2 * Toolbar.spacing - Self.edgeInset)
-    tabSidebar.autoresizingMask = [.height, .maxXMargin]
-    tabSidebar.onSelect = { [weak self] tabID in
-      self?.actions?.selectTab(withID: tabID)
-    }
-    tabSidebar.onClose = { [weak self] tabID in
-      self?.actions?.closeTab(withID: tabID)
-    }
-    tabSidebar.onOpenPin = { [weak self] pinID in
-      self?.actions?.openPin(withID: pinID)
-    }
-    tabSidebar.onMovePin = { [weak self] pinID, index in
-      self?.actions?.movePin(withID: pinID, to: index)
-    }
-    tabSidebar.onUnpin = { [weak self] pinID in
-      self?.actions?.unpinPin(withID: pinID)
-    }
-    tabSidebar.onPinMenu = { [weak self] pin, event in
-      self?.showMenu(for: pin, event: event)
-    }
-    tabSidebar.onTabMenu = { [weak self] tabID, event in
-      self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabSidebar)
-    }
-    controlsView.addSubview(tabSidebar)
-    updateToolbar(animated: false)
-
     extensionBubbles.frame = content.bounds
     extensionBubbles.autoresizingMask = [.width, .height]
     extensionBubbles.onFocusPage = { [weak self] in self?.actions?.focusPage() }
@@ -331,6 +296,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabPicker)
     }
     controlsView.addSubview(tabPicker)
+
+    configureTabOverlay()
+    configureWindowControls()
+    updateWindowControls(animated: false)
 
     // Over everything; what the window waits on goes over it.
     veil.dimView.frame = content.bounds
@@ -358,14 +327,18 @@ final class BrowserWindowController: NSObject, FiberWindow {
     omnibar.onOpen = { [weak self] in
       self?.tabPicker.close()
       self?.commandPalette?.close()
+      self?.closeTabOverlay(focusingPage: false)
     }
     omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
+    omnibar.view.onShowOrHide = { [weak self] in
+      self?.schedulePanelDimmingUpdate()
+    }
     madeOmnibar = omnibar
     return omnibar
   }
 
-  /// Over the page, the toolbar and the tab sidebar, under extension windows'
-  /// bubbles, which move out of its way.
+  /// Over the page, under extension windows' bubbles, which move out of its
+  /// way.
   private func makeFindBar() -> FindBar {
     let findBar = FindBar()
     extensionBubbles.superview?.addSubview(
@@ -375,6 +348,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.tabPicker.close()
       self?.madeOmnibar?.close()
       self?.commandPalette?.close()
+      self?.closeTabOverlay(focusingPage: false)
     }
     findBar.onShowOrHide = { [weak self] in
       self?.placeFindBar(animated: true)
@@ -384,17 +358,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
     return findBar
   }
 
-  /// In the top-right corner, in line with the toolbar's right end: below the
-  /// toolbar while it shows, level with the tab sidebar's top.
+  /// In the top-right corner.
   private func placeFindBar(animated: Bool) {
     guard let findBar = madeFindBar, let container = findBar.superview else {
       return
     }
     let bounds = container.bounds
-    let top =
-      isToolbarVisible
-      ? toolbar.frame.minY - 2 * Toolbar.spacing
-      : bounds.maxY - Self.edgeInset
+    let top = bounds.maxY - Self.edgeInset
     let width = min(FindBar.width, bounds.width - 2 * Self.edgeInset)
     let frame = NSRect(
       x: bounds.maxX - Self.edgeInset - width, y: top - FindBar.height,
@@ -427,95 +397,90 @@ final class BrowserWindowController: NSObject, FiberWindow {
     heldPagePlaceholder = placeholder
   }
 
-  private func configureToolbar() {
-    configureButton(toolbar.backButton, action: #selector(goBack(_:)))
-    configureButton(toolbar.forwardButton, action: #selector(goForward(_:)))
-    configureButton(toolbar.reloadButton, action: #selector(reloadOrStop(_:)))
-
-    toolbar.addressButton.target = self
-    toolbar.addressButton.action = #selector(addressClicked(_:))
+  private func configureTabOverlay() {
+    let content = window.contentView!
+    tabOverlay.frame = content.bounds
+    tabOverlay.autoresizingMask = [.width, .height]
+    tabOverlay.onSelect = { [weak self] tabID in
+      self?.actions?.selectTab(withID: tabID)
+    }
+    tabOverlay.onClose = { [weak self] tabID in
+      self?.actions?.closeTab(withID: tabID)
+    }
+    tabOverlay.onOpenPin = { [weak self] pinID in
+      self?.actions?.openPin(withID: pinID)
+    }
+    tabOverlay.onMovePin = { [weak self] pinID, index in
+      self?.actions?.movePin(withID: pinID, to: index)
+    }
+    tabOverlay.onUnpin = { [weak self] pinID in
+      self?.actions?.unpinPin(withID: pinID)
+    }
+    tabOverlay.onPinMenu = { [weak self] pin, event in
+      self?.showMenu(for: pin, event: event)
+    }
+    tabOverlay.onTabMenu = { [weak self] tabID, event in
+      self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabOverlay)
+    }
+    tabOverlay.onAddressClick = { [weak self] in self?.showOmnibar() }
+    tabOverlay.onDismiss = { [weak self] in self?.closeTabOverlay() }
+    tabOverlay.onShowOrHide = { [weak self] in
+      self?.schedulePanelDimmingUpdate()
+    }
+    panelDimming.frame = content.bounds
+    panelDimming.autoresizingMask = [.width, .height]
+    content.addSubview(panelDimming)
+    content.addSubview(tabOverlay)
   }
 
-  fileprivate func toggleToolbar() {
-    isToolbarShown = !isToolbarVisible
-    if !isToolbarShown {
-      extensionsController.closeMenu()
+  /// Once what's opening in place of what closed has opened, so switching
+  /// between them keeps the dimming.
+  private func schedulePanelDimmingUpdate() {
+    guard !isPanelDimmingUpdateScheduled else {
+      return
     }
-    updateToolbar(animated: true)
-  }
-
-  /// The tab sidebar and the traffic lights show with the toolbar. The
-  /// sidebar lists the tabs in place of the tab picker's panel.
-  private func updateToolbar(animated: Bool) {
-    let isVisible = isToolbarVisible
-    let views: [NSView] = [toolbar, tabSidebar]
-    if isVisible {
-      for view in views {
-        view.isHidden = false
-      }
-    }
-    tabPicker.isPanelEnabled = !isVisible
-    if animated {
-      // In fullscreen, the traffic lights show with the menu bar instead.
-      let isFullScreen = window.styleMask.contains(.fullScreen)
-      animateLift(
-        of: views
-          + (isFullScreen
-            ? [] : windowControlButtons + [windowControlsBackground]),
-        lifted: !isVisible)
-    }
-    NSAnimationContext.runAnimationGroup { context in
-      context.duration = animated ? (isVisible ? 0.18 : 0.25) : 0
-      for view in views {
-        view.animator().alphaValue = isVisible ? 1 : 0
-      }
-    } completionHandler: { [weak self] in
+    isPanelDimmingUpdateScheduled = true
+    DispatchQueue.main.async { [weak self] in
       MainActor.assumeIsolated {
-        // Hidden, so their controls don't take clicks or focus.
-        if let self, !self.isToolbarVisible {
-          for view in views {
-            view.isHidden = true
-          }
+        guard let self else {
+          return
         }
+        self.isPanelDimmingUpdateScheduled = false
+        self.panelDimming.setShown(
+          self.tabOverlay.isOpen || self.madeOmnibar?.view.isShown == true
+            || self.commandPalette?.view.isShown == true)
       }
     }
-    updateWindowControls(animated: animated)
-    placeFindBar(animated: animated)
   }
 
-  /// How much larger the toolbar is while lifted off the page: it settles
-  /// onto the page as it fades in, and lifts off as it fades out.
-  private static let toolbarLiftScale: CGFloat = 1.03
+  /// Not while a prompt waits on the user, or the controls are hidden.
+  fileprivate var canShowTabOverlay: Bool {
+    actions != nil && prompt == nil && areControlsVisible
+  }
 
-  /// Scales `views` to the lifted size or back to their own, from wherever
-  /// they are now, about the controls' center so they move as one sheet.
-  private func animateLift(of views: [NSView], lifted: Bool) {
-    let center = NSPoint(
-      x: controlsView.bounds.midX, y: controlsView.bounds.midY)
-    let scale = Self.toolbarLiftScale
-    for view in views {
-      guard let layer = view.layer, let superview = view.superview else {
-        continue
-      }
-      // A layer scales about its position; this moves that to the center.
-      let pivot = superview.convert(center, from: controlsView)
-      let liftedTransform = CATransform3DConcat(
-        CATransform3DMakeScale(scale, scale, 1),
-        CATransform3DMakeTranslation(
-          (1 - scale) * (pivot.x - layer.position.x),
-          (1 - scale) * (pivot.y - layer.position.y), 0))
-      let inFlight =
-        layer.animation(forKey: "lift") == nil
-        ? nil : layer.presentation()?.transform
-      let animation = CASpringAnimation(perceptualDuration: 0.3, bounce: 0)
-      animation.keyPath = "transform"
-      animation.fromValue = NSValue(
-        caTransform3D: inFlight
-          ?? (lifted ? CATransform3DIdentity : liftedTransform))
-      animation.toValue = NSValue(
-        caTransform3D: lifted ? liftedTransform : CATransform3DIdentity)
-      animation.duration = animation.settlingDuration
-      layer.add(animation, forKey: "lift")
+  fileprivate func toggleTabOverlay() {
+    if tabOverlay.isOpen {
+      closeTabOverlay()
+    } else if canShowTabOverlay {
+      tabPicker.close()
+      madeOmnibar?.close()
+      commandPalette?.close()
+      tabOverlay.open()
+      updateWindowControls(animated: true)
+    }
+  }
+
+  /// Gives the page the keyboard back, unless what's opening in the
+  /// overlay's place takes it.
+  private func closeTabOverlay(focusingPage: Bool = true) {
+    guard tabOverlay.isOpen else {
+      return
+    }
+    tabOverlay.close()
+    extensionsController.closeMenu()
+    updateWindowControls(animated: true)
+    if focusingPage {
+      actions?.focusPage()
     }
   }
 
@@ -525,10 +490,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   /// Puts a glass capsule behind the traffic lights, which stay in the title
-  /// bar above it. Dragging the capsule moves the window.
+  /// bar above it, over the tab overlay's dimming. Dragging the capsule moves
+  /// the window.
   private func configureWindowControls() {
-    // Where AppKit put the traffic lights. The controls fill the window until
-    // DevTools docks, so window coordinates are theirs.
+    // Where AppKit put the traffic lights, in the content view's coordinates.
     window.layoutIfNeeded()
     let buttonsFrame = windowControlButtons.reduce(NSRect.null) {
       $0.union($1.convert($1.bounds, to: nil))
@@ -543,16 +508,16 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowControlsBackground.cornerRadius = frame.height / 2
     windowControlsBackground.contentView = WindowDragArea()
     windowControlsBackground.autoresizingMask = [.maxXMargin, .minYMargin]
-    controlsView.addSubview(windowControlsBackground)
+    window.contentView!.addSubview(windowControlsBackground)
   }
 
-  /// The traffic lights and their capsule show with the toolbar. While the
-  /// window is fullscreen, AppKit shows the traffic lights with the menu bar,
-  /// without the capsule.
+  /// The traffic lights and their capsule show with the tab overlay. While
+  /// the window is fullscreen, AppKit shows the traffic lights with the menu
+  /// bar, without the capsule.
   private func updateWindowControls(animated: Bool) {
     let isFullScreen = window.styleMask.contains(.fullScreen)
-    let showsButtons = isToolbarVisible || isFullScreen
-    let showsBackground = isToolbarVisible && !isFullScreen
+    let showsButtons = tabOverlay.isOpen || isFullScreen
+    let showsBackground = tabOverlay.isOpen && !isFullScreen
     // Faded out, they'd still take clicks meant for the page; they're hidden
     // once the fade ends.
     let views = windowControlButtons + [windowControlsBackground]
@@ -574,13 +539,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  private func configureButton(_ button: NSButton, action: Selector) {
-    button.target = self
-    button.action = action
-    // Enabled state is pushed by setPageState(_:).
-    button.isEnabled = false
-  }
-
   // MARK: FiberWindow
 
   func setContentsView(_ view: NSView?) {
@@ -597,7 +555,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     guard let view else {
       return
     }
-    // The toolbar and tab picker float over the page.
+    // The window's controls float over the page.
     view.frame = pageView.bounds
     view.autoresizingMask = [.width, .height]
     // Chrome hides a page made in the background (a ⌘-clicked link, a restored
@@ -639,12 +597,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       sadTabView.show(sadTab)
     }
     sadTabView.isHidden = state.sadTab == nil
-    toolbar.setAddress(state.displayURL)
-    toolbar.backButton.isEnabled = state.canGoBack
-    toolbar.forwardButton.isEnabled = state.canGoForward
-    toolbar.reloadButton.isEnabled = true
-    isLoading = state.isLoading
-    toolbar.setLoading(isLoading)
+    tabOverlay.setAddress(state.displayURL)
   }
 
   func showPage() {
@@ -653,7 +606,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
     tabPicker.setTabs(tabs, activeTabID: activeTabID)
-    tabSidebar.setTabs(tabs, activeTabID: activeTabID)
+    tabOverlay.setTabs(tabs, activeTabID: activeTabID)
     windowTabs = tabs
     self.activeTabID = activeTabID
     commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
@@ -662,7 +615,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func setPins(_ pins: [FiberPinState]) {
     self.pins = pins
     canPin = true
-    tabSidebar.setPins(pins)
+    tabOverlay.setPins(pins)
   }
 
   private func showMenu(for pin: FiberPinState, event: NSEvent) {
@@ -670,7 +623,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     NSMenu.popUpContextMenu(
-      TabMenus.menu(for: pin, actions: actions), with: event, for: tabSidebar)
+      TabMenus.menu(for: pin, actions: actions), with: event, for: tabOverlay)
   }
 
   /// A pin's tab, in the tab picker, has its pin's menu.
@@ -713,12 +666,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
     let isVisible = areControlsVisible
     if !isVisible {
       tabPicker.close()
-      extensionsController.closeMenu()
+      closeTabOverlay(focusingPage: false)
     }
     tabPicker.isHidden = !isVisible
     extensionBubbles.isHidden = !isVisible
     updatePageCorners()
-    updateToolbar(animated: false)
   }
 
   /// Rounds the page and DevTools like the window. A fullscreen page, an
@@ -831,6 +783,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabPicker.close()
     closeOmnibar()
     closeCommandPalette()
+    closeTabOverlay(focusingPage: false)
 
     let content = window.contentView!
     prompt.frame = content.bounds
@@ -947,8 +900,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
     palette.onOpen = { [weak self] in
       self?.tabPicker.close()
       self?.madeOmnibar?.close()
+      self?.closeTabOverlay(focusingPage: false)
     }
     palette.onDismiss = { [weak self] in self?.closeCommandPalette() }
+    palette.view.onShowOrHide = { [weak self] in
+      self?.schedulePanelDimmingUpdate()
+    }
     commandPalette = palette
     return palette
   }
@@ -1031,31 +988,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     case .extensionWindow(let bubble): bubble.didBecomeActive()
     }
   }
-
-  // MARK: Toolbar actions
-
-  // Each passes on the current event, whose modifier keys decide where the
-  // page opens (e.g. Command-clicking Back opens it in a new tab).
-
-  @objc private func goBack(_ sender: Any?) {
-    actions?.goBack(with: NSApp.currentEvent)
-  }
-
-  @objc private func goForward(_ sender: Any?) {
-    actions?.goForward(with: NSApp.currentEvent)
-  }
-
-  @objc private func reloadOrStop(_ sender: Any?) {
-    if isLoading {
-      actions?.stopLoading()
-    } else {
-      actions?.reload(with: NSApp.currentEvent)
-    }
-  }
-
-  @objc private func addressClicked(_ sender: Any?) {
-    showOmnibar()
-  }
 }
 
 extension BrowserWindowController: NSWindowDelegate {
@@ -1121,13 +1053,13 @@ extension BrowserWindowController: NSWindowDelegate {
 
 /// Sends menu actions that nothing in the responder chain handles to the
 /// window's actions, so the main menu acts on this window's browser while
-/// it's key. Show Toolbar (-toggleToolbarShown:) shows Fiber's toolbar.
+/// it's key. Show Tabs (-toggleToolbarShown:) toggles the tab overlay.
 private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
   weak var menuActionTarget: (any FiberWindowActions)?
   weak var controller: BrowserWindowController?
 
   override func toggleToolbarShown(_ sender: Any?) {
-    controller?.toggleToolbar()
+    controller?.toggleTabOverlay()
   }
 
   // Focus moving into or out of an extension window's page changes which
@@ -1146,9 +1078,9 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
   override func validateMenuItem(_ item: NSMenuItem) -> Bool {
     switch item.action {
     case #selector(toggleToolbarShown(_:)):
-      let isVisible = controller?.isToolbarVisible ?? false
-      item.title = isVisible ? "Hide Toolbar" : "Show Toolbar"
-      return controller != nil
+      let isOpen = controller?.tabOverlay.isOpen ?? false
+      item.title = isOpen ? "Hide Tabs" : "Show Tabs"
+      return isOpen || controller?.canShowTabOverlay == true
     case #selector(toggleCommandPalette(_:)):
       return controller?.canShowCommandPalette ?? false
     default:

@@ -19,18 +19,6 @@ final class TabPicker: NSView {
   /// Right-clicks (or Control-clicks) on a tab, for its menu.
   var onMenu: (Int, NSEvent) -> Void = { _, _ in }
 
-  /// Off while the toolbar's sidebar (TabSidebar) lists the tabs instead; the
-  /// bump still moves the window.
-  var isPanelEnabled: Bool {
-    get { model.isPanelEnabled }
-    set {
-      model.isPanelEnabled = newValue
-      if !newValue {
-        close()
-      }
-    }
-  }
-
   private enum Metrics {
     /// How far in from the window's edge the pointer opens the panel and
     /// drags the window from: the bump's visible half, which the page's
@@ -389,7 +377,7 @@ final class TabPicker: NSView {
   /// Opens the panel with the active tab level with `y`.
   private func open(anchoredAt y: CGFloat) {
     openTimer?.invalidate()
-    guard model.isPanelEnabled, !model.isExpanded, !tabs.isEmpty,
+    guard !model.isExpanded, !tabs.isEmpty,
       !isCovered(at: CGPoint(x: hotZone.midX, y: y))
     else {
       return
@@ -442,7 +430,7 @@ final class TabPicker: NSView {
     let panel = model.panelRect
     return TabListLayout.closeButton(
       near: CGPoint(x: point.x - panel.minX, y: point.y - panel.minY),
-      in: model.tabs)
+      in: model.tabs, width: panel.width)
   }
 
   /// Nil hides the close button.
@@ -617,8 +605,6 @@ final class TabPickerModel {
   var tabs: [FiberTabState] = []
   var activeTabID = 0
   var isExpanded = false
-  /// Whether the bump opens the panel (see TabPicker.isPanelEnabled).
-  var isPanelEnabled = true
   /// The open panel's top, in the picker's (flipped) coordinates.
   var panelTop: CGFloat = 0
   /// The tab under the pointer, or where scrolling has brought the panel.

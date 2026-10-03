@@ -49,9 +49,14 @@ class FiberOmniboxPopupView : public OmniboxPopupView,
   void UpdateSuggestions();
   void UpdateSelection();
   void OnFaviconFetched(const gfx::Image& favicon);
+  void UpdateForFetchedFavicons();
 
   id<FiberOmnibox> __weak ui_;
   bool is_open_ = false;
+  // The favicon cache calls back once for every time a favicon was asked for,
+  // and each UpdateSuggestions() asks again for those still missing. Favicons
+  // that arrive together send the suggestions once.
+  bool is_favicon_update_posted_ = false;
 
   base::ScopedObservation<OmniboxEditModel, OmniboxEditModel::Observer>
       edit_model_observation_{this};

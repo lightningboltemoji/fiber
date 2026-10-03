@@ -33,8 +33,8 @@ import FiberBridge
   }
 }
 
-/// A window's extensions: the menu (ExtensionsMenu) from the toolbar's puzzle
-/// piece, the pinned extensions' buttons (ExtensionsBar), their popups
+/// A window's extensions: the menu (ExtensionsMenu) from the tab overlay's
+/// puzzle piece, the pinned extensions' buttons (ExtensionsBar), their popups
 /// (ExtensionPopup), which open from the puzzle piece when unpinned, and the
 /// bubbles for the windows they open (ExtensionBubbles).
 @MainActor
@@ -45,12 +45,12 @@ final class ExtensionsController: NSObject, FiberExtensions {
   private let bubbles: ExtensionBubbles
   private let isBarShown: () -> Bool
   /// Where the bar's menu button is, in the window's content view, for
-  /// popups while the toolbar is hidden.
+  /// popups while the tab overlay is closed.
   private let hiddenMenuButtonRect: () -> (NSView, NSRect)?
   private var extensions: [FiberExtensionState] = []
   private var menu: ExtensionsMenu?
   private weak var popup: ExtensionPopup?
-  /// The click that last closed a popover (see ToolbarButton), so the same
+  /// The click that last closed a popover (see CapsuleButton), so the same
   /// click on its button doesn't open it again.
   private var closingClick: (button: String, timestamp: TimeInterval)?
 
@@ -173,7 +173,7 @@ final class ExtensionsController: NSObject, FiberExtensions {
 
   private static let menuButtonKey = ""
 
-  @objc private func menuButtonClicked(_ sender: ToolbarButton) {
+  @objc private func menuButtonClicked(_ sender: CapsuleButton) {
     if closedByThisClick(sender, key: Self.menuButtonKey) {
       return
     }
@@ -199,7 +199,7 @@ final class ExtensionsController: NSObject, FiberExtensions {
     closingClick = (key, event.timestamp)
   }
 
-  private func closedByThisClick(_ button: ToolbarButton, key: String) -> Bool
+  private func closedByThisClick(_ button: CapsuleButton, key: String) -> Bool
   {
     defer { closingClick = nil }
     return closingClick?.button == key
@@ -223,9 +223,9 @@ final class ExtensionsController: NSObject, FiberExtensions {
   }
 }
 
-/// A toolbar button that notes when it's pressed, so a click that closed its
+/// A capsule's button that notes when it's pressed, so a click that closed its
 /// popover doesn't open it again (see ExtensionsController).
-class ToolbarButton: NSButton {
+class CapsuleButton: NSButton {
   private(set) var mouseDownTimestamp: TimeInterval = -1
 
   override func mouseDown(with event: NSEvent) {
@@ -234,11 +234,11 @@ class ToolbarButton: NSButton {
   }
 }
 
-/// The extensions' part of the toolbar: the buttons of the pinned extensions,
+/// The extensions' capsule in the tab overlay: the buttons of the pinned extensions,
 /// then the puzzle piece that opens the extensions menu.
 @MainActor
 final class ExtensionsBar: NSStackView {
-  let menuButton = Toolbar.makeButton(
+  let menuButton = GlassCapsule.makeButton(
     symbol: "puzzlepiece.extension", label: "Extensions")
   /// Clicks and right-clicks (or Control-clicks) on an extension's button.
   var onClick: (ExtensionButton) -> Void = { _ in }
@@ -294,7 +294,7 @@ final class ExtensionsBar: NSStackView {
 }
 
 @MainActor
-final class ExtensionButton: ToolbarButton {
+final class ExtensionButton: CapsuleButton {
   let extensionID: String
   var onMenu: (NSEvent, ExtensionButton) -> Void = { _, _ in }
   private let badge = ExtensionBadge()
@@ -307,8 +307,8 @@ final class ExtensionButton: ToolbarButton {
     bezelStyle = .accessoryBarAction
     borderShape = .circle
     showsBorderOnlyWhileMouseInside = true
-    widthAnchor.constraint(equalToConstant: Toolbar.buttonSize).isActive = true
-    heightAnchor.constraint(equalToConstant: Toolbar.buttonSize).isActive = true
+    widthAnchor.constraint(equalToConstant: GlassCapsule.buttonSize).isActive = true
+    heightAnchor.constraint(equalToConstant: GlassCapsule.buttonSize).isActive = true
     badge.translatesAutoresizingMaskIntoConstraints = false
     addSubview(badge)
     NSLayoutConstraint.activate([

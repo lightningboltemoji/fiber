@@ -46,15 +46,15 @@ void InstallMainMenuItems() {
   [task_manager.menu removeItem:task_manager];
 
   // Titled and enabled by the window as it validates them.
-  NSMenuItem* show_toolbar =
-      [[NSMenuItem alloc] initWithTitle:@"Show Toolbar"
+  NSMenuItem* show_tabs =
+      [[NSMenuItem alloc] initWithTitle:@"Show Tabs"
                                  action:@selector(toggleToolbarShown:)
                           keyEquivalent:@"s"];
   NSMenuItem* command_palette =
       [[NSMenuItem alloc] initWithTitle:@"Command Palette"
                                  action:@selector(toggleCommandPalette:)
                           keyEquivalent:@"p"];
-  [view_menu insertItem:show_toolbar atIndex:0];
+  [view_menu insertItem:show_tabs atIndex:0];
   [view_menu insertItem:command_palette atIndex:1];
   [view_menu insertItem:NSMenuItem.separatorItem atIndex:2];
 

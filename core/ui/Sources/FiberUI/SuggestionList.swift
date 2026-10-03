@@ -30,36 +30,52 @@ final class SuggestionList: NSView {
 
   override var isFlipped: Bool { true }
 
+  /// Rows and headers are reused in order: the browser resends all the
+  /// suggestions whenever one changes, like when a favicon arrives.
   func setSuggestions(_ suggestions: [FiberSuggestion]) {
-    for view in rows as [NSView] + headers {
-      view.removeFromSuperview()
-    }
-    rows = []
-    headers = []
+    var rowCount = 0
+    var headerCount = 0
     var y = Self.verticalPadding
     for (index, suggestion) in suggestions.enumerated()
     where !suggestion.isHidden {
       if !suggestion.header.isEmpty {
-        let header = Self.makeHeader(suggestion.header)
-        header.frame = NSRect(
-          x: Self.horizontalInset + SuggestionRow.leadingPadding, y: y,
-          width: 0, height: Self.headerHeight)
-        addSubview(header)
-        headers.append(header)
+        if headerCount == headers.count {
+          let header = Self.makeHeader()
+          addSubview(header)
+          headers.append(header)
+        }
+        let header = headers[headerCount]
+        header.stringValue = suggestion.header
+        header.frame.origin.y = y
+        layOut(header)
+        headerCount += 1
         y += Self.headerHeight
       }
-      let row = SuggestionRow(suggestion: suggestion, index: index)
-      row.frame = NSRect(x: 0, y: y, width: 0, height: Self.rowHeight)
-      row.onOpen = { [weak self] part, actionIndex, event in
-        self?.onOpen(index, part, actionIndex, event)
+      if rowCount == rows.count {
+        let row = SuggestionRow()
+        row.onOpen = { [weak self, unowned row] part, actionIndex, event in
+          self?.onOpen(row.index, part, actionIndex, event)
+        }
+        row.onRemove = { [weak self, unowned row] in self?.onRemove(row.index) }
+        addSubview(row)
+        rows.append(row)
       }
-      row.onRemove = { [weak self] in self?.onRemove(index) }
-      addSubview(row)
-      rows.append(row)
+      let row = rows[rowCount]
+      row.show(suggestion, index: index)
+      row.frame.origin.y = y
+      layOut(row)
+      rowCount += 1
       y += Self.rowHeight
     }
+    for row in rows[rowCount...] {
+      row.removeFromSuperview()
+    }
+    for header in headers[headerCount...] {
+      header.removeFromSuperview()
+    }
+    rows.removeSubrange(rowCount...)
+    headers.removeSubrange(headerCount...)
     contentHeight = rows.isEmpty ? 0 : y + Self.verticalPadding
-    needsLayout = true
     updateHover()
   }
 
@@ -79,15 +95,20 @@ final class SuggestionList: NSView {
   }
 
   override func resizeSubviews(withOldSize oldSize: NSSize) {
-    for row in rows {
-      row.frame = NSRect(
-        x: Self.horizontalInset, y: row.frame.minY,
-        width: bounds.width - 2 * Self.horizontalInset, height: Self.rowHeight)
+    for view in rows as [NSView] + headers {
+      layOut(view)
     }
-    for header in headers {
-      header.frame.size.width =
-        bounds.width - header.frame.minX - Self.horizontalInset
-    }
+  }
+
+  /// Fits a row or header, at its height in the list, to the list's width.
+  private func layOut(_ view: NSView) {
+    let x =
+      view is SuggestionRow
+      ? Self.horizontalInset
+      : Self.horizontalInset + SuggestionRow.leadingPadding
+    view.frame = NSRect(
+      x: x, y: view.frame.minY, width: bounds.width - x - Self.horizontalInset,
+      height: view is SuggestionRow ? Self.rowHeight : Self.headerHeight)
   }
 
   override func layout() {
@@ -112,8 +133,8 @@ final class SuggestionList: NSView {
     }
   }
 
-  private static func makeHeader(_ text: String) -> NSTextField {
-    let label = NSTextField(labelWithString: text)
+  private static func makeHeader() -> NSTextField {
+    let label = NSTextField(labelWithString: "")
     label.font = .systemFont(ofSize: 11, weight: .semibold)
     label.textColor = .secondaryLabelColor
     label.lineBreakMode = .byTruncatingTail
@@ -130,7 +151,8 @@ private final class SuggestionRow: NSView {
   private static let iconSize: CGFloat = 16
   private static let cornerRadius: CGFloat = 12
 
-  let index: Int
+  /// The browser's index for the suggestion shown.
+  private(set) var index = 0
   var onOpen: (FiberSuggestionPart, Int, NSEvent?) -> Void = { _, _, _ in }
   var onRemove: () -> Void = {}
   var isHovered = false {
@@ -141,21 +163,21 @@ private final class SuggestionRow: NSView {
     }
   }
 
-  private let suggestion: FiberSuggestion
+  private var suggestion: FiberSuggestion?
   private let icon = NSImageView()
-  private let label = NSTextField(labelWithString: "")
+  private let label = MixedColorLabel(labelWithString: "")
   private let accessories = NSStackView()
   private var keywordPill: SuggestionPill?
   private var actionPills: [SuggestionPill] = []
   private let removeButton = NSButton()
   private var selectedPart: FiberSuggestionPart?
   private var selectedActionIndex = 0
-  private var isSelectable: Bool { suggestion.kind != .message }
-  var isRemovable: Bool { suggestion.isRemovable }
+  /// What `label` was last set to.
+  private var shownText: NSAttributedString?
+  private var isSelectable: Bool { suggestion?.kind != .message }
+  var isRemovable: Bool { suggestion?.isRemovable ?? false }
 
-  init(suggestion: FiberSuggestion, index: Int) {
-    self.suggestion = suggestion
-    self.index = index
+  init() {
     super.init(frame: .zero)
     wantsLayer = true
     layer?.cornerRadius = Self.cornerRadius
@@ -169,39 +191,17 @@ private final class SuggestionRow: NSView {
 
     accessories.orientation = .horizontal
     accessories.spacing = 6
-    if !suggestion.keywordLabel.isEmpty {
-      let pill = SuggestionPill(title: suggestion.keywordLabel, key: "⇥")
-      pill.onClick = { [weak self] event in
-        self?.onOpen(.keyword, 0, event)
-      }
-      keywordPill = pill
-      accessories.addArrangedSubview(pill)
-    }
-    for (actionIndex, title) in suggestion.actionTitles.enumerated() {
-      let pill = SuggestionPill(title: title, key: nil)
-      pill.onClick = { [weak self] event in
-        self?.onOpen(.action, actionIndex, event)
-      }
-      actionPills.append(pill)
-      accessories.addArrangedSubview(pill)
-    }
-    if suggestion.isRemovable {
-      removeButton.image = NSImage(
-        systemSymbolName: "xmark", accessibilityDescription: "Remove")
-      removeButton.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
-      removeButton.isBordered = false
-      removeButton.refusesFirstResponder = true
-      removeButton.toolTip = "Remove Suggestion"
-      removeButton.target = self
-      removeButton.action = #selector(remove(_:))
-      removeButton.wantsLayer = true
-      removeButton.layer?.cornerRadius = 10
-      accessories.addArrangedSubview(removeButton)
-      NSLayoutConstraint.activate([
-        removeButton.widthAnchor.constraint(equalToConstant: 20),
-        removeButton.heightAnchor.constraint(equalToConstant: 20),
-      ])
-    }
+    removeButton.image = NSImage(
+      systemSymbolName: "xmark", accessibilityDescription: "Remove")
+    removeButton.symbolConfiguration = .init(pointSize: 10, weight: .semibold)
+    removeButton.isBordered = false
+    removeButton.refusesFirstResponder = true
+    removeButton.toolTip = "Remove Suggestion"
+    removeButton.target = self
+    removeButton.action = #selector(remove(_:))
+    removeButton.wantsLayer = true
+    removeButton.layer?.cornerRadius = 10
+    accessories.addArrangedSubview(removeButton)
 
     for view in [icon, label, accessories] as [NSView] {
       view.translatesAutoresizingMaskIntoConstraints = false
@@ -220,9 +220,28 @@ private final class SuggestionRow: NSView {
       accessories.trailingAnchor.constraint(
         equalTo: trailingAnchor, constant: -9),
       accessories.centerYAnchor.constraint(equalTo: centerYAnchor),
+      removeButton.widthAnchor.constraint(equalToConstant: 20),
+      removeButton.heightAnchor.constraint(equalToConstant: 20),
     ])
-
     setAccessibilityElement(true)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  /// Shows `suggestion`, the browser's suggestion `index`. Its pills are only
+  /// remade when they change.
+  func show(_ suggestion: FiberSuggestion, index: Int) {
+    let old = self.suggestion
+    self.suggestion = suggestion
+    self.index = index
+    if old?.keywordLabel != suggestion.keywordLabel
+      || old?.actionTitles != suggestion.actionTitles
+    {
+      makePills(for: suggestion)
+    }
     setAccessibilityRole(isSelectable ? .button : .staticText)
     setAccessibilityLabel(
       [suggestion.contents, suggestion.detail].filter { !$0.isEmpty }
@@ -230,9 +249,34 @@ private final class SuggestionRow: NSView {
     updateAppearance()
   }
 
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) is not supported")
+  /// Keyword search and actions, before the remove button.
+  private func makePills(for suggestion: FiberSuggestion) {
+    for pill in pills {
+      pill.removeFromSuperview()
+    }
+    keywordPill = nil
+    actionPills = []
+    if !suggestion.keywordLabel.isEmpty {
+      let pill = SuggestionPill(title: suggestion.keywordLabel, key: "⇥")
+      pill.onClick = { [weak self] event in
+        self?.onOpen(.keyword, 0, event)
+      }
+      keywordPill = pill
+    }
+    for (actionIndex, title) in suggestion.actionTitles.enumerated() {
+      let pill = SuggestionPill(title: title, key: nil)
+      pill.onClick = { [weak self] event in
+        self?.onOpen(.action, actionIndex, event)
+      }
+      actionPills.append(pill)
+    }
+    for (position, pill) in pills.enumerated() {
+      accessories.insertArrangedSubview(pill, at: position)
+    }
+  }
+
+  private var pills: [SuggestionPill] {
+    (keywordPill.map { [$0] } ?? []) + actionPills
   }
 
   func setSelection(_ part: FiberSuggestionPart?, actionIndex: Int) {
@@ -310,6 +354,9 @@ private final class SuggestionRow: NSView {
   }
 
   private func updateColors() {
+    guard let suggestion else {
+      return
+    }
     let isRowSelected = selectedPart == .row && isSelectable
     let background: NSColor? =
       isRowSelected
@@ -318,20 +365,24 @@ private final class SuggestionRow: NSView {
         ? .labelColor.withAlphaComponent(0.07) : nil
     layer?.backgroundColor = background?.cgColor
 
+    // Each is only set when it changes: the browser resends suggestions as
+    // they change, and setting one redraws it.
     let symbolColor: NSColor =
       isRowSelected ? .alternateSelectedControlTextColor : .secondaryLabelColor
-    if let favicon = suggestion.favicon {
-      icon.image = favicon
-      icon.contentTintColor = favicon.isTemplate ? symbolColor : nil
-    } else {
-      icon.image = NSImage(
-        systemSymbolName: Self.symbolName(for: suggestion.kind),
-        accessibilityDescription: nil)
-      icon.symbolConfiguration = .init(pointSize: 14, weight: .regular)
-      icon.contentTintColor = symbolColor
+    let image = suggestion.favicon ?? Self.symbol(for: suggestion.kind)
+    if icon.image !== image {
+      icon.image = image
     }
-
-    label.attributedStringValue = text(selected: isRowSelected)
+    let tint = image.isTemplate ? symbolColor : nil
+    if icon.contentTintColor != tint {
+      icon.contentTintColor = tint
+    }
+    let text = text(suggestion, selected: isRowSelected)
+    label.isOnSelectedRow = isRowSelected
+    if text != shownText {
+      label.attributedStringValue = text
+      shownText = text
+    }
 
     keywordPill?.setHighlighted(
       selectedPart == .keyword, onSelectedRow: isRowSelected)
@@ -341,7 +392,8 @@ private final class SuggestionRow: NSView {
         onSelectedRow: isRowSelected)
     }
     // Shown where it's relevant, so it doesn't clutter every history row.
-    removeButton.isHidden = !(isHovered || selectedPart != nil)
+    removeButton.isHidden =
+      !suggestion.isRemovable || !(isHovered || selectedPart != nil)
     removeButton.contentTintColor =
       selectedPart == .remove
       ? .alternateSelectedControlTextColor
@@ -354,7 +406,9 @@ private final class SuggestionRow: NSView {
 
   /// The contents, then the detail, each styled by its runs: matches with
   /// what the user typed in a heavier weight, dim parts fainter.
-  private func text(selected: Bool) -> NSAttributedString {
+  private func text(_ suggestion: FiberSuggestion, selected: Bool)
+    -> NSAttributedString
+  {
     let text = NSMutableAttributedString()
     let isMessage = suggestion.kind == .message
     text.append(
@@ -409,6 +463,19 @@ private final class SuggestionRow: NSView {
       }
     }
     return text
+  }
+
+  private static var symbols: [FiberSuggestionKind: NSImage] = [:]
+
+  private static func symbol(for kind: FiberSuggestionKind) -> NSImage {
+    if let symbol = symbols[kind] {
+      return symbol
+    }
+    let symbol = NSImage(
+      systemSymbolName: symbolName(for: kind), accessibilityDescription: nil)!
+      .withSymbolConfiguration(.init(pointSize: 14, weight: .regular))!
+    symbols[kind] = symbol
+    return symbol
   }
 
   private static func symbolName(for kind: FiberSuggestionKind) -> String {
@@ -469,6 +536,10 @@ private final class SuggestionPill: NSView {
   }
 
   func setHighlighted(_ highlighted: Bool, onSelectedRow: Bool) {
+    guard highlighted != isHighlighted || onSelectedRow != isOnSelectedRow
+    else {
+      return
+    }
     isHighlighted = highlighted
     isOnSelectedRow = onSelectedRow
     update()

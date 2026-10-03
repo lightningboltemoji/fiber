@@ -1,9 +1,9 @@
 import AppKit
 import FiberBridge
 
-/// The extensions menu, in a popover from the toolbar's puzzle piece: every
-/// extension, with a pin to keep its button in the toolbar, and a way to the
-/// Extensions page.
+/// The extensions menu, in a popover from the puzzle piece in the tab
+/// overlay: every extension, with a pin to keep its button beside the puzzle
+/// piece, and a way to the Extensions page.
 @MainActor
 final class ExtensionsMenu: NSObject, NSPopoverDelegate {
   var onRun: (String) -> Void = { _ in }

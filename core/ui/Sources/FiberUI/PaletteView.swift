@@ -1,8 +1,9 @@
 import AppKit
 
-/// A glass panel over the window, which it dims, with a search field above a
-/// list: the omnibar's and the command palette's. Its owner fills in the list,
-/// handles the field, and closes it.
+/// A glass panel over the dimmed window (see PanelDimming), with a search
+/// field above a list: the omnibar's and the command palette's. Its owner
+/// fills in the list, handles the field, and closes it. The tab overlay's
+/// panel shares its placement and look.
 @MainActor
 final class PaletteView: NSView {
   private static let maxWidth: CGFloat = 640
@@ -11,17 +12,29 @@ final class PaletteView: NSView {
   private static let topFraction: CGFloat = 0.2
   private static let minTop: CGFloat = 72
   /// Space kept below the panel when there's more in the list than fits.
-  private static let bottomMargin: CGFloat = 24
-  private static let cornerRadius: CGFloat = 26
-  private static let rimWidth: CGFloat = 6
+  static let bottomMargin: CGFloat = 24
+  static let cornerRadius: CGFloat = 26
+  static let rimWidth: CGFloat = 6
   private static let fieldRowHeight: CGFloat = 56
-  private static let footerHeight: CGFloat = 30
+  static let footerHeight: CGFloat = 30
   /// Between a hint's action and its key, and after its key.
-  private static let hintInnerSpacing: CGFloat = 6
-  private static let hintSpacing: CGFloat = 18
+  static let hintInnerSpacing: CGFloat = 6
+  static let hintSpacing: CGFloat = 18
   static let horizontalInset: CGFloat = 18
   static let fadeInDuration: TimeInterval = 0.15
   static let fadeOutDuration: TimeInterval = 0.12
+
+  /// Where the panel goes in a window's content `size`: centered, with its
+  /// top `top` below the window's.
+  static func panelPlacement(in size: NSSize)
+    -> (x: CGFloat, width: CGFloat, top: CGFloat)
+  {
+    let width = min(maxWidth, size.width - 2 * sideMargin)
+    return (
+      ((size.width - width) / 2).rounded(), width,
+      max((size.height * topFraction).rounded(), minTop)
+    )
+  }
 
   let field = NSTextField()
   /// Shown between the field's icon and the field, like the omnibar's keyword.
@@ -49,12 +62,16 @@ final class PaletteView: NSView {
   /// The footer's keys, like ("Open", "↩").
   var hints: [(action: String, key: String)] = [] {
     didSet {
-      updateHints()
-      content.needsLayout = true
+      // The command palette sets them as its selection moves.
+      if !hints.elementsEqual(oldValue, by: ==) {
+        updateHints()
+        content.needsLayout = true
+      }
     }
   }
   /// Called when the user clicks outside the panel.
   var onDismiss: () -> Void = {}
+  var onShowOrHide: () -> Void = {}
   private(set) var isOpen = false
   /// While set, the panel doesn't show even when open, though its field takes
   /// the keyboard; once cleared, an open panel fades in.
@@ -63,6 +80,7 @@ final class PaletteView: NSView {
       if !isHeld && isOpen {
         fadeIn()
       }
+      onShowOrHide()
     }
   }
 
@@ -85,7 +103,6 @@ final class PaletteView: NSView {
       footerHeight: Self.footerHeight, horizontalInset: Self.horizontalInset)
     super.init(frame: .zero)
     wantsLayer = true
-    layer?.backgroundColor = NSColor.black.withAlphaComponent(0.12).cgColor
     isHidden = true
     alphaValue = 0
 
@@ -139,7 +156,10 @@ final class PaletteView: NSView {
       fadeIn()
     }
     window?.makeFirstResponder(field)
+    onShowOrHide()
   }
+
+  var isShown: Bool { isOpen && !isHeld }
 
   private func fadeIn() {
     NSAnimationContext.runAnimationGroup { context in
@@ -166,6 +186,7 @@ final class PaletteView: NSView {
         }
       }
     }
+    onShowOrHide()
   }
 
   func fieldAccessoryDidResize() {
@@ -180,8 +201,7 @@ final class PaletteView: NSView {
 
   /// The panel, sized to show the list, as much as fits.
   private func layoutPanel() {
-    let width = min(Self.maxWidth, bounds.width - 2 * Self.sideMargin)
-    let top = max((bounds.height * Self.topFraction).rounded(), Self.minTop)
+    let (x, width, top) = Self.panelPlacement(in: bounds.size)
     let fixedHeight =
       2 * Self.rimWidth + Self.fieldRowHeight + 1 + Self.footerHeight
     let availableHeight = max(
@@ -190,8 +210,7 @@ final class PaletteView: NSView {
     content.listHeight = listHeight
     let height = fixedHeight + listHeight
     panel.frame = NSRect(
-      x: ((bounds.width - width) / 2).rounded(),
-      y: bounds.height - top - height,
+      x: x, y: bounds.height - top - height,
       width: width, height: height)
     shadowView.frame = panel.frame
     list?.frame.size = NSSize(
@@ -241,6 +260,62 @@ final class PaletteView: NSView {
         label(action, weight: .regular, color: .secondaryLabelColor))
       hintsView.addArrangedSubview(keyLabel)
       hintsView.setCustomSpacing(Self.hintSpacing, after: keyLabel)
+    }
+  }
+}
+
+/// A label on the glass whose text mixes label colors, like a title and a
+/// faint detail, which AppKit would draw flat, the faint text darker than the
+/// glass. It's vibrant, but for a selected row's text, which is drawn flat.
+final class MixedColorLabel: NSTextField {
+  var isOnSelectedRow = false
+
+  override var allowsVibrancy: Bool { !isOnSelectedRow }
+}
+
+/// Darkens the window under the omnibar, the command palette and the tab
+/// overlay. The window keeps it while any of them shows, so switching between
+/// them doesn't let the page brighten. It's only drawn: clicks go to them.
+@MainActor
+final class PanelDimming: NSView {
+  private static let color = NSColor.black.withAlphaComponent(0.2)
+
+  private(set) var isShown = false
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    wantsLayer = true
+    layer?.backgroundColor = Self.color.cgColor
+    isHidden = true
+    alphaValue = 0
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+
+  /// Fades in or out with the panels, from wherever it is now.
+  func setShown(_ shown: Bool) {
+    guard shown != isShown else {
+      return
+    }
+    isShown = shown
+    isHidden = false
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration =
+        shown ? PaletteView.fadeInDuration : PaletteView.fadeOutDuration
+      animator().alphaValue = shown ? 1 : 0
+    } completionHandler: { [weak self] in
+      MainActor.assumeIsolated {
+        if let self, !self.isShown {
+          self.isHidden = true
+        }
+      }
     }
   }
 }

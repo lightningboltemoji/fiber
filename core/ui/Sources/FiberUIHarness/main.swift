@@ -5,6 +5,7 @@
 // `--find QUERY` (the find bar, likewise), `--extension-window` (a window an extension opened, as its bubble),
 // `--incognito` (the first window is Incognito, on the New Tab page),
 // `--pins N` (made-up pinned sites, the first two open),
+// `--overlay` (the tab overlay, as Command-S opens it),
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page).
 
 import AppKit
@@ -55,6 +56,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       }
     }
     NSApp.activate()
+    if CommandLine.arguments.contains("--overlay") {
+      browsers.last?.window.toggleToolbarShown(nil)
+    }
     if CommandLine.arguments.contains("--extension-window") {
       browsers.last?.simulateExtensionWindow(nil)
     }
@@ -253,7 +257,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       "View",
       [
         // Handled by the window itself, as in the real app.
-        item("Show Toolbar", #selector(NSWindow.toggleToolbarShown(_:)), "s"),
+        item("Show Tabs", #selector(NSWindow.toggleToolbarShown(_:)), "s"),
         item(
           "Command Palette",
           #selector(FiberWindowMenuActions.toggleCommandPalette(_:)), "p"),

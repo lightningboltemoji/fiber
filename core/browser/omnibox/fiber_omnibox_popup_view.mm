@@ -8,6 +8,7 @@
 #import "FiberBridge/FiberOmnibox.h"
 #include "base/functional/bind.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_popup_state_manager.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -283,7 +284,19 @@ void FiberOmniboxPopupView::UpdateSelection() {
 }
 
 void FiberOmniboxPopupView::OnFaviconFetched(const gfx::Image& favicon) {
-  // It's cached now, for UpdateSuggestions() to find.
+  if (!is_open_ || is_favicon_update_posted_) {
+    return;
+  }
+  is_favicon_update_posted_ = true;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&FiberOmniboxPopupView::UpdateForFetchedFavicons,
+                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void FiberOmniboxPopupView::UpdateForFetchedFavicons() {
+  is_favicon_update_posted_ = false;
+  // They're cached now, for UpdateSuggestions() to find.
   if (is_open_) {
     UpdateSuggestions();
   }

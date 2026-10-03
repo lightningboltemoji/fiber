@@ -1,7 +1,9 @@
 import AppKit
 
 /// The command palette's rows: tabs and commands, then tabs found by their
-/// pages' text, under a heading. The palette moves the selection.
+/// pages' text, under a heading. The palette moves the selection. Before the
+/// user types it lists every tab, so only the rows in sight have views, which
+/// are reused as the list scrolls and changes.
 @MainActor
 final class PaletteResultList: NSView {
   private static let headerHeight: CGFloat = 28
@@ -14,24 +16,45 @@ final class PaletteResultList: NSView {
   var onOpen: (Int) -> Void = { _ in }
   private(set) var contentHeight: CGFloat = 0
 
-  private var rows: [PaletteRow] = []
-  private var labels: [NSTextField] = []
+  private var items: [PaletteItem] = []
+  /// Where each item's row goes, top to bottom.
+  private var rowSpans: [Range<CGFloat>] = []
+  private var selectedIndex: Int?
+  /// The rows in sight, or nearly, by the index of the item each shows.
+  private var rows: [Int: PaletteRow] = [:]
+  /// Rows out of sight, hidden, for items that scroll into it.
+  private var spareRows: [PaletteRow] = []
+  private let header = NSTextField(labelWithString: "Found in pages")
+  private let messageLabel = NSTextField(labelWithString: "")
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    header.font = .systemFont(ofSize: 11, weight: .semibold)
+    header.textColor = .secondaryLabelColor
+    messageLabel.font = .systemFont(ofSize: 13)
+    messageLabel.textColor = .secondaryLabelColor
+    for label in [header, messageLabel] {
+      label.isHidden = true
+      addSubview(label)
+    }
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
 
   override var isFlipped: Bool { true }
 
   /// Lists `items`, with the page text heading before `pageTextStart`, or
   /// `message` when there are none.
   func setItems(_ items: [PaletteItem], pageTextStart: Int?, message: String?) {
-    for view in rows as [NSView] + labels {
-      view.removeFromSuperview()
-    }
-    rows = []
-    labels = []
+    self.items = items
+    rowSpans = []
     var y = Self.verticalPadding
     /// Puts `label` in a band `height` tall: `bottomInset` from its bottom,
     /// or without one, centered.
-    func addLabel(_ label: NSTextField, height: CGFloat, bottomInset: CGFloat?)
-    {
+    func place(_ label: NSTextField, height: CGFloat, bottomInset: CGFloat?) {
       let labelHeight = label.fittingSize.height
       let labelY =
         bottomInset.map { y + height - labelHeight - $0 }
@@ -39,66 +62,143 @@ final class PaletteResultList: NSView {
       label.frame = NSRect(
         x: Self.horizontalInset + PaletteRow.leadingPadding, y: labelY,
         width: 0, height: labelHeight)
-      addSubview(label)
-      labels.append(label)
+      fitWidth(label)
+      label.isHidden = false
       y += height
     }
+    header.isHidden = true
     for (index, item) in items.enumerated() {
       if index == pageTextStart {
-        let header = NSTextField(labelWithString: "Found in pages")
-        header.font = .systemFont(ofSize: 11, weight: .semibold)
-        header.textColor = .secondaryLabelColor
-        addLabel(header, height: Self.headerHeight, bottomInset: 4)
+        place(header, height: Self.headerHeight, bottomInset: 4)
       }
-      let row = PaletteRow(item: item)
-      row.frame = NSRect(x: 0, y: y, width: 0, height: row.height)
-      row.onOpen = { [weak self] in self?.onOpen(index) }
-      addSubview(row)
-      rows.append(row)
-      y += row.height
+      let height = PaletteRow.height(for: item.kind)
+      rowSpans.append(y..<y + height)
+      y += height
     }
+    messageLabel.isHidden = true
     if let message {
-      let label = NSTextField(labelWithString: message)
-      label.font = .systemFont(ofSize: 13)
-      label.textColor = .secondaryLabelColor
-      addLabel(label, height: Self.messageHeight, bottomInset: nil)
+      messageLabel.stringValue = message
+      place(messageLabel, height: Self.messageHeight, bottomInset: nil)
     }
     contentHeight = y == Self.verticalPadding ? 0 : y + Self.verticalPadding
-    needsLayout = true
-    updateHover()
+    updateRows(showingNewItems: true)
   }
 
   /// Highlights row `index`, and scrolls to it.
   func setSelection(_ index: Int?) {
-    for (rowIndex, row) in rows.enumerated() {
-      row.isSelected = rowIndex == index
+    if let old = selectedIndex {
+      rows[old]?.isSelected = false
     }
-    if let index, rows.indices.contains(index) {
-      var frame = rows[index].frame.insetBy(dx: 0, dy: -Self.verticalPadding)
-      // The heading above the first match in pages, with it.
-      if index > 0, rows[index - 1].frame.maxY < rows[index].frame.minY {
-        frame.origin.y -= Self.headerHeight
-        frame.size.height += Self.headerHeight
+    selectedIndex = index
+    guard let index, items.indices.contains(index) else {
+      return
+    }
+    rows[index]?.isSelected = true
+    var frame = frameForRow(at: index).insetBy(dx: 0, dy: -Self.verticalPadding)
+    // The heading above the first match in pages, with it.
+    if index > 0, rowSpans[index - 1].upperBound < rowSpans[index].lowerBound {
+      frame.origin.y -= Self.headerHeight
+      frame.size.height += Self.headerHeight
+    }
+    scrollToVisible(frame)
+  }
+
+  private func frameForRow(at index: Int) -> NSRect {
+    let span = rowSpans[index]
+    return NSRect(
+      x: Self.horizontalInset, y: span.lowerBound,
+      width: bounds.width - 2 * Self.horizontalInset,
+      height: span.upperBound - span.lowerBound)
+  }
+
+  /// Gives each item in or near sight a row, from the rows that left it.
+  /// With `showingNewItems`, the rows kept show their items again too.
+  private func updateRows(showingNewItems: Bool = false) {
+    var visible = bounds
+    if let clipView = superview as? NSClipView {
+      visible = convert(clipView.bounds, from: clipView)
+    }
+    // Half a screen either way, so scrolling a little makes none.
+    let wanted = visible.insetBy(dx: 0, dy: -visible.height / 2)
+    let lower = rowSpans.partitioningIndex { $0.upperBound > wanted.minY }
+    let upper = rowSpans.partitioningIndex { $0.lowerBound >= wanted.maxY }
+    let range = lower..<max(lower, upper)
+    for (index, row) in rows where !range.contains(index) {
+      row.isHidden = true
+      spareRows.append(row)
+      rows[index] = nil
+    }
+    for index in range {
+      let row: PaletteRow
+      if let shown = rows[index] {
+        row = shown
+        if showingNewItems {
+          row.show(items[index])
+        }
+      } else if let spare = spareRows.popLast() {
+        row = spare
+        row.show(items[index])
+        row.isHidden = false
+        rows[index] = row
+      } else {
+        row = makeRow(items[index])
+        rows[index] = row
       }
-      scrollToVisible(frame)
+      row.index = index
+      row.isSelected = index == selectedIndex
+      row.frame = frameForRow(at: index)
     }
+    updateHover()
+  }
+
+  private func makeRow(_ item: PaletteItem) -> PaletteRow {
+    let row = PaletteRow(item: item)
+    row.onOpen = { [weak self, unowned row] in self?.onOpen(row.index) }
+    addSubview(row)
+    return row
+  }
+
+  /// Fits the heading or the message to the list's width.
+  private func fitWidth(_ label: NSTextField) {
+    label.frame.size.width = max(
+      bounds.width - label.frame.minX - Self.horizontalInset, 0)
   }
 
   override func resizeSubviews(withOldSize oldSize: NSSize) {
-    for row in rows {
-      row.frame = NSRect(
-        x: Self.horizontalInset, y: row.frame.minY,
-        width: bounds.width - 2 * Self.horizontalInset, height: row.height)
-    }
-    for label in labels {
-      label.frame.size.width =
-        bounds.width - label.frame.minX - Self.horizontalInset
-    }
+    updateRows()
+    fitWidth(header)
+    fitWidth(messageLabel)
   }
 
   override func layout() {
     super.layout()
     resizeSubviews(withOldSize: bounds.size)
+  }
+
+  /// The superview is the clip view the list scrolls in: the rows in sight
+  /// change as it scrolls or resizes.
+  override func viewWillMove(toSuperview newSuperview: NSView?) {
+    super.viewWillMove(toSuperview: newSuperview)
+    let center = NotificationCenter.default
+    let names = [
+      NSView.boundsDidChangeNotification, NSView.frameDidChangeNotification,
+    ]
+    for name in names {
+      center.removeObserver(self, name: name, object: superview)
+    }
+    if let newSuperview {
+      newSuperview.postsBoundsChangedNotifications = true
+      newSuperview.postsFrameChangedNotifications = true
+      for name in names {
+        center.addObserver(
+          self, selector: #selector(superviewDidChange(_:)), name: name,
+          object: newSuperview)
+      }
+    }
+  }
+
+  @objc private func superviewDidChange(_ notification: Notification) {
+    updateRows()
   }
 
   override func viewDidMoveToWindow() {
@@ -107,15 +207,33 @@ final class PaletteResultList: NSView {
   }
 
   /// Highlights the row under the pointer. Rows track it themselves, but
-  /// newly made ones don't know until it moves.
+  /// newly shown ones don't know until it moves.
   private func updateHover() {
     guard let window else {
       return
     }
     let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-    for row in rows {
+    for row in rows.values {
       row.isHovered = row.frame.contains(point)
     }
+  }
+}
+
+extension Array {
+  /// The index of the first element for which `isAfter` is true, in an array
+  /// where it's false for those before it and true for the rest.
+  fileprivate func partitioningIndex(where isAfter: (Element) -> Bool) -> Int {
+    var low = 0
+    var high = count
+    while low < high {
+      let middle = (low + high) / 2
+      if isAfter(self[middle]) {
+        high = middle
+      } else {
+        low = middle + 1
+      }
+    }
+    return low
   }
 }
 
@@ -133,7 +251,9 @@ private final class PaletteRow: NSView {
   private static let detailSize: CGFloat = 12
   private static let snippetSize: CGFloat = 13
 
-  let item: PaletteItem
+  private(set) var item: PaletteItem
+  /// The index of its item in the list.
+  var index = 0
   var onOpen: () -> Void = {}
   var isHovered = false {
     didSet {
@@ -150,8 +270,8 @@ private final class PaletteRow: NSView {
     }
   }
 
-  var height: CGFloat {
-    switch item.kind {
+  static func height(for kind: PaletteItem.Kind) -> CGFloat {
+    switch kind {
     case .tab: 50
     case .pageText: 72
     case .command: 40
@@ -159,9 +279,9 @@ private final class PaletteRow: NSView {
   }
 
   private let icon = PaletteIcon()
-  private let titleLabel = NSTextField(labelWithString: "")
+  private let titleLabel = MixedColorLabel(labelWithString: "")
   private let subtitleLabel = NSTextField(labelWithString: "")
-  private let snippetLabel = NSTextField(wrappingLabelWithString: "")
+  private let snippetLabel = MixedColorLabel(wrappingLabelWithString: "")
   private let accessoryLabel = NSTextField(labelWithString: "")
 
   init(item: PaletteItem) {
@@ -182,21 +302,33 @@ private final class PaletteRow: NSView {
     {
       addSubview(view)
     }
-    subtitleLabel.isHidden = item.subtitle.isEmpty || isPageText
-    snippetLabel.isHidden = !isPageText
-    accessoryLabel.isHidden = item.accessory.isEmpty
-
     setAccessibilityElement(true)
     setAccessibilityRole(.button)
-    setAccessibilityLabel(
-      [item.title, item.subtitle, item.snippet, item.accessory]
-        .filter { !$0.isEmpty }.joined(separator: ", "))
-    updateAppearance()
+    showItem()
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is not supported")
+  }
+
+  func show(_ item: PaletteItem) {
+    guard item != self.item else {
+      return
+    }
+    self.item = item
+    showItem()
+  }
+
+  private func showItem() {
+    subtitleLabel.isHidden = item.subtitle.isEmpty || isPageText
+    snippetLabel.isHidden = !isPageText
+    accessoryLabel.isHidden = item.accessory.isEmpty
+    setAccessibilityLabel(
+      [item.title, item.subtitle, item.snippet, item.accessory]
+        .filter { !$0.isEmpty }.joined(separator: ", "))
+    needsLayout = true
+    updateAppearance()
   }
 
   private var isPageText: Bool {
@@ -308,6 +440,8 @@ private final class PaletteRow: NSView {
       ? .controlAccentColor
       : isHovered ? .labelColor.withAlphaComponent(0.07) : nil
     layer?.backgroundColor = background?.cgColor
+    titleLabel.isOnSelectedRow = isSelected
+    snippetLabel.isOnSelectedRow = isSelected
     let primary: NSColor =
       isSelected ? .alternateSelectedControlTextColor : .labelColor
     let secondary: NSColor =
@@ -407,25 +541,24 @@ private final class PaletteIcon: NSView {
   func show(_ item: PaletteItem, selected: Bool) {
     let secondary: NSColor =
       selected ? .alternateSelectedControlTextColor : .secondaryLabelColor
+    let shown: NSImage
     if let symbolName = item.symbolName {
-      image.image = NSImage(
-        systemSymbolName: symbolName, accessibilityDescription: nil)
-      image.symbolConfiguration = .init(pointSize: 12, weight: .medium)
-      image.contentTintColor = secondary
+      shown = Self.symbol(symbolName, size: 12, weight: .medium)
       layer?.backgroundColor =
         (selected
         ? NSColor.alternateSelectedControlTextColor.withAlphaComponent(0.2)
         : NSColor.labelColor.withAlphaComponent(0.08)).cgColor
-    } else if let favicon = item.favicon {
-      image.image = favicon
-      image.contentTintColor = favicon.isTemplate ? secondary : nil
-      layer?.backgroundColor = nil
     } else {
-      image.image = NSImage(
-        systemSymbolName: "globe", accessibilityDescription: nil)
-      image.symbolConfiguration = .init(pointSize: 13, weight: .regular)
-      image.contentTintColor = secondary
+      shown = item.favicon ?? Self.symbol("globe", size: 13, weight: .regular)
       layer?.backgroundColor = nil
+    }
+    // Setting either redraws it.
+    if image.image !== shown {
+      image.image = shown
+    }
+    let tint = shown.isTemplate ? secondary : nil
+    if image.contentTintColor != tint {
+      image.contentTintColor = tint
     }
     if case .pageText = item.kind {
       badge.isHidden = false
@@ -440,6 +573,21 @@ private final class PaletteIcon: NSView {
       badge.isHidden = true
     }
     needsLayout = true
+  }
+
+  private static var symbols: [String: NSImage] = [:]
+
+  private static func symbol(
+    _ name: String, size: CGFloat, weight: NSFont.Weight
+  ) -> NSImage {
+    let key = "\(name) \(size) \(weight.rawValue)"
+    if let symbol = symbols[key] {
+      return symbol
+    }
+    let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)!
+      .withSymbolConfiguration(.init(pointSize: size, weight: weight))!
+    symbols[key] = symbol
+    return symbol
   }
 
   override func layout() {

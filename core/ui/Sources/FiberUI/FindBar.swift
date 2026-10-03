@@ -1,16 +1,15 @@
 import AppKit
 import FiberBridge
 
-/// The window's find bar (Command-F): a glass capsule like the toolbar's, with
+/// The window's find bar (Command-F): a glass capsule (GlassCapsule), with
 /// the field, the count, previous and next, and close. It's Chrome's find in
 /// page underneath (see FiberFindBar), which shows and hides it.
 @MainActor
 final class FindBar: NSView, FiberFindBar {
   static let width: CGFloat = 320
-  static let height = Toolbar.height
-  private static let rimWidth: CGFloat = 5
-  /// Between the close button and the rim, as at the toolbar's ends.
-  private static let endInset: CGFloat = 2
+  static let height = GlassCapsule.height
+  private static let rimWidth = GlassCapsule.rimWidth
+  private static let endInset = GlassCapsule.endInset
   private static let fieldInset: CGFloat = 12
   private static let noMatchesTint = NSColor.systemRed.withAlphaComponent(0.3)
 
@@ -24,11 +23,11 @@ final class FindBar: NSView, FiberFindBar {
   private let glass = RimmedGlassView(rimWidth: FindBar.rimWidth)
   private let field = NSTextField()
   private let countLabel = NSTextField(labelWithString: "")
-  private let previousButton = Toolbar.makeButton(
+  private let previousButton = GlassCapsule.makeButton(
     symbol: "chevron.up", label: "Previous")
-  private let nextButton = Toolbar.makeButton(
+  private let nextButton = GlassCapsule.makeButton(
     symbol: "chevron.down", label: "Next")
-  private let closeButton = Toolbar.makeButton(symbol: "xmark", label: "Close")
+  private let closeButton = GlassCapsule.makeButton(symbol: "xmark", label: "Close")
   private var matchCount = -1
   /// Set while the browser's text goes into the field, so it isn't reported
   /// back as the user's.

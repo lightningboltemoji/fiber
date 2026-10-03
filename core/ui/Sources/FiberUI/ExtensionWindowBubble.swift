@@ -8,8 +8,10 @@ import SwiftUI
 final class ExtensionBubbles: NSView {
   /// How far bubbles and panels keep from the page's edges.
   static let margin: CGFloat = 16
-  /// A new bubble's distance from the top of the page, clear of the toolbar.
-  private static let firstTop = margin + Toolbar.height + Toolbar.spacing
+  /// A new bubble's distance from the top of the page, below where the find
+  /// bar goes.
+  private static let firstTop =
+    margin + GlassCapsule.height + GlassCapsule.spacing
   private static let spacing: CGFloat = 12
 
   /// Called when an open panel with focus closes, for the page to take it.
@@ -339,7 +341,7 @@ final class ExtensionWindowBubble: NSObject, FiberExtensionWindow {
     panel.frame = ExtensionBubbleLayout.panelFrame(
       size: panel.frameSize(forPage: contentSize),
       beside: bubbleView.circleFrame(in: container), in: bounds,
-      gap: Toolbar.spacing,
+      gap: GlassCapsule.spacing,
       minSize: panel.frameSize(forPage: Self.minContentSize))
   }
 

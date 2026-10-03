@@ -4,12 +4,13 @@ import Testing
 @testable import FiberUI
 
 struct PinGridLayoutTests {
-  private static let width = TabListLayout.panelWidth
+  /// The grid in a full-width tab overlay.
+  private static let width: CGFloat = 640 - 2 * TabOverlayModel.inset
 
-  @Test func spacesCirclesLikeTheToolbarsCapsules() {
-    let step = PinGridLayout.diameter + Toolbar.spacing
+  @Test func spacesCirclesEvenly() {
+    let step = PinGridLayout.diameter + PinGridLayout.spacing
     #expect(PinGridLayout.origin(of: 1, width: Self.width).x == step)
-    // As many as fit in the sidebar's width, then the next row.
+    // As many as fit in the panel's width, then the next row.
     let columns = PinGridLayout.columns(width: Self.width)
     let last = PinGridLayout.origin(of: columns - 1, width: Self.width)
     #expect(last.x + PinGridLayout.diameter <= Self.width)
@@ -26,7 +27,7 @@ struct PinGridLayoutTests {
     #expect(PinGridLayout.height(count: columns, width: Self.width) == row)
     #expect(
       PinGridLayout.height(count: columns + 1, width: Self.width)
-        == 2 * row + Toolbar.spacing)
+        == 2 * row + PinGridLayout.spacing)
   }
 
   @Test func hitsCirclesNotTheGapsOrCorners() {

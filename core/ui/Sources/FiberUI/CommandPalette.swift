@@ -49,7 +49,7 @@ enum PaletteCommand: CaseIterable, Hashable {
 }
 
 /// A row of the command palette.
-struct PaletteItem {
+struct PaletteItem: Equatable {
   enum Kind: Hashable {
     case tab(Int)
     /// A tab listed for what's in its page.

@@ -2,8 +2,9 @@ import FiberBridge
 import SwiftUI
 
 /// The layout of a glass panel listing the tabs, the tab picker's or the tab
-/// sidebar's, shared by their hit testing and drawing.
+/// overlay's, shared by their hit testing and drawing.
 enum TabListLayout {
+  /// The tab picker's.
   static let panelWidth: CGFloat = 264
   static let cornerRadius: CGFloat = 22
   static let rimWidth: CGFloat = 5
@@ -27,11 +28,11 @@ enum TabListLayout {
     contentInset + CGFloat(row) * rowStep + rowHeight / 2
   }
 
-  /// The close button `point` (from the panel's top-left) is within reach
-  /// of, the nearest if two are.
-  static func closeButton(near point: CGPoint, in tabs: [FiberTabState])
-    -> TabCloseButton?
-  {
+  /// The close button `point` (from the top-left of a list `width` wide) is
+  /// within reach of, the nearest if two are.
+  static func closeButton(
+    near point: CGPoint, in tabs: [FiberTabState], width: CGFloat
+  ) -> TabCloseButton? {
     guard !tabs.isEmpty else {
       return nil
     }
@@ -39,7 +40,7 @@ enum TabListLayout {
       max(Int(((point.y - rowCenter(0)) / rowStep).rounded()), 0),
       tabs.count - 1)
     let button = CGRect(
-      x: panelWidth - contentInset - closeButtonInset - closeButtonSize,
+      x: width - contentInset - closeButtonInset - closeButtonSize,
       y: rowCenter(row) - closeButtonSize / 2, width: closeButtonSize,
       height: closeButtonSize)
     guard
@@ -83,6 +84,9 @@ struct TabCloseButton: Equatable {
 
 /// A panel's rows, with a highlight that glides to the highlighted tab.
 struct TabList: View {
+  let width: CGFloat
+  /// Whether each row shows its URL, after its title.
+  var showsURL = false
   let tabs: [FiberTabState]
   let activeTabID: Int
   let highlightedTabID: Int?
@@ -96,7 +100,7 @@ struct TabList: View {
     VStack(spacing: TabListLayout.rowSpacing) {
       ForEach(tabs, id: \.tabID) { tab in
         TabRow(
-          tab: tab, isActive: tab.tabID == activeTabID,
+          tab: tab, showsURL: showsURL, isActive: tab.tabID == activeTabID,
           closeButton: closeButton?.tabID == tab.tabID ? closeButton : nil
         )
         .accessibilityElement(children: .combine)
@@ -116,7 +120,7 @@ struct TabList: View {
       RoundedRectangle(cornerRadius: 12, style: .continuous)
         .fill(Color.primary.opacity(0.1))
         .frame(
-          width: TabListLayout.panelWidth - 2 * TabListLayout.contentInset,
+          width: width - 2 * TabListLayout.contentInset,
           height: TabListLayout.rowHeight)
         .offset(
           x: TabListLayout.contentInset,
@@ -133,6 +137,7 @@ private struct TabRow: View {
   private static let titleFadeWidth: CGFloat = 16
 
   let tab: FiberTabState
+  let showsURL: Bool
   let isActive: Bool
   let closeButton: TabCloseButton?
 
@@ -144,7 +149,20 @@ private struct TabRow: View {
       Text(tab.title.isEmpty ? "Untitled" : tab.title)
         .lineLimit(1)
         .truncationMode(.tail)
+        .layoutPriority(1)
       Spacer(minLength: 0)
+      if showsURL {
+        // The close button takes its place.
+        Text(tab.url)
+          .font(.system(size: 12))
+          .foregroundStyle(.tertiary)
+          .lineLimit(1)
+          .truncationMode(.middle)
+          .frame(maxWidth: 220, alignment: .trailing)
+          .animation(Self.closeButtonFade) {
+            $0.opacity(isCloseButtonShown ? 0 : 1)
+          }
+      }
     }
     .font(.system(size: 13, weight: isActive ? .semibold : .regular))
     .foregroundStyle(isActive ? .primary : .secondary)

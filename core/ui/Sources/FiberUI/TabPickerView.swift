@@ -30,12 +30,11 @@ struct TabPickerView: View {
       .accessibilityLabel("Tabs")
       .accessibilityAddTraits(.isButton)
       .accessibilityAction { model.onToggle() }
-      .accessibilityHidden(!model.isPanelEnabled)
 
       // Laid out where the open panel is, and cut to the glass, so the glass
       // uncovers the list as it grows.
       TabList(
-        tabs: model.tabs, activeTabID: model.activeTabID,
+        width: panel.width, tabs: model.tabs, activeTabID: model.activeTabID,
         highlightedTabID: model.highlightedTabID,
         closeButton: model.closeButton, onSelect: model.onSelect,
         onClose: model.onClose

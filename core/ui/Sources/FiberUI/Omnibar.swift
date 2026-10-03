@@ -1,8 +1,8 @@
 import AppKit
 import FiberBridge
 
-/// Fiber's omnibar, opened with Command-L or by clicking the toolbar's
-/// address. It's Chrome's omnibox underneath (see FiberOmnibox): the browser
+/// Fiber's omnibar, opened with Command-L or by clicking the tab
+/// overlay's address. It's Chrome's omnibox underneath (see FiberOmnibox): the browser
 /// fills in the field and lists the suggestions. Covers the window while open.
 @MainActor
 final class Omnibar: NSObject, FiberOmnibox {
@@ -125,7 +125,8 @@ final class Omnibar: NSObject, FiberOmnibox {
   }
 
   func setKeywordLabel(_ label: String) {
-    guard isOpen else {
+    // The browser sends it with every change to the field.
+    guard isOpen, label != keywordChip.title else {
       return
     }
     hasKeyword = !label.isEmpty
