@@ -1,17 +1,19 @@
 """Anchor, the Fiber app icon: a spider's attachment disc, abstracted.
 
-The dragline runs in off the left edge into a hub, a fan of fibrils ending in
-cement pads spreads ahead of it, and webbing spans the fibrils in scallops.
-HUB puts the fan's bounds (dragline excluded) on the tile's centre, 8px low.
+The dragline runs into a hub, a fan of fibrils ending in cement pads spreads
+ahead of it, and webbing spans the fibrils in scallops. HUB puts the fan's
+bounds (dragline excluded) on the canvas's centre, 8px low; the icon then zooms
+in off centre and lets the tile crop it, while mark() keeps the glyph whole.
 """
 
 import math
 
 import numpy as np
-from shapely.geometry import Point, Polygon
+from shapely import affinity
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
 
-from common import geom_to_d, grad, group, layer, svg, tapered, write_icon
+from common import SIZE, geom_to_d, grad, group, layer, svg, tapered, write_icon
 
 SILK = "#1D5BFF"
 WEB = "#BCD0FF"
@@ -26,6 +28,13 @@ WIDTH = (19, 9)                          # fibril radius at the hub and at the p
 PAD = 25
 WEB_REACH = 0.8                          # webbing corners, as a fraction of fibril length
 WEB_DEPTH = 0.3                          # how far each scallop dips toward the hub
+
+# The icon's crop: the glyph mirrored about the hub, turned (degrees, clockwise)
+# and zoomed about it, then moved so the hub lands on PLACE.
+MIRROR = True
+TURN = -120
+ZOOM = 1.67
+PLACE = (238, 330)
 
 
 def unit(a):
@@ -70,6 +79,16 @@ def web(corners):
     return Polygon(ring).buffer(0).buffer(-14).buffer(14)
 
 
+def place(g):
+    h = tuple(HUB)
+    if MIRROR:
+        g = affinity.scale(g, -1, 1, origin=h)
+    g = affinity.rotate(g, TURN, origin=h)
+    g = affinity.scale(g, ZOOM, ZOOM, origin=h)
+    g = affinity.translate(g, PLACE[0] - h[0], PLACE[1] - h[1])
+    return g.intersection(box(0, 0, SIZE, SIZE))
+
+
 def mark():
     """The icon's glyph without its tile, as SVG for Fiber's UI to draw in one
     color."""
@@ -98,10 +117,11 @@ def mark():
 
 def build(path):
     fibrils, corners = fan()
+    line, fibrils, membrane = (place(g) for g in (dragline(), fibrils, web(corners)))
     assets = {
-        "dragline.svg": svg([(geom_to_d(dragline()), f'fill="{SILK}"')]),
+        "dragline.svg": svg([(geom_to_d(line), f'fill="{SILK}"')]),
         "fibrils.svg": svg([(geom_to_d(fibrils), f'fill="{SILK}"')]),
-        "web.svg": svg([(geom_to_d(web(corners)), f'fill="{WEB}"')]),
+        "web.svg": svg([(geom_to_d(membrane), f'fill="{WEB}"')]),
     }
     groups = [
         group([layer("dragline", "dragline.svg")], shadow_opacity=0.55, translucency=0.1),
