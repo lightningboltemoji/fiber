@@ -5,18 +5,13 @@ import AppKit
 /// the window, so its blur would darken toward the window's edges.
 @MainActor
 final class Veil {
-  /// A fully drawn veil's blur radius.
+  /// A fully drawn veil's blur radius, and the opacity of its black.
   private static let blurRadius: CGFloat = 24
-  /// Its prompts' white text needs a white page no lighter than a mid gray.
-  private static let dimming = Dimming(drop: 57, maxOpacity: 0.7)
+  private static let dimOpacity: Float = 0.6
   private static let blurKeyPath = "filters.blur.inputRadius"
-  /// How long the black takes to follow a new measure of the page.
-  private static let relightDuration: TimeInterval = 0.2
 
   /// Darkens the window. Its owner puts it over the page and the controls.
   let dimView = DimView()
-  /// The opacity of a fully drawn veil's black (see setPageLightness(_:)).
-  private var dimOpacity = Float(dimming.opacity(forPageLightness: 100))
   /// How far the veil is drawn, from 0 (lifted) to 1, once any animation
   /// ends.
   private(set) var amount: CGFloat = 0
@@ -78,18 +73,8 @@ final class Veil {
       blurLayer.add(blur, forKey: "veil")
     }
     dimView.setOpacity(
-      Float(amount) * dimOpacity, duration: duration, timing: timing)
+      Float(amount) * Self.dimOpacity, duration: duration, timing: timing)
     CATransaction.commit()
-  }
-
-  /// Darkens the veil so that it dims a page whose mean L* is `lightness` by
-  /// about as much as any other (see Dimming).
-  func setPageLightness(_ lightness: Double) {
-    dimOpacity = Float(Self.dimming.opacity(forPageLightness: lightness))
-    if amount > 0 {
-      dimView.setOpacity(
-        Float(amount) * dimOpacity, duration: Self.relightDuration)
-    }
   }
 
   private func installFilter() {

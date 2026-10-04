@@ -44,6 +44,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private static let topShare: CGFloat = 0.45
   /// How far a pressed pin moves before it's dragged rather than clicked.
   private static let dragThreshold: CGFloat = 4
+  /// How long the pool under the glass takes to follow a new measure of the
+  /// page.
+  private static let relightDuration: TimeInterval = 0.2
 
   private let model = TabOverlayModel()
   private let hostingView: NSHostingView<TabOverlayView>
@@ -242,6 +245,14 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         bubble, from: offset, isOpening: isOpen,
         delay: model.motionDelay(ofBubble: bubble.frame),
         span: model.motionSpan)
+    }
+  }
+
+  /// How light the page under the overlay is, in CIE L*: the darker, the more
+  /// black pools under the glass (see Dimming).
+  func setPageLightness(_ lightness: Double) {
+    withAnimation(.easeInOut(duration: Self.relightDuration).slowMotion) {
+      model.pageLightness = lightness
     }
   }
 
@@ -1065,6 +1076,8 @@ final class TabOverlayModel {
   /// panel rather than above it and its pins.
   var bubbleFrames: [CGRect] = []
   var areBubblesBeside = true
+  /// The page's, in CIE L* (see TabOverlay.setPageLightness(_:)).
+  var pageLightness: Double = 100
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
   @ObservationIgnored var onClose: (Int) -> Void = { _ in }
   @ObservationIgnored var onOpenPin: (String) -> Void = { _ in }
@@ -1151,6 +1164,31 @@ final class TabOverlayModel {
     motionDelay(amongPins: pinFrame(index))
   }
 
+  /// The glass, for the black pooled under it: the panel, each row of pins,
+  /// and the address's and extensions' capsules.
+  var poolShapes: [DimmingPool.Shape] {
+    var shapes = [
+      DimmingPool.Shape(
+        id: "panel", frame: panelFrame, cornerRadius: PaletteView.cornerRadius)
+    ]
+    let columns = PinGridLayout.columns(width: gridWidth)
+    for start in stride(from: 0, to: pins.count, by: columns) {
+      let count = min(pins.count - start, columns)
+      var row = pinFrame(start)
+      row.size.width = CGFloat(count) * PinGridLayout.step - PinGridLayout.spacing
+      shapes.append(
+        DimmingPool.Shape(
+          id: "pins\(start / columns)", frame: row,
+          cornerRadius: PinGridLayout.diameter / 2))
+    }
+    for (index, frame) in bubbleFrames.enumerated() {
+      shapes.append(
+        DimmingPool.Shape(
+          id: "bubble\(index)", frame: frame, cornerRadius: frame.height / 2))
+    }
+    return shapes.filter { !$0.frame.isEmpty }
+  }
+
   /// The circle of the pin at `index`.
   private func pinFrame(_ index: Int) -> CGRect {
     let origin = PinGridLayout.origin(of: index, width: gridWidth)
@@ -1197,6 +1235,11 @@ final class TabOverlayModel {
 /// Draws the tab overlay's panel and pins; TabOverlay handles all input. The
 /// highlight glides to the selected tab.
 struct TabOverlayView: View {
+  /// The black pooled under the glass (see DimmingPool).
+  private static let poolSpread: CGFloat = 80
+  private static let poolRadius: CGFloat = 80
+  private static let poolDimming = Dimming(light: 0.6, dark: 0.75)
+
   let model: TabOverlayModel
 
   var body: some View {
@@ -1205,6 +1248,11 @@ struct TabOverlayView: View {
     let rim = PaletteView.rimWidth
     let pins = model.pinsOrigin
     ZStack(alignment: .topLeading) {
+      DimmingPool(
+        shapes: model.poolShapes, spread: Self.poolSpread,
+        radius: Self.poolRadius,
+        opacity: Self.poolDimming.opacity(
+          forPageLightness: model.pageLightness))
       ZStack(alignment: .topLeading) {
         PanelShadow(cornerRadius: PaletteView.cornerRadius)
         RimmedGlass(cornerRadius: PaletteView.cornerRadius, rimWidth: rim)

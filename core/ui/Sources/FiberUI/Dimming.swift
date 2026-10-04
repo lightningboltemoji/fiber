@@ -1,27 +1,21 @@
 import AppKit
+import SwiftUI
 
-/// How much black over the page darkens it: by about `drop` in CIE L* (0
-/// black, 100 white), however light the page is. Black at a fixed opacity
-/// darkens by a ratio, a lot on a white page and next to nothing on a dark one.
+/// The opacity of black over a page, by how light the page is (its CIE L*, 0
+/// black to 100 white). Black takes away a share of the page's light, so a
+/// dark page, with less to lose, takes more to look as dimmed.
 struct Dimming {
-  /// How much darker the page gets, in L*.
-  var drop: Double
-  /// The most black there is, for a page too dark to lose all of `drop`.
-  var maxOpacity: Double
+  /// Over a white page, and over a black one.
+  var light: Double
+  var dark: Double
 
-  /// The opacity of black that takes `drop` off a page whose mean L* is
-  /// `lightness`. Layers blend in encoded values, which black scales.
+  /// Between `dark` and `light`, in step with `lightness`.
   func opacity(forPageLightness lightness: Double) -> Double {
-    let encoded = Self.encodedValue(ofLightness: lightness)
-    guard encoded > 0 else {
-      return maxOpacity
-    }
-    let dimmed = Self.encodedValue(ofLightness: max(lightness - drop, 0))
-    return min(max(1 - dimmed / encoded, 0), maxOpacity)
+    dark + (light - dark) * min(max(lightness / 100, 0), 1)
   }
 
   /// How light `image` looks: its pixels' mean L*, the middle counting most,
-  /// as the panels and prompts are there.
+  /// as the tab overlay is there.
   static func lightness(of image: CGImage) -> Double? {
     let width = image.width
     let height = image.height
@@ -75,15 +69,6 @@ struct Dimming {
   private static func lightness(ofLuminance luminance: Double) -> Double {
     luminance > 216 / 24389
       ? 116 * cbrt(luminance) - 16 : luminance * 24389 / 27
-  }
-
-  /// The encoded value (sRGB's, which Display P3 shares) of a gray of L*
-  /// `lightness`.
-  private static func encodedValue(ofLightness lightness: Double) -> Double {
-    let luminance =
-      lightness > 8 ? pow((lightness + 16) / 116, 3) : lightness * 27 / 24389
-    return luminance <= 0.0031308
-      ? 12.92 * luminance : 1.055 * pow(luminance, 1 / 2.4) - 0.055
   }
 }
 
@@ -140,5 +125,60 @@ class DimView: NSView {
 
   override func hitTest(_ point: NSPoint) -> NSView? {
     nil
+  }
+}
+
+/// Black pooled under glass, over the dimming across the window: each shape
+/// grown by `spread`, the shapes merged, then blurred by `radius`, so it's
+/// darkest under the glass and fades out past it.
+struct DimmingPool: View {
+  struct Shape: Identifiable {
+    let id: String
+    let frame: CGRect
+    let cornerRadius: CGFloat
+  }
+
+  let shapes: [Shape]
+  let spread: CGFloat
+  let radius: CGFloat
+  let opacity: Double
+
+  var body: some View {
+    // Only as large as the blur reaches, which it costs to draw, and in an
+    // overlay, so that reaching past the container doesn't resize it.
+    let margin = spread + 3 * radius
+    let bounds = shapes.reduce(CGRect.null) { $0.union($1.frame) }
+      .insetBy(dx: -margin, dy: -margin)
+    Color.clear.overlay(alignment: .topLeading) {
+      if !bounds.isNull {
+        pool(in: bounds)
+      }
+    }
+  }
+
+  private func pool(in bounds: CGRect) -> some View {
+    ZStack(alignment: .topLeading) {
+      ForEach(shapes) { shape in
+        RoundedRectangle(
+          cornerRadius: shape.cornerRadius + spread, style: .continuous
+        )
+        .fill(.black)
+        .frame(
+          width: shape.frame.width + 2 * spread,
+          height: shape.frame.height + 2 * spread
+        )
+        .offset(
+          x: shape.frame.minX - spread - bounds.minX,
+          y: shape.frame.minY - spread - bounds.minY)
+      }
+    }
+    .frame(width: bounds.width, height: bounds.height, alignment: .topLeading)
+    // Where shapes overlap, they're black once.
+    .compositingGroup()
+    .blur(radius: radius)
+    .opacity(opacity)
+    .offset(x: bounds.minX, y: bounds.minY)
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
   }
 }

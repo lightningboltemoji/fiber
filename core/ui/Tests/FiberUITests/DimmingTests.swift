@@ -4,27 +4,17 @@ import Testing
 @testable import FiberUI
 
 struct DimmingTests {
-  private let dimming = Dimming(drop: 12, maxOpacity: 0.45)
+  private let dimming = Dimming(light: 0.6, dark: 0.7)
 
-  @Test func takesTheDropOffPagesLightEnough() throws {
-    for gray in [1.0, 0.75, 0.5, 0.3] {
-      let lightness = try #require(Self.lightness(ofGray: gray))
-      let opacity = dimming.opacity(forPageLightness: lightness)
-      let dimmed = try #require(Self.lightness(ofGray: gray * (1 - opacity)))
-      // Within the rounding of 8-bit grays.
-      #expect(abs(lightness - dimmed - 12) < 0.5, "gray \(gray)")
-    }
+  @Test func darkensDarkerPagesMore() {
+    #expect(abs(dimming.opacity(forPageLightness: 100) - 0.6) < 1e-9)
+    #expect(abs(dimming.opacity(forPageLightness: 50) - 0.65) < 1e-9)
+    #expect(abs(dimming.opacity(forPageLightness: 0) - 0.7) < 1e-9)
   }
 
-  @Test func blackensLessThanAWhitePageWouldTake() throws {
-    let white = dimming.opacity(forPageLightness: 100)
-    #expect(abs(white - 0.13) < 0.01)
-    #expect(dimming.opacity(forPageLightness: 50) > white)
-  }
-
-  @Test func stopsAtTheMostForDarkPages() {
-    #expect(dimming.opacity(forPageLightness: 11) == 0.45)
-    #expect(dimming.opacity(forPageLightness: 0) == 0.45)
+  @Test func staysBetweenItsOpacities() {
+    #expect(abs(dimming.opacity(forPageLightness: 120) - 0.6) < 1e-9)
+    #expect(abs(dimming.opacity(forPageLightness: -5) - 0.7) < 1e-9)
   }
 
   @Test func measuresAnImagesLightness() throws {

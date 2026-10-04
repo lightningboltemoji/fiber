@@ -278,7 +278,7 @@ final class MixedColorLabel: NSTextField {
 /// them doesn't let the page brighten.
 @MainActor
 final class PanelDimming: DimView {
-  private static let dimming = Dimming(drop: 60, maxOpacity: 0.45)
+  private static let opacity: Float = 0.45
 
   private(set) var isShown = false
 
@@ -286,20 +286,12 @@ final class PanelDimming: DimView {
     super.init(frame: frame)
     isHidden = true
     alphaValue = 0
-    setPageLightness(100)
+    setOpacity(Self.opacity, duration: 0)
   }
 
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is not supported")
-  }
-
-  /// Darkens it so that it dims a page whose mean L* is `lightness` by about
-  /// as much as any other (see Dimming).
-  func setPageLightness(_ lightness: Double) {
-    setOpacity(
-      Float(Self.dimming.opacity(forPageLightness: lightness)),
-      duration: isShown ? PaletteView.fadeInDuration : 0)
   }
 
   /// Fades in or out with the panels, from wherever it is now.

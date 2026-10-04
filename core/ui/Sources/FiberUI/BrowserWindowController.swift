@@ -68,8 +68,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Under the tab overlay, the omnibar and the command palette.
   private let panelDimming = PanelDimming()
   private var isPanelDimmingUpdateScheduled = false
-  /// The active tab's page's mean CIE L*, as last measured, for the dimming
-  /// over it.
+  /// The active tab's page's mean CIE L*, as last measured, for the tab
+  /// overlay's dimming over it.
   private var pageLightness: Double?
   /// Nil until first used (see makeOmnibar()).
   private var madeOmnibar: Omnibar?
@@ -454,47 +454,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
           return
         }
         self.isPanelDimmingUpdateScheduled = false
-        let shown =
+        self.panelDimming.setShown(
           self.tabOverlay.isOpen || self.madeOmnibar?.view.isShown == true
-          || self.commandPalette?.view.isShown == true
-        if shown && !self.panelDimming.isShown {
-          self.measurePageLightness()
-        }
-        self.panelDimming.setShown(shown)
+            || self.commandPalette?.view.isShown == true)
       }
     }
-  }
-
-  /// Darkens the panels' dimming and the veil for how light the page looks:
-  /// at once as it last did, or as the window's background, which shows until
-  /// the page draws (and the New Tab page matches), then as it does now.
-  private func measurePageLightness() {
-    applyPageLightness(pageLightness ?? windowBackgroundLightness)
-    let contentsView = contentsView
-    actions?.capturePageThumbnail { [weak self] thumbnail in
-      MainActor.assumeIsolated {
-        guard let self, self.contentsView === contentsView, let thumbnail,
-          let lightness = Dimming.lightness(of: thumbnail)
-        else {
-          return
-        }
-        self.pageLightness = lightness
-        self.applyPageLightness(lightness)
-      }
-    }
-  }
-
-  private func applyPageLightness(_ lightness: Double) {
-    panelDimming.setPageLightness(lightness)
-    veil.setPageLightness(lightness)
-  }
-
-  private var windowBackgroundLightness: Double {
-    var lightness: Double?
-    window.effectiveAppearance.performAsCurrentDrawingAppearance {
-      lightness = Dimming.lightness(of: window.backgroundColor)
-    }
-    return lightness ?? 100
   }
 
   /// Not while a prompt waits on the user, or the controls are hidden.
@@ -509,8 +473,36 @@ final class BrowserWindowController: NSObject, FiberWindow {
       tabPicker.close()
       madeOmnibar?.close()
       commandPalette?.close()
+      measurePageLightness()
       tabOverlay.open()
     }
+  }
+
+  /// Darkens the tab overlay's dimming for how light the page looks: at once
+  /// as it last did, or as the window's background, which shows until the
+  /// page draws (and the New Tab page matches), then as it does now.
+  private func measurePageLightness() {
+    tabOverlay.setPageLightness(pageLightness ?? windowBackgroundLightness)
+    let contentsView = contentsView
+    actions?.capturePageThumbnail { [weak self] thumbnail in
+      MainActor.assumeIsolated {
+        guard let self, self.contentsView === contentsView, let thumbnail,
+          let lightness = Dimming.lightness(of: thumbnail)
+        else {
+          return
+        }
+        self.pageLightness = lightness
+        self.tabOverlay.setPageLightness(lightness)
+      }
+    }
+  }
+
+  private var windowBackgroundLightness: Double {
+    var lightness: Double?
+    window.effectiveAppearance.performAsCurrentDrawingAppearance {
+      lightness = Dimming.lightness(of: window.backgroundColor)
+    }
+    return lightness ?? 100
   }
 
   /// Gives the active tab the keyboard back, unless a tab switched to or
@@ -615,7 +607,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // tab) until its host shows it; hidden, it never draws.
     view.isHidden = false
     pageView.addSubview(view, positioned: .below, relativeTo: newTabView)
-    if panelDimming.isShown || veil.amount > 0 {
+    if tabOverlay.isOpen {
       measurePageLightness()
     }
   }
@@ -827,11 +819,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     _ amount: CGFloat, duration: TimeInterval,
     timing: CAMediaTimingFunctionName = .easeInEaseOut
   ) {
-    let amount = prompt == nil ? amount : 1
-    if amount > 0, veil.amount == 0 {
-      measurePageLightness()
-    }
-    veil.setAmount(amount, duration: duration, timing: timing)
+    veil.setAmount(
+      prompt == nil ? amount : 1, duration: duration, timing: timing)
   }
 
   /// Shows `prompt` over the veil, in place of any other (whose onRemoved is
