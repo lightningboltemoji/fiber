@@ -72,6 +72,12 @@ Run the dev build on a throwaway profile:
   where `item.tag` is its `IDC_` value, or a main menu item with
   `menu.performActionForItem(at:)`. For the tab overlay, a delayed
   `toggleTabOverlay()`.
+- **Shortcuts, as a page gets them:** after `NSApp.activate()` (a page only
+  gets keys while its window is key), send a key event made with
+  `NSEvent(cgEvent:)` from `CGEvent(keyboardEventSource:virtualKey:keyDown:)`
+  through `NSApp.sendEvent(_:)`. AppKit's menu search matches an
+  `NSEvent.keyEvent` Command-S to Shift-Command-S's item. A local page that
+  writes the keys it gets into its title shows what reached it (`window.title`).
 - **Light appearance:** a temporary
   `NSApp.appearance = NSAppearance(named: .aqua)` in the same place. Don't pass
   `-NSRequiresAquaSystemAppearance YES`: Chrome opens `YES` as a URL.

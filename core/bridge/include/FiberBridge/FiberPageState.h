@@ -40,6 +40,7 @@ NS_SWIFT_SENDABLE
                            loading:(BOOL)loading
                         newTabPage:(BOOL)newTabPage
                             sadTab:(nullable FiberSadTab*)sadTab
+                    keyPassthrough:(BOOL)keyPassthrough
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
@@ -54,6 +55,8 @@ NS_SWIFT_SENDABLE
 @property(readonly) BOOL isNewTabPage;
 // The page's renderer is gone; the window draws this in its place.
 @property(readonly, nullable) FiberSadTab* sadTab;
+// The tab has key passthrough (see FiberCommandKeyPassthrough).
+@property(readonly) BOOL hasKeyPassthrough;
 
 @end
 

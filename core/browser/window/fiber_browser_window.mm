@@ -6,6 +6,8 @@
 #include <utility>
 
 #import "FiberBridge/FiberBridge.h"
+#include "base/apple/foundation_util.h"
+#include "base/apple/owned_objc.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
@@ -19,6 +21,7 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -60,8 +63,11 @@
 #import "fiber/browser/window/fiber_browser_window_actions.h"
 #include "fiber/browser/window/fiber_location_bar.h"
 #include "fiber/browser/window/fiber_main_menu.h"
+#include "fiber/browser/window/key_passthrough.h"
 #include "fiber/browser/window/page_thumbnail.h"
 #include "fiber/browser/window/tab_state.h"
+#import "ui/base/cocoa/command_dispatcher.h"
+#import "ui/base/cocoa/nsmenu_additions.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/color/color_provider_manager.h"
@@ -420,6 +426,62 @@ void FiberBrowserWindow::OnCommandPaletteOpened() {
   }
 }
 
+bool FiberBrowserWindow::PerformReservedKeyEquivalent(NSEvent* event) {
+  NSView* focus = base::apple::ObjCCast<NSView>(GetNSWindow().firstResponder);
+  const bool in_tab = focus && IsInActiveTab(focus);
+  if (!in_tab && !FiberExtensionWindow::IsActiveOver(this)) {
+    return false;
+  }
+  // As in Chrome, a fullscreen page that locked the keyboard gets them all.
+  if ([focus respondsToSelector:@selector(isKeyLocked:)] &&
+      [static_cast<id<CommandDispatcherTarget>>(focus) isKeyLocked:event]) {
+    return false;
+  }
+  NSMenuItem* item = [NSApp.mainMenu cr_menuItemForKeyEquivalentEvent:event];
+  if (!item) {
+    return false;
+  }
+  if (IsPassthroughItem(item)) {
+    if (in_tab && HasKeyPassthrough(GetActiveWebContents())) {
+      return false;
+    }
+  } else {
+    CommandForKeyEventResult command = CommandForKeyEvent(event);
+    if (!command.found() ||
+        !chrome::BrowserCommandController::From(browser_)
+             ->IsReservedCommandOrKey(
+                 command.chrome_command,
+                 input::NativeWebKeyboardEvent(
+                     base::apple::OwnedNSEvent(event)))) {
+      return false;
+    }
+  }
+  // A disabled item's shortcut goes to the page.
+  [item.menu update];
+  if (!item.enabled) {
+    return false;
+  }
+  [item.menu performActionForItemAtIndex:[item.menu indexOfItem:item]];
+  return true;
+}
+
+bool FiberBrowserWindow::CanStartKeyPassthrough() const {
+  content::WebContents* contents = GetActiveWebContents();
+  return contents && !IsNewTabPage(contents) && !HasKeyPassthrough(contents);
+}
+
+void FiberBrowserWindow::SetKeyPassthrough(bool on) {
+  content::WebContents* contents = GetActiveWebContents();
+  if (!contents) {
+    return;
+  }
+  if (!on) {
+    EndKeyPassthrough(contents);
+  } else if (CanStartKeyPassthrough()) {
+    StartKeyPassthrough(contents);
+  }
+}
+
 void FiberBrowserWindow::CapturePageThumbnail(
     void (^completion)(CGImageRef thumbnail)) {
   fiber::CapturePageThumbnail(GetActiveWebContents(), completion);
@@ -434,6 +496,18 @@ bool FiberBrowserWindow::IsInActivePage(NSView* view) const {
   content::WebContents* contents = GetActiveWebContents();
   return contents &&
          [view isDescendantOf:contents->GetNativeView().GetNativeNSView()];
+}
+
+bool FiberBrowserWindow::IsInActiveTab(NSView* view) const {
+  if (IsInActivePage(view)) {
+    return true;
+  }
+  DevToolsContentsResizingStrategy strategy;
+  content::WebContents* active = GetActiveWebContents();
+  content::WebContents* devtools =
+      active ? DevToolsWindow::GetInTabWebContents(active, &strategy) : nullptr;
+  return devtools &&
+         [view isDescendantOf:devtools->GetNativeView().GetNativeNSView()];
 }
 
 void FiberBrowserWindow::ActivateTab(content::WebContents* web_contents) {
@@ -660,7 +734,8 @@ void FiberBrowserWindow::UpdatePageState() {
                                    loading:active->IsLoading()
                                 newTabPage:IsNewTabPage(active)
                                     sadTab:sad_tab ? SadTabState(*sad_tab)
-                                                   : nil]];
+                                                   : nil
+                            keyPassthrough:HasKeyPassthrough(active)]];
 }
 
 void FiberBrowserWindow::UpdateDevTools() {
@@ -803,14 +878,15 @@ void FiberBrowserWindow::HandleDragEnded() {}
 content::KeyboardEventProcessingResult
 FiberBrowserWindow::PreHandleKeyboardEvent(
     const input::NativeWebKeyboardEvent& event) {
-  // The page sees keys first; HandleKeyboardEvent() gets what it doesn't use.
+  // Reserved keys never get here (see PerformReservedKeyEquivalent()). The
+  // page sees the rest first; HandleKeyboardEvent() gets what it doesn't use.
   return content::KeyboardEventProcessingResult::NOT_HANDLED;
 }
 
 bool FiberBrowserWindow::HandleKeyboardEvent(
     const input::NativeWebKeyboardEvent& event) {
   // Give keys the page didn't handle to the main menu, so shortcuts like
-  // Cmd-L work while the page has focus.
+  // Cmd-F work while the page has focus.
   if (event.skip_if_unhandled ||
       event.GetType() == input::NativeWebKeyboardEvent::Type::kChar) {
     return false;

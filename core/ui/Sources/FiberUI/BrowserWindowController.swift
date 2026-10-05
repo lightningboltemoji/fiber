@@ -108,6 +108,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let sadTabView = SadTabView()
   /// Over the page, under the tab picker.
   private let extensionBubbles = ExtensionBubbles()
+  /// Over the page while the active tab has key passthrough.
+  private let keyPassthroughBubble = KeyPassthroughBubble()
+  fileprivate private(set) var hasKeyPassthrough = false
   /// Whose browser the user is in: the window's, or an extension window's,
   /// while its page has focus.
   private var activeBrowser = ActiveBrowser.none
@@ -285,7 +288,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
     extensionBubbles.autoresizingMask = [.width, .height]
     extensionBubbles.onFocusPage = { [weak self] in self?.actions?.focusPage() }
     extensionBubbles.onRemove = { [weak self] in self?.updateActiveBrowser() }
+    extensionBubbles.keepClear = { [weak self] in
+      self?.extensionBubblesKeepClear() ?? []
+    }
     controlsView.addSubview(extensionBubbles)
+
+    keyPassthroughBubble.place(in: controlsView.bounds)
+    keyPassthroughBubble.autoresizingMask = [.minXMargin, .minYMargin]
+    keyPassthroughBubble.onEnd = { [weak self] in
+      self?.actions?.endKeyPassthrough()
+    }
+    controlsView.addSubview(keyPassthroughBubble)
 
     placeOpenedTabNotice(animated: false)
     openedTabNotice.autoresizingMask = [.minXMargin, .minYMargin]
@@ -386,22 +399,38 @@ final class BrowserWindowController: NSObject, FiberWindow {
     guard let findBar = madeFindBar, let container = findBar.superview else {
       return
     }
-    let bounds = container.bounds
-    let top = bounds.maxY - Self.edgeInset
-    let width = min(FindBar.width, bounds.width - 2 * Self.edgeInset)
-    let frame = NSRect(
-      x: bounds.maxX - Self.edgeInset - width, y: top - FindBar.height,
-      width: width, height: FindBar.height)
+    let frame = Self.findBarFrame(in: container.bounds)
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animated ? 0.3 : 0
       context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
       findBar.animator().frame = frame
     }
-    extensionBubbles.setKeepClear(
-      findBar.isOpen
-        ? extensionBubbles.convert(frame, from: container) : .null,
-      animated: animated)
+    extensionBubbles.keepClearDidChange(animated: animated)
     placeOpenedTabNotice(animated: animated)
+  }
+
+  private static func findBarFrame(in bounds: NSRect) -> NSRect {
+    let width = min(FindBar.width, bounds.width - 2 * edgeInset)
+    return NSRect(
+      x: bounds.maxX - edgeInset - width,
+      y: bounds.maxY - edgeInset - FindBar.height, width: width,
+      height: FindBar.height)
+  }
+
+  /// The open find bar and the key passthrough bubble, worked out from the
+  /// bounds, which may be resizing.
+  private func extensionBubblesKeepClear() -> [NSRect] {
+    guard let container = extensionBubbles.superview else {
+      return []
+    }
+    var rects: [NSRect] = []
+    if madeFindBar?.isOpen == true {
+      rects.append(Self.findBarFrame(in: container.bounds))
+    }
+    if keyPassthroughBubble.isShown {
+      rects.append(KeyPassthroughBubble.capsuleFrame(in: container.bounds))
+    }
+    return rects.map { extensionBubbles.convert($0, from: container) }
   }
 
   /// In the top-right corner, below the find bar while it's open.
@@ -680,6 +709,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     sadTabView.isHidden = state.sadTab == nil
     tabOverlay.setAddress(state.displayURL)
+    if state.hasKeyPassthrough != hasKeyPassthrough {
+      hasKeyPassthrough = state.hasKeyPassthrough
+      updateKeyPassthroughBubble()
+    }
   }
 
   func showPage() {
@@ -772,7 +805,39 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     tabPicker.isHidden = !isVisible
     extensionBubbles.isHidden = !isVisible
+    updateKeyPassthroughBubble()
     updatePageCorners()
+  }
+
+  /// Not while the controls are hidden.
+  private func updateKeyPassthroughBubble() {
+    let shows = hasKeyPassthrough && areControlsVisible
+    guard shows != keyPassthroughBubble.isShown else {
+      return
+    }
+    keyPassthroughBubble.setShown(shows)
+    extensionBubbles.keepClearDidChange(animated: true)
+  }
+
+  fileprivate func toggleKeyPassthrough() {
+    if hasKeyPassthrough {
+      actions?.endKeyPassthrough()
+    } else {
+      actions?.run(.keyPassthrough)
+    }
+  }
+
+  /// Holding Escape ends the active tab's key passthrough. The page gets the
+  /// key too.
+  fileprivate func escapeKeyDidChange(_ event: NSEvent) {
+    if event.type == .keyUp {
+      keyPassthroughBubble.releaseEscape()
+    } else if !event.isARepeat,
+      event.modifierFlags.isDisjoint(
+        with: [.command, .option, .control, .shift])
+    {
+      keyPassthroughBubble.holdEscape()
+    }
   }
 
   /// Rounds the page and DevTools like the window. A fullscreen page, an
@@ -1137,6 +1202,11 @@ extension BrowserWindowController: NSWindowDelegate {
     updateActiveBrowser()
   }
 
+  // Its key-up goes elsewhere.
+  func windowDidResignKey(_ notification: Notification) {
+    keyPassthroughBubble.releaseEscape()
+  }
+
   func windowWillEnterFullScreen(_ notification: Notification) {
     updateWindowControls(animated: false)
     updatePageCorners(windowFullScreen: true)
@@ -1160,8 +1230,28 @@ extension BrowserWindowController: NSWindowDelegate {
 /// window's actions, so the main menu acts on this window's browser while
 /// it's key. Show Tabs (-toggleToolbarShown:) toggles the tab overlay.
 private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
+  /// kVK_Escape.
+  private static let escapeKeyCode: UInt16 = 0x35
+
   weak var menuActionTarget: (any FiberWindowActions)?
   weak var controller: BrowserWindowController?
+
+  // Before the page with focus sees the shortcut.
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if menuActionTarget?.performReservedKeyEquivalent(event) == true {
+      return true
+    }
+    return super.performKeyEquivalent(with: event)
+  }
+
+  override func sendEvent(_ event: NSEvent) {
+    if event.type == .keyDown || event.type == .keyUp,
+      event.keyCode == Self.escapeKeyCode
+    {
+      controller?.escapeKeyDidChange(event)
+    }
+    super.sendEvent(event)
+  }
 
   override func toggleToolbarShown(_ sender: Any?) {
     controller?.toggleTabOverlay()
@@ -1180,6 +1270,10 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
     controller?.toggleCommandPalette()
   }
 
+  func toggleKeyPassthrough(_ sender: Any?) {
+    controller?.toggleKeyPassthrough()
+  }
+
   override func validateMenuItem(_ item: NSMenuItem) -> Bool {
     switch item.action {
     case #selector(toggleToolbarShown(_:)):
@@ -1188,6 +1282,10 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
       return isOpen || controller?.canShowTabOverlay == true
     case #selector(toggleCommandPalette(_:)):
       return controller?.canShowCommandPalette ?? false
+    case #selector(toggleKeyPassthrough(_:)):
+      let isOn = controller?.hasKeyPassthrough ?? false
+      item.state = isOn ? .on : .off
+      return isOn || menuActionTarget?.canRun(.keyPassthrough) == true
     default:
       return super.validateMenuItem(item)
     }

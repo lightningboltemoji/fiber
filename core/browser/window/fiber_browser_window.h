@@ -19,6 +19,7 @@
 #include "ui/gfx/native_ui_types.h"
 
 @class FiberBrowserWindowActions;
+@class NSEvent;
 @class NSView;
 @class NSWindow;
 @protocol FiberExtensionWindow;
@@ -88,6 +89,12 @@ class FiberBrowserWindow : public BrowserWindow,
   // The window's pins and their tabs; null if its profile has none.
   PinnedTabs* pinned_tabs() const { return pinned_tabs_.get(); }
   void OnCommandPaletteOpened();
+  // Runs `event`'s main menu item ahead of the page with focus if it's a
+  // shortcut pages don't get (see FiberWindowActions). Returns whether it ran.
+  bool PerformReservedKeyEquivalent(NSEvent* event);
+  // The active tab's key passthrough (see key_passthrough.h).
+  bool CanStartKeyPassthrough() const;
+  void SetKeyPassthrough(bool on);
   // A small image of the active tab's page, for the UI's dimming over it.
   void CapturePageThumbnail(void (^completion)(CGImageRef thumbnail));
   void OnWindowCloseRequested();
@@ -287,6 +294,8 @@ class FiberBrowserWindow : public BrowserWindow,
 
   NSWindow* GetNSWindow() const;
   content::WebContents* GetActiveWebContents() const;
+  // Whether `view` is in the active tab's page or its docked DevTools.
+  bool IsInActiveTab(NSView* view) const;
   void UpdateLoadProgress();
   // Sends the UI the tab list, in tab strip order, and the pins.
   void UpdateTabs();

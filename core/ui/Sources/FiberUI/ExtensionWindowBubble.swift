@@ -10,7 +10,7 @@ final class ExtensionBubbles: NSView {
   static let margin: CGFloat = 16
   /// A new bubble's distance from the top of the page, below where the find
   /// bar goes.
-  private static let firstTop =
+  static let firstTop =
     margin + GlassCapsule.height + GlassCapsule.spacing
   private static let spacing: CGFloat = 12
 
@@ -18,10 +18,11 @@ final class ExtensionBubbles: NSView {
   var onFocusPage: () -> Void = {}
   /// Called when a bubble goes, and focus may have gone with it.
   var onRemove: () -> Void = {}
+  /// What the bubbles move down out of the way of (in this view), like the
+  /// open find bar.
+  var keepClear: () -> [NSRect] = { [] }
 
   private var bubbles: [ExtensionWindowBubble] = []
-  /// The open find bar's frame, which the bubbles move down out of the way of.
-  private var keepClear = NSRect.null
 
   override var isFlipped: Bool { true }
 
@@ -38,18 +39,14 @@ final class ExtensionBubbles: NSView {
     let bubble = ExtensionWindowBubble(
       actions: actions, container: self, center: freeSpot())
     bubbles.append(bubble)
-    // Again now that it's listed, so it keeps clear of the find bar.
+    // Again now that it's listed, which keeping clear needs.
     bubble.layout()
     return bubble
   }
 
-  /// Moves the bubbles out of the way of `rect` (in this view), or with
-  /// .null, back where they were.
-  func setKeepClear(_ rect: NSRect, animated: Bool) {
-    guard rect != keepClear else {
-      return
-    }
-    keepClear = rect
+  /// What keepClear gives changed: the bubbles move out of its way, or back
+  /// where they were.
+  func keepClearDidChange(animated: Bool) {
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animated ? 0.3 : 0
       context.allowsImplicitAnimation = animated
@@ -64,16 +61,17 @@ final class ExtensionBubbles: NSView {
   }
 
   /// Where `bubble`'s circle goes: where it wants to be, unless that's in the
-  /// way of the find bar or a bubble moved for it.
+  /// way of what it keeps clear of or a bubble moved for it.
   fileprivate func circleCenter(for bubble: ExtensionWindowBubble) -> NSPoint {
-    guard !keepClear.isNull,
+    let obstacles = keepClear()
+    guard !obstacles.isEmpty,
       let index = bubbles.firstIndex(where: { $0 === bubble })
     else {
       return bubble.wantedCircleCenter
     }
     return ExtensionBubbleLayout.centers(
       bubbles.map(\.wantedCircleCenter),
-      radius: ExtensionBubbleView.diameter / 2, clearOf: keepClear,
+      radius: ExtensionBubbleView.diameter / 2, clearOf: obstacles,
       spacing: Self.spacing)[index]
   }
 
@@ -97,18 +95,23 @@ final class ExtensionBubbles: NSView {
     onRemove()
   }
 
-  /// Down the page's right edge from the top, past the bubbles already there.
+  /// Down the page's right edge from the top, past the bubbles and what they
+  /// keep clear of.
   private func freeSpot() -> NSPoint {
     let radius = ExtensionBubbleView.diameter / 2
     var center = NSPoint(
       x: bounds.maxX - Self.margin - radius,
       y: bounds.minY + Self.firstTop + radius)
     let step = ExtensionBubbleView.size.height + Self.spacing
+    let obstacles = keepClear()
     func isTaken(_ point: NSPoint) -> Bool {
-      bubbles.contains {
+      let circle = NSRect(
+        x: point.x - radius, y: point.y - radius, width: 2 * radius,
+        height: 2 * radius)
+      return bubbles.contains {
         $0.circleFrame.insetBy(dx: -Self.spacing, dy: -Self.spacing)
           .contains(point)
-      }
+      } || obstacles.contains { $0.intersects(circle) }
     }
     while isTaken(center), center.y + step < bounds.maxY - Self.margin {
       center.y += step
@@ -146,10 +149,11 @@ enum ExtensionBubbleLayout {
     max(low, min(value, high))
   }
 
-  /// The circles at `centers`, those in the way of `obstacle` moved down below
-  /// it, and those then in the way of a moved one below that, `spacing` apart.
+  /// The circles at `centers`, those in the way of `obstacles` moved down
+  /// below them, and those then in the way of a moved one below that,
+  /// `spacing` apart.
   static func centers(
-    _ centers: [NSPoint], radius: CGFloat, clearOf obstacle: NSRect,
+    _ centers: [NSPoint], radius: CGFloat, clearOf obstacles: [NSRect],
     spacing: CGFloat
   ) -> [NSPoint] {
     func circle(_ center: NSPoint) -> NSRect {
@@ -157,7 +161,7 @@ enum ExtensionBubbleLayout {
         x: center.x - radius, y: center.y - radius, width: 2 * radius,
         height: 2 * radius)
     }
-    var obstacles = [obstacle]
+    var obstacles = obstacles
     var result = centers
     for index in centers.indices.sorted(by: { centers[$0].y < centers[$1].y }) {
       var center = centers[index]
@@ -322,7 +326,7 @@ final class ExtensionWindowBubble: NSObject, FiberExtensionWindow {
   }
 
   /// Puts the bubble where its anchor says, within the page and out of the
-  /// find bar's way, and its panel beside it.
+  /// way of what bubbles keep clear of, and its panel beside it.
   func layout() {
     guard let container else {
       return
@@ -584,9 +588,9 @@ final class ExtensionBubbleView: NSView {
   static let closeOffset: CGFloat = 32
   /// The capsule's size.
   static let size = NSSize(width: diameter, height: diameter + closeOffset)
-  fileprivate static let rimWidth: CGFloat = 5
+  static let rimWidth: CGFloat = 5
   /// Around the capsule, for its shadow.
-  private static let shadowRoom: CGFloat = 24
+  static let shadowRoom: CGFloat = 24
   /// How far the pointer moves before a press becomes a drag.
   private static let dragThreshold: CGFloat = 3
 

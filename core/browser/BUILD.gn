@@ -125,6 +125,8 @@ source_set("browser") {
     "window/fiber_main_menu.h",
     "window/fiber_main_menu.mm",
     "window/fiber_sad_tab.mm",
+    "window/key_passthrough.h",
+    "window/key_passthrough.mm",
     "window/page_thumbnail.h",
     "window/page_thumbnail.mm",
     "window/tab_state.h",

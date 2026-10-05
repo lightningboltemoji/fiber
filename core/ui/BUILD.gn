@@ -21,6 +21,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/GlassCapsule.swift",
     "Sources/FiberUI/HistorySwipe.swift",
     "Sources/FiberUI/JavaScriptDialog.swift",
+    "Sources/FiberUI/KeyPassthroughBubble.swift",
     "Sources/FiberUI/LoadProgressBar.swift",
     "Sources/FiberUI/NewTabView.swift",
     "Sources/FiberUI/Omnibar.swift",

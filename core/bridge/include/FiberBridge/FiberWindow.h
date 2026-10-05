@@ -16,6 +16,9 @@ typedef NS_ENUM(NSInteger, FiberCommand) {
   FiberCommandNewTab,
   // Prints the active tab's page, with the system's print panel.
   FiberCommandPrint,
+  // Lets the active tab's page and its DevTools have Command-S, Command-P and
+  // Command-L until the user ends it or the tab goes to another site.
+  FiberCommandKeyPassthrough,
 };
 
 typedef NS_ENUM(NSInteger, FiberHistorySwipeDirection) {
@@ -65,6 +68,11 @@ NS_SWIFT_UI_ACTOR
 - (void)movePinWithID:(NSString*)pinID toIndex:(NSInteger)index;
 - (BOOL)canRunCommand:(FiberCommand)command;
 - (void)runCommand:(FiberCommand)command;
+- (void)endKeyPassthrough;
+// The window offers each key equivalent here before its views see it. While
+// web content has focus, runs the shortcuts pages don't get (Chrome's reserved
+// ones, and Fiber's unless the tab has key passthrough) and returns YES.
+- (BOOL)performReservedKeyEquivalent:(NSEvent*)event;
 // The command palette opened. The active tab's page text may have changed
 // since it was last read.
 - (void)commandPaletteDidOpen;
@@ -88,6 +96,8 @@ NS_SWIFT_UI_ACTOR
 
 // Opens the command palette, or closes it if it's open.
 - (void)toggleCommandPalette:(nullable id)sender;
+// Starts or ends the active tab's key passthrough.
+- (void)toggleKeyPassthrough:(nullable id)sender;
 
 @end
 

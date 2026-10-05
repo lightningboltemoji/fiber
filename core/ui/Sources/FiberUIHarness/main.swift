@@ -6,6 +6,7 @@
 // `--incognito` (the first window is Incognito, on the New Tab page),
 // `--pins N` (made-up pinned sites, the first two open),
 // `--overlay` (the tab overlay, as Command-S opens it),
+// `--key-passthrough` (the active tab has key passthrough),
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page),
 // `--slow-motion N` (animations N times slower). Its own controls (see
 // HarnessControls) sit beside the window last used.
@@ -70,6 +71,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     }
     if CommandLine.arguments.contains("--extension-window") {
       browsers.last?.simulateExtensionWindow(nil)
+    }
+    if CommandLine.arguments.contains("--key-passthrough") {
+      browsers.last?.run(.keyPassthrough)
     }
     if CommandLine.arguments.contains("--profiles") {
       switchProfile(nil)
@@ -335,6 +339,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         item(
           "Command Palette",
           #selector(FiberWindowMenuActions.toggleCommandPalette(_:)), "p"),
+        item(
+          "Key Passthrough",
+          #selector(FiberWindowMenuActions.toggleKeyPassthrough(_:))),
         item("Reload Page", #selector(MockBrowser.reloadPage(_:)), "r"),
         item("Simulate Swipe Back", #selector(MockBrowser.simulateSwipeBack(_:)), "["),
         item(

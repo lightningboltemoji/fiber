@@ -124,6 +124,7 @@ Each surface Fiber replaces, and where it lives:
 | Extensions' buttons (in the tab overlay), menu and popups | `browser/extensions/` | `Extensions.swift`, `ExtensionsMenu.swift` |
 | Windows extensions open (`chrome.windows.create` popups), as bubbles over the page | `browser/extensions/fiber_extension_window.mm` | `ExtensionWindowBubble.swift` |
 | Swiping between pages | `browser/swipe/` | `HistorySwipe.swift` |
+| Key passthrough: the active tab's page gets ⌘S, ⌘P and ⌘L (see [Keyboard shortcuts](#keyboard-shortcuts)) | `browser/window/key_passthrough.mm` | `KeyPassthroughBubble.swift` |
 | DevTools, docked at the bottom or right of the window. The window's controls lay out over the page as if it were the window, and hide while DevTools emulates a device. DevTools' dock menu offers neither left nor a window of its own (patches in `third_party/devtools-frontend`) | `hooks/devtools_dock.mm`, `browser/window/` | `BrowserWindowController.swift` |
 | A page whose renderer crashed or was killed (Chrome's sad tab), drawn over it | `browser/window/fiber_sad_tab.mm` | `SadTabView.swift` |
 | The page's scrollbar, clear of the tab picker | `renderer/hooks/` | |
@@ -158,6 +159,34 @@ the rest, and what's still broken):
   disabled-extension alert and side panels.
 - **Still calling home:** the component updater, push messaging, autofill
   crowdsourcing and Google account checks.
+
+## Keyboard shortcuts
+
+The page with focus sees a key before the main menu, except for shortcuts the
+browser keeps from it, which no page can swallow, even a hung one. The window
+offers each key equivalent to
+`FiberBrowserWindow::PerformReservedKeyEquivalent()` before its views see it
+(where Chrome's own Mac windows reserve keys, in their `CommandDispatcher`).
+While a page, DevTools or an extension window has focus, that runs the main
+menu item itself for:
+
+- Chrome's reserved commands (`IsReservedCommandOrKey()`): ⌘W, ⌘T, ⌘N, ⌘Q,
+  ⇧⌘T, switching tabs.
+- Fiber's ⌘S, ⌘P and ⌘L (Show Tabs, Command Palette, Open Location), unless
+  the tab has key passthrough.
+
+A disabled item's shortcut still goes to the page, as does every key while a
+fullscreen page holds the keyboard lock. Other shortcuts (⌘F, ⌘R…) go to the
+page first and reach the menu only if it doesn't use them
+(`HandleKeyboardEvent()`).
+
+**Key passthrough** (View › Key Passthrough, or the command palette) lets the
+active tab's page and its DevTools have ⌘S, ⌘P and ⌘L, for web apps that use
+them, like an editor's Save and Quick Open. It belongs to the tab and ends when
+the tab goes to another site (`window/key_passthrough.mm`). Meanwhile a bubble
+in the page's top-right corner, where extension windows' bubbles start (they
+move below it), ends it with its ×, or when Escape is held for a second, as a
+ring around its keyboard fills. A tap of Escape still goes to the page.
 
 ## Tabs and spaces
 

@@ -26,6 +26,9 @@ int CommandID(FiberCommand command) {
       return IDC_NEW_TAB;
     case FiberCommandPrint:
       return IDC_PRINT;
+    // Fiber's own (see -runCommand:).
+    case FiberCommandKeyPassthrough:
+      break;
   }
   NOTREACHED();
 }
@@ -157,12 +160,34 @@ int CommandID(FiberCommand command) {
 }
 
 - (BOOL)canRunCommand:(FiberCommand)command {
-  return _owner && _owner->IsCommandEnabled(CommandID(command));
+  if (!_owner) {
+    return NO;
+  }
+  if (command == FiberCommandKeyPassthrough) {
+    return _owner->CanStartKeyPassthrough();
+  }
+  return _owner->IsCommandEnabled(CommandID(command));
 }
 
 - (void)runCommand:(FiberCommand)command {
+  if (command == FiberCommandKeyPassthrough) {
+    if (_owner) {
+      _owner->SetKeyPassthrough(true);
+    }
+    return;
+  }
   [self executeCommand:CommandID(command)
            disposition:WindowOpenDisposition::CURRENT_TAB];
+}
+
+- (void)endKeyPassthrough {
+  if (_owner) {
+    _owner->SetKeyPassthrough(false);
+  }
+}
+
+- (BOOL)performReservedKeyEquivalent:(NSEvent*)event {
+  return _owner && _owner->PerformReservedKeyEquivalent(event);
 }
 
 - (void)commandPaletteDidOpen {

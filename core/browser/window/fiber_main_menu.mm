@@ -54,9 +54,14 @@ void InstallMainMenuItems() {
       [[NSMenuItem alloc] initWithTitle:@"Command Palette"
                                  action:@selector(toggleCommandPalette:)
                           keyEquivalent:@"p"];
+  NSMenuItem* key_passthrough =
+      [[NSMenuItem alloc] initWithTitle:@"Key Passthrough"
+                                 action:@selector(toggleKeyPassthrough:)
+                          keyEquivalent:@""];
   [view_menu insertItem:show_tabs atIndex:0];
   [view_menu insertItem:command_palette atIndex:1];
-  [view_menu insertItem:NSMenuItem.separatorItem atIndex:2];
+  [view_menu insertItem:key_passthrough atIndex:2];
+  [view_menu insertItem:NSMenuItem.separatorItem atIndex:3];
 
   // Opens Fiber's profile switcher. ProfileMenuController, which fills the
   // Profiles menu later or already has, keeps its profiles above the first
@@ -83,6 +88,12 @@ void InstallMainMenuItems() {
       [profiles_menu insertItem:NSMenuItem.separatorItem atIndex:separator + 2];
     }
   }
+}
+
+bool IsPassthroughItem(NSMenuItem* item) {
+  return item.action == @selector(toggleToolbarShown:) ||
+         item.action == @selector(toggleCommandPalette:) ||
+         item.tag == IDC_FOCUS_LOCATION;
 }
 
 }  // namespace fiber

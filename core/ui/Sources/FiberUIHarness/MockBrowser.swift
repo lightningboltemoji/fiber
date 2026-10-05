@@ -228,7 +228,12 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   func canRun(_ command: FiberCommand) -> Bool {
-    true
+    switch command {
+    case .keyPassthrough:
+      activeTab.url != Self.newTabURL && activeTab.keyPassthroughHost == nil
+    default:
+      true
+    }
   }
 
   func run(_ command: FiberCommand) {
@@ -238,9 +243,25 @@ final class MockBrowser: NSObject, FiberWindowActions {
     case .print:
       NSPrintOperation(view: activeTab.page).runModal(
         for: ui.window, delegate: nil, didRun: nil, contextInfo: nil)
+    case .keyPassthrough:
+      guard canRun(command) else {
+        return
+      }
+      activeTab.keyPassthroughHost = URL(string: activeTab.url)?.host() ?? ""
+      pushPageState()
     @unknown default:
       break
     }
+  }
+
+  func endKeyPassthrough() {
+    activeTab.keyPassthroughHost = nil
+    pushPageState()
+  }
+
+  // The mock's pages take no keys.
+  func performReservedKeyEquivalent(_ event: NSEvent) -> Bool {
+    false
   }
 
   func commandPaletteDidOpen() {}
@@ -652,6 +673,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
       dialog?.close()
     }
     madeFindBar?.pageWillChange(in: tab)
+    // Key passthrough ends on another site.
+    if let host = tab.keyPassthroughHost, URL(string: tab.url)?.host() != host {
+      tab.keyPassthroughHost = nil
+    }
     tab.loadTimer?.invalidate()
     tab.loadStart = Date()
     tab.page.show(url: tab.url, loaded: false)
@@ -707,7 +732,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
         displayURL: isNewTabPage ? "" : host, title: tab.page.title,
         canGoBack: tab.index > 0,
         canGoForward: tab.index < tab.history.count - 1,
-        loading: tab.isLoading, newTabPage: isNewTabPage, sadTab: nil))
+        loading: tab.isLoading, newTabPage: isNewTabPage, sadTab: nil,
+        keyPassthrough: tab.keyPassthroughHost != nil))
   }
 
   /// The window's tabs, as the UI shows them.
@@ -790,6 +816,8 @@ final class MockTab: Equatable {
   var loadStart: Date?
   var loadTimer: Timer?
   var lastActive = Date()
+  /// Where the tab was when key passthrough started, while it has it.
+  var keyPassthroughHost: String?
 
   init() {
     Self.lastID += 1

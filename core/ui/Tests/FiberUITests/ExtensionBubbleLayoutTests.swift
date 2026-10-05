@@ -96,13 +96,22 @@ struct ExtensionBubbleLayoutTests {
 
   private func clear(_ centers: [NSPoint]) -> [NSPoint] {
     ExtensionBubbleLayout.centers(
-      centers, radius: 22, clearOf: findBar, spacing: 12)
+      centers, radius: 22, clearOf: [findBar], spacing: 12)
   }
 
   @Test func movesBelowTheFindBarAndPushesTheNextOne() {
     #expect(
       clear([NSPoint(x: 962, y: 174), NSPoint(x: 962, y: 86)])
         == [NSPoint(x: 962, y: 202), NSPoint(x: 962, y: 146)])
+  }
+
+  @Test func movesBelowEachInTurn() {
+    // Below the find bar, into a capsule as tall as a bubble's, then below it.
+    let capsule = NSRect(x: 940, y: 64, width: 44, height: 76)
+    #expect(
+      ExtensionBubbleLayout.centers(
+        [NSPoint(x: 962, y: 86)], radius: 22, clearOf: [findBar, capsule],
+        spacing: 12) == [NSPoint(x: 962, y: 174)])
   }
 
   @Test func leavesTheRestWhereTheyAre() {

@@ -31,11 +31,12 @@ import Foundation
   let isLoading: Bool
   let isNewTabPage: Bool
   let sadTab: FiberSadTab?
+  let hasKeyPassthrough: Bool
 
-  @objc(initWithDisplayURL:title:canGoBack:canGoForward:loading:newTabPage:sadTab:)
+  @objc(initWithDisplayURL:title:canGoBack:canGoForward:loading:newTabPage:sadTab:keyPassthrough:)
   init(
     displayURL: String, title: String, canGoBack: Bool, canGoForward: Bool,
-    loading: Bool, newTabPage: Bool, sadTab: FiberSadTab?
+    loading: Bool, newTabPage: Bool, sadTab: FiberSadTab?, keyPassthrough: Bool
   ) {
     self.displayURL = displayURL
     self.title = title
@@ -44,6 +45,7 @@ import Foundation
     self.isLoading = loading
     self.isNewTabPage = newTabPage
     self.sadTab = sadTab
+    self.hasKeyPassthrough = keyPassthrough
     super.init()
   }
 }

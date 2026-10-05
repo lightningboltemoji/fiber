@@ -15,11 +15,13 @@ the browser.
   has the query, each with the words around the match.
 - **Return** switches to a tab (bringing its window forward), or switches to
   it and selects the match in the page, or runs a command.
-- **Commands** are New Tab and Print… (`FiberCommand`, which `browser/` maps
-  to Chrome's command IDs).
+- **Commands** are New Tab, Print… and Key Passthrough (`FiberCommand`,
+  which `browser/` maps to Chrome's command IDs, but for Key Passthrough,
+  which is Fiber's own).
 - **Opening it**: View > Command Palette (Command-P), which the window
-  handles (`FiberWindowMenuActions`). Pages see Command-P first, as they do
-  every shortcut. Chrome's Search Tabs command opens the palette too.
+  handles (`FiberWindowMenuActions`). Pages never see Command-P, unless their
+  tab has key passthrough (see [IMPLEMENTATION.md](IMPLEMENTATION.md#keyboard-shortcuts)).
+  Chrome's Search Tabs command opens the palette too.
 - **Print** moves to Option-Command-P and goes straight to macOS's print
   panel (`kPrintPreviewDisabled` defaults to true in
   `hooks/profile_pref_defaults.cc`), so Print Using System Dialog is gone.

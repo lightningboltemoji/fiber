@@ -5,11 +5,13 @@ import FiberBridge
 enum PaletteCommand: CaseIterable, Hashable {
   case newTab
   case print
+  case keyPassthrough
 
   var command: FiberCommand {
     switch self {
     case .newTab: .newTab
     case .print: .print
+    case .keyPassthrough: .keyPassthrough
     }
   }
 
@@ -17,6 +19,7 @@ enum PaletteCommand: CaseIterable, Hashable {
     switch self {
     case .newTab: "New Tab"
     case .print: "Print…"
+    case .keyPassthrough: "Key Passthrough"
     }
   }
 
@@ -25,6 +28,7 @@ enum PaletteCommand: CaseIterable, Hashable {
     switch self {
     case .newTab: ["Open Tab"]
     case .print: ["PDF", "Save as PDF"]
+    case .keyPassthrough: ["Pass Keys to Page", "Keyboard Shortcuts"]
     }
   }
 
@@ -32,14 +36,16 @@ enum PaletteCommand: CaseIterable, Hashable {
     switch self {
     case .newTab: "plus.square.on.square"
     case .print: "printer"
+    case .keyPassthrough: "keyboard"
     }
   }
 
-  /// Its key equivalent in the main menu.
+  /// Its key equivalent in the main menu, if any.
   var shortcut: String {
     switch self {
     case .newTab: "⌘T"
     case .print: "⌥⌘P"
+    case .keyPassthrough: ""
     }
   }
 
