@@ -210,6 +210,10 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     controls.model.showLocationPrompt = { [weak self] in
       self?.currentBrowser?.showLocationPrompt()
     }
+    controls.model.openTabFromLink = { [weak self] inFront in
+      self?.currentBrowser?.openTabFromLink(
+        MockBrowser.sampleURLs(count: 4).last!, inFront: inFront)
+    }
     return controls
   }
 

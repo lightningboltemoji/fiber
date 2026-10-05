@@ -24,6 +24,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/LoadProgressBar.swift",
     "Sources/FiberUI/NewTabView.swift",
     "Sources/FiberUI/Omnibar.swift",
+    "Sources/FiberUI/OpenedTabNotice.swift",
     "Sources/FiberUI/OutsetShadowView.swift",
     "Sources/FiberUI/PageState.swift",
     "Sources/FiberUI/PageTextIndex.swift",

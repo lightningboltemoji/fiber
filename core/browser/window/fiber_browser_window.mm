@@ -1132,6 +1132,26 @@ void FiberBrowserWindow::OnTabStripModelChanged(
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
   UpdateTabs();
+  if (change.type() != TabStripModelChange::kInserted) {
+    return;
+  }
+  // Chrome makes the active tab the opener of a tab opened from a link, in
+  // front of it or behind, or typed (⌘T included, so New Tab pages are left
+  // out). Session restore and pins open tabs without one.
+  tabs::TabInterface* active = tab_strip_model->GetActiveTab();
+  for (const auto& inserted : change.GetInsert()->contents) {
+    tabs::TabInterface* tab = inserted.tab;
+    // Opened in front, it's the active tab, and was opened from the last.
+    tabs::TabInterface* from =
+        tab == active && selection.active_tab_changed() ? selection.old_tab.get()
+                                                         : active;
+    if (from && tab != from && !ShowsNewTabPage(inserted.contents) &&
+        tab_strip_model->GetOpenerOfTabAt(
+            tab_strip_model->GetIndexOfTab(tab)) == from) {
+      [ui_ didOpenTabWithID:tab->GetHandle().raw_value()
+              fromTabWithID:from->GetHandle().raw_value()];
+    }
+  }
 }
 
 void FiberBrowserWindow::OnTabChangedAt(tabs::TabInterface* tab,

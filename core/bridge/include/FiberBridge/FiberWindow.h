@@ -127,6 +127,11 @@ NS_SWIFT_UI_ACTOR
 // page is in the content area.
 - (void)setTabs:(NSArray<FiberTabState*>*)tabs
     activeTabID:(NSInteger)activeTabID;
+// `tabID` was just opened from `openerTabID`, the active tab, by a link on its
+// page, an extension, or the omnibar: behind it, or in front of it, so that
+// `tabID` is active now. Not called for a New Tab page. Follows the
+// -setTabs:activeTabID: that lists it.
+- (void)didOpenTabWithID:(NSInteger)tabID fromTabWithID:(NSInteger)openerTabID;
 // Replaces the pins with `pins`, in order. Their open tabs are among the tabs
 // too. Never called for a window that can't have pins, like an Incognito one.
 - (void)setPins:(NSArray<FiberPinState*>*)pins;

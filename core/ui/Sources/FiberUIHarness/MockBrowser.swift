@@ -383,11 +383,22 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   func linkClicked(_ url: String, event: NSEvent?) {
     if opensElsewhere(event) {
-      // Like Command-clicking a link in Chrome: a new tab in the background.
-      openTab(url, activate: false)
+      // Like Command-clicking a link in Chrome: a new tab in the background,
+      // or in front with Shift.
+      openTabFromLink(
+        url, inFront: event?.modifierFlags.contains(.shift) == true)
     } else {
       open(url, in: activeTab)
     }
+  }
+
+  /// As a link opening a new tab does (`target="_blank"`, or
+  /// Command-clicked): a tab opened from the active one, in front of it or
+  /// behind.
+  func openTabFromLink(_ url: String, inFront: Bool) {
+    let opener = activeTab!
+    let tab = openTab(url, activate: inFront)
+    ui.didOpenTab(withID: tab.id, fromTabWithID: opener.id)
   }
 
   func showDialog(

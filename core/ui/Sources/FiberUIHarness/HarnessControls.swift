@@ -3,8 +3,8 @@ import FiberBridge
 import SwiftUI
 
 /// The harness's own controls, in a panel beside the browser window they act
-/// on: its tabs, the profile's pins, a prompt over its page, and how slowly
-/// the UI animates.
+/// on: its tabs, the profile's pins, a prompt over its page, a tab opened from
+/// a link on it, and how slowly the UI animates.
 @MainActor
 final class HarnessControls: NSObject, NSWindowDelegate {
   @Observable
@@ -15,6 +15,8 @@ final class HarnessControls: NSObject, NSWindowDelegate {
     @ObservationIgnored var setTabCount: (Int) -> Void = { _ in }
     @ObservationIgnored var setPinCount: (Int) -> Void = { _ in }
     @ObservationIgnored var showLocationPrompt: () -> Void = {}
+    /// In front, or behind.
+    @ObservationIgnored var openTabFromLink: (Bool) -> Void = { _ in }
   }
 
   /// Between the panel and its window.
@@ -147,6 +149,12 @@ private struct ControlsView: View {
       }
       LabeledContent("Veil:") {
         Button("Location Prompt") { model.showLocationPrompt() }
+      }
+      LabeledContent("Link:") {
+        HStack {
+          Button("New Tab") { model.openTabFromLink(true) }
+          Button("Background Tab") { model.openTabFromLink(false) }
+        }
       }
       Picker("Slow Motion:", selection: $model.slowMotion) {
         ForEach(Self.slowMotions, id: \.self) { factor in
