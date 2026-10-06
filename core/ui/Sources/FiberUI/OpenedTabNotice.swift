@@ -22,7 +22,7 @@ final class OpenedTabNotice: NSView {
     static let growDelay: TimeInterval = 0.4
     /// How long it stays once the new tab has joined, and after the pointer
     /// leaves it or a swipe springs back.
-    static let holdDuration: TimeInterval = 1.5
+    static let holdDuration: TimeInterval = 1.8
     static let lingerDuration: TimeInterval = 0.8
     static let fadeInDuration: TimeInterval = 0.2
     static let fadeOutDuration: TimeInterval = 0.3
