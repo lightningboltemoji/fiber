@@ -16,6 +16,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/chromium/src"
 STAMP="$SRC/.git/fiber-patches"
+REBASE="$SRC/.git/fiber-rebase"
 MODE="${1:-apply}"
 
 # Repositories nested in chromium/src (DEPS checkouts) that Fiber patches files
@@ -37,6 +38,19 @@ pristine() { local repo path; read -r repo path <<< "$(repo_of "$1")"; git -C "$
 reset() { local repo path; read -r repo path <<< "$(repo_of "$1")"; git -C "$repo" checkout -- "$path"; }
 # "<patch hash> <contents>" as of the last time the file matched its patch.
 synced() { [[ -f "$STAMP" ]] && awk -v f="$1" '$3 == f { print $1, $2 }' "$STAMP" || true; }
+
+if [[ "$MODE" != --record && -f "$REBASE" ]]; then
+  fail "a rebase of the patches is in progress: resolve its conflicts and run" \
+    "make patches, or discard it with scripts/rebase_patches.sh --abort"
+fi
+# Patches made against one release can apply to another and build it, as
+# after a pull that moved CHROMIUM_VERSION.
+if [[ "$MODE" == apply ]]; then
+  version="$(tr -d '[:space:]' < "$ROOT/CHROMIUM_VERSION")"
+  [[ "$(git -C "$SRC" rev-parse HEAD)" == \
+     "$(git -C "$SRC" rev-parse -q --verify "refs/tags/$version^{commit}")" ]] ||
+    fail "chromium/src isn't at $version (CHROMIUM_VERSION); run make sync"
+fi
 
 next_stamp="$(mktemp)"
 trap 'rm -f "$next_stamp"' EXIT

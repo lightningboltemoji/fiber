@@ -22,3 +22,5 @@ make install    # the same app, into /Applications
 ```
 
 After editing a file under `chromium/src`, run `make patches` to regenerate `patches/chromium/`. Every build applies what changed in `patches/chromium/` first (after a pull, say), without touching edits that aren't in a patch yet. Put new code in `core/` rather than adding files to the Chromium tree.
+
+To move to a newer Chromium, set `CHROMIUM_VERSION` and run `make sync`, which rebases the patches onto it; [`.claude/skills/upgrade-chromium`](.claude/skills/upgrade-chromium/SKILL.md) has the rest.

@@ -1,5 +1,5 @@
 diff --git a/media/filters/audio_file_reader.cc b/media/filters/audio_file_reader.cc
-index 4b88853014..10e1d65ae7 100644
+index 417eca7552..cbf4e36e31 100644
 --- a/media/filters/audio_file_reader.cc
 +++ b/media/filters/audio_file_reader.cc
 @@ -45,8 +45,9 @@ static const int kAACRemainderFrameCount = 519;

@@ -2,7 +2,7 @@
 
 A high-level map of how Fiber is built and why. The rules it follows are in
 [PRINCIPLES.md](PRINCIPLES.md); detailed designs live in their own docs
-([MEDIA.md](MEDIA.md), [PALETTE.md](PALETTE.md), [FIND-BAR.md](FIND-BAR.md))
+([MEDIA.md](MEDIA.md), [PALETTE.md](PALETTE.md))
 and in the code. Commands are in `README.md`.
 
 Fiber forks Chromium's `//chrome` layer rather than embedding a web engine,
@@ -113,7 +113,7 @@ Each surface Fiber replaces, and where it lives:
 | Tabs: a picker of the 15 most recent on the window's edge, and the tab overlay (⌘S): the rest of the tabs in order, in a panel as wide as the command palette's over the dimmed page, with the pins in rows of glass circles rising from its top, all a little above the middle of the window, and beside it the page's address (which opens the omnibar) and the extensions. Its arrow keys, Return and ⌘W move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)); one picked is switched to at once, under the overlay as it closes, which plays its opening back, quicker, showing what it closed with until it's gone; the omnibar or command palette opening cuts that short. It keeps the keyboard until it closes, so a New Tab page that becomes active under it opens the omnibar only then; a tab opened in front (⌘T, a link from another app) closes it. A tab opened from the active one, in front of it or behind (a link on its page, ⌘-clicked or not, an extension, the omnibar; not a New Tab page, by Chrome's opener), shows in a notice in the window's top-right corner, below the find bar if it's open: a list like the picker's of the tab it opened from, which grows to take it in (and the next few opened behind the same tab), and goes after a moment unless the pointer is on it, or when swiped (or dragged) off to the right like a notification | `browser/window/`, `browser/pins/` | `TabPicker.swift`, `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift`, `OpenedTabNotice.swift` |
 | Omnibox, as the omnibar, where Option-clicking part of the URL selects it and the rest, as does pressing Option and the number shown under that part | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
-| Find in page, a bar in the window's top-right corner (see [FIND-BAR.md](FIND-BAR.md)) | `browser/find_bar/` | `FindBar.swift` |
+| Find in page, a bar in the window's top-right corner | `browser/find_bar/` | `FindBar.swift` |
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
 | Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `TabOverlay.swift`, `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
@@ -131,8 +131,7 @@ Each surface Fiber replaces, and where it lives:
 | Native messaging hosts, found in Chrome's folders as well as Fiber's, since apps only register them with browsers they know | `hooks/native_messaging.cc` | |
 | Media codecs | `media/` | |
 
-Where Fiber has no replacement yet ([UNIMPLEMENTED.md](UNIMPLEMENTED.md) has
-the rest, and what's still broken):
+Where Fiber has no replacement yet:
 
 - **Chrome's UI, kept:** DevTools windows (for what can't dock, like
   workers and extensions), web app and picture-in-picture windows. Docked
@@ -151,7 +150,9 @@ the rest, and what's still broken):
   locks until then (`browser/profiles/profile_picker.cc`); Chrome's sharing
   hub, leaving the Share menu (`hooks/profile_pref_defaults.cc`); Payment
   Request, digital credentials, and Cast with the Presentation API
-  (`hooks/feature_overrides.cc`, with most of their code cut by patches).
+  (`hooks/feature_overrides.cc`, with most of their code cut by patches);
+  Gemini in Chrome (Glic), off in `hooks/feature_overrides.cc`, with its pages
+  cut.
 - **Unanswered, or not shown:** offers to save an address, card or IBAN, or to
   ask for Touch ID before filling a card (`hooks/autofill_prompts.h`); the hung
   page dialog, Safety Tips and the low storage notice.
@@ -319,9 +320,10 @@ everything up to the startup window shows only in Instruments.
 
 ## Upgrading
 
-- **Chromium:** each stable release, bump `CHROMIUM_VERSION`, `make sync`, fix
-  the patches that no longer apply, and rerun `make size` to check that what
-  Fiber cut is still gone.
+- **Chromium:** each Stable release, as `.claude/skills/upgrade-chromium`
+  describes. `make sync` rebases the patches onto a new `CHROMIUM_VERSION`
+  (`scripts/rebase_patches.sh`), leaving conflict markers where upstream changed
+  what a patch changes.
 - **macOS:** `ui/WindowFrame.swift` subclasses AppKit's private frame view to
   place the traffic lights, as Chrome does; check it on each release.
 
@@ -331,7 +333,7 @@ everything up to the startup window shows only in Instruments.
 CHROMIUM_VERSION     Chromium stable release we build against
 Makefile             entry points (see README.md)
 patches/chromium/    our edits to Chromium, one patch per file
-scripts/             sync, patch, build, run, size
+scripts/             sync, patch, rebase, build, run, size
 core/                → //fiber
   build/             GN args, Swift template and flags
   branding/          product name, version, app icon, fiber:// scheme

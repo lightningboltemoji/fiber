@@ -5,6 +5,7 @@
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/preloading/prefetch/search_prefetch/field_trial_settings.h"
 #include "chrome/browser/preloading/preloading_features.h"
+#include "chrome/common/chrome_features.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/omnibox/browser/aim_eligibility_service_features.h"
 #include "components/security_interstitials/core/features.h"
@@ -29,6 +30,9 @@ void AddFeatureOverrides(
       // Google's AI Mode, and the request asking Google whether the user can
       // have it (at startup, and when accounts or cookies change).
       &omnibox::kAimEnabled,
+      // Gemini in Chrome (Glic), which needs a Google account and whose pages
+      // Fiber cuts. On, Chrome offers it to signed-out profiles too.
+      &features::kGlic,
       // HTTPS-First's views dialog before loading a site over HTTP; its
       // warning page shows in the tab instead.
       &security_interstitials::features::kHttpsFirstDialogUi,

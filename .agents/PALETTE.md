@@ -147,7 +147,8 @@ ranks wrong. `swift test --package-path core/ui` runs them.
 - Remembering which result the user picked for a query, and ranking it
   higher next time, as Chrome's shortcuts provider does.
 - Closing tabs from the list; more commands, perhaps from the main menu.
-- Chrome's Tab Search page is unreachable but still registered and in the
-  binary, and print preview is off but still built in (the pref can turn it
-  back on). Cutting them is `enable_print_preview = false` and Tab Search's
-  WebUI config, interface binders and paks, checked with `make size`.
+- Chrome's Tab Search page is cut (its WebUI config and paks), but its
+  interface binders aren't (`chrome_browser_interface_binders_webui_parts_desktop.cc`),
+  which keep its handlers in the binary. Print preview is off but still built
+  in (the pref can turn it back on); cutting it is
+  `enable_print_preview = false`. Check both with `make size`.

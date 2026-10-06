@@ -17,6 +17,10 @@ bool IsCommandSupported(BrowserWindowInterface* browser, int command) {
     case IDC_FIND_NEXT:
     case IDC_FIND_PREVIOUS:
       return !IsExtensionWindowBubble(browser);
+    // Pins are the profile's (fiber/browser/pins), which Incognito's has none
+    // of.
+    case IDC_WINDOW_PIN_TAB:
+      return !browser->GetProfile()->IsOffTheRecord();
     // The app menu, and panes to focus.
     case IDC_FIND_AND_EDIT_MENU:
     case IDC_SHOW_APP_MENU:
@@ -30,10 +34,6 @@ bool IsCommandSupported(BrowserWindowInterface* browser, int command) {
     case IDC_TASK_MANAGER_MAIN_MENU:
     case IDC_TASK_MANAGER_SHORTCUT:
     case IDC_BOOKMARK_ALL_TABS:
-    // Pins are the profile's (fiber/browser/pins), which Incognito's has none
-    // of.
-    case IDC_WINDOW_PIN_TAB:
-      return !browser->GetProfile()->IsOffTheRecord();
     // Selected, grouped and split tabs, which Fiber's tabs don't show.
     case IDC_PIN_TARGET_TAB:
     case IDC_WINDOW_GROUP_TAB:

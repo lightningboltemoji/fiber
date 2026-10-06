@@ -12,6 +12,17 @@ OUT="$ROOT/patches/chromium"
 # apply_patches.sh). Their patches name paths from chromium/src too.
 NESTED=(third_party/ffmpeg third_party/devtools-frontend/src)
 
+# A rebase's conflict markers (rebase_patches.sh) would be saved with the rest.
+left="$(for repo in . ${NESTED[@]+"${NESTED[@]}"}; do
+  git -C "$SRC/$repo" diff --name-only -G'^(<<<<<<<|>>>>>>>)( |$)' |
+    sed "s|^|${repo#.}/|; s|^/||"
+done)"
+if [[ -n "$left" ]]; then
+  echo "error: resolve the conflicts in these first:" >&2
+  sed 's/^/  /' <<< "$left" >&2
+  exit 1
+fi
+
 mkdir -p "$OUT"
 rm -f "$OUT"/*.patch
 for repo in . ${NESTED[@]+"${NESTED[@]}"}; do
@@ -27,3 +38,4 @@ done
 
 # Record that chromium/src and the patches now match.
 "$ROOT/scripts/apply_patches.sh" --record
+rm -f "$SRC/.git/fiber-rebase"

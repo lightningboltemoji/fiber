@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc b/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
-index bbfbf51354..56d4a972c7 100644
+index 31ff36d255..304e812483 100644
 --- a/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
 +++ b/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
 @@ -7,6 +7,7 @@
@@ -10,16 +10,16 @@ index bbfbf51354..56d4a972c7 100644
  #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
  #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
  #include "chrome/browser/platform_util.h"
-@@ -23,6 +24,7 @@
- #include "components/permissions/chooser_controller.h"
+@@ -24,6 +25,7 @@
  #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/weak_document_ptr.h"
  #include "extensions/buildflags/buildflags.h"
 +#include "fiber/browser/hooks/browser_window_factory.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/base/mojom/dialog_button.mojom.h"
  #include "ui/display/types/display_constants.h"
-@@ -277,6 +279,14 @@ base::OnceClosure ShowDeviceChooserDialog(
-     std::unique_ptr<permissions::ChooserController> controller) {
+@@ -325,6 +327,14 @@ base::OnceClosure ShowDeviceChooserDialog(
+   content::WeakDocumentPtr weak_document = owner->GetWeakDocumentPtr();
    auto* contents = content::WebContents::FromRenderFrameHost(owner);
  
 +#if BUILDFLAG(IS_MAC)

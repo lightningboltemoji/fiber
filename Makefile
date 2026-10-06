@@ -10,6 +10,7 @@ SRC      := chromium/src
 # --- Chromium and the dev build ------------------------------------------------------------------
 # `build` is the component build in out/$(OUT): hundreds of small dylibs, so an incremental build
 # relinks in seconds. Its Fiber.app loads them from out/$(OUT) and only runs from there.
+# Rebases the patches onto a new CHROMIUM_VERSION (scripts/rebase_patches.sh).
 sync:
 	scripts/sync_chromium.sh
 
