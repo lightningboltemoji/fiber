@@ -8,6 +8,8 @@
 // `--overlay` (the tab overlay, as Command-S opens it),
 // `--key-passthrough` (the active tab has key passthrough),
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page),
+// `--bubble KIND` (a prompt bubble on the active tab: location, camera,
+// notifications, extension or open-app),
 // `--slow-motion N` (animations N times slower). Its own controls (see
 // HarnessControls) sit beside the window last used.
 
@@ -86,6 +88,14 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
           self?.browsers.last?.openCommandPalette(typing: query)
         }
+      }
+    }
+    if let kind = launchValue(of: "--bubble"),
+      let sample = BubbleSample.allCases.first(where: { $0.flag == kind })
+    {
+      // Once the window has settled, so it opens as it would over a page.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+        MainActor.assumeIsolated { self?.browsers.last?.showBubble(sample) }
       }
     }
     if let query = launchValue(of: "--find") {
@@ -213,6 +223,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     }
     controls.model.showLocationPrompt = { [weak self] in
       self?.currentBrowser?.showLocationPrompt()
+    }
+    controls.model.showBubble = { [weak self] sample in
+      self?.currentBrowser?.showBubble(sample)
     }
     controls.model.openTabFromLink = { [weak self] inFront in
       self?.currentBrowser?.openTabFromLink(

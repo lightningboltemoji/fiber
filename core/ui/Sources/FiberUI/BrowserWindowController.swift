@@ -152,6 +152,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private lazy var historySwipe = HistorySwipe(pageArea: pageArea, page: pageView)
   /// What the window is waiting on the user for, over the veil.
   private var prompt: (any VeilContent)?
+  /// What each tab's page asks, by tab ID; the active tab's shows.
+  private var promptBubbles: [Int: PromptBubble] = [:]
   private weak var responderBeforePrompt: NSResponder?
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
@@ -730,6 +732,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowTabs = tabs
     self.activeTabID = activeTabID
     commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
+    updatePromptBubbles()
   }
 
   /// Not while the window waits on the user, or the omnibar, command palette
@@ -1007,6 +1010,51 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
+  // MARK: Prompt bubbles
+
+  /// Shows `bubble` over the page while tab `tabID` is active, in place of
+  /// any other of the tab's (whose onRemoved is called).
+  func present(_ bubble: PromptBubble, forTabWithID tabID: Int) {
+    if let replaced = promptBubbles.removeValue(forKey: tabID) {
+      replaced.leave()
+      replaced.onRemoved?()
+    }
+    promptBubbles[tabID] = bubble
+    bubble.frame = controlsView.bounds
+    bubble.autoresizingMask = [.width, .height]
+    controlsView.addSubview(bubble, positioned: .below, relativeTo: tabPicker)
+    if tabID == activeTabID {
+      bubble.show()
+    }
+  }
+
+  /// Takes `bubble` down, if it's still up.
+  func dismiss(_ bubble: PromptBubble) {
+    guard let tabID = promptBubbles.first(where: { $0.value === bubble })?.key
+    else {
+      return
+    }
+    promptBubbles[tabID] = nil
+    bubble.leave()
+  }
+
+  /// Shows the active tab's bubble and hides the others'. Those of tabs that
+  /// closed go unanswered.
+  private func updatePromptBubbles() {
+    let tabIDs = Set(windowTabs.map(\.tabID))
+    for (tabID, bubble) in promptBubbles {
+      if !tabIDs.contains(tabID) {
+        promptBubbles[tabID] = nil
+        bubble.removeFromSuperview()
+        bubble.onRemoved?()
+      } else if tabID == activeTabID {
+        bubble.show()
+      } else {
+        bubble.hide()
+      }
+    }
+  }
+
   func beginHistorySwipe(
     in direction: FiberHistorySwipeDirection, snapshot: NSImage?
   ) {
@@ -1201,6 +1249,11 @@ extension BrowserWindowController: NSWindowDelegate {
     if let prompt {
       self.prompt = nil
       prompt.onRemoved?()
+    }
+    let bubbles = promptBubbles.values
+    promptBubbles = [:]
+    for bubble in bubbles {
+      bubble.onRemoved?()
     }
     extensionsController.windowWillClose()
   }

@@ -43,6 +43,9 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var pins: MockPins? { isIncognito ? nil : app?.pins }
   private var dialog: (any FiberJavaScriptDialog)?
   private var locationPrompt: (prompt: any FiberPrompt, actions: PromptActions)?
+  /// Each tab's bubble, by tab ID.
+  private var bubbles: [Int: (prompt: any FiberPrompt, actions: PromptActions)] =
+    [:]
   private var controlsVisible = true
   private var omnibox: MockOmnibox!
   private var extensions: MockExtensions!
@@ -368,6 +371,19 @@ final class MockBrowser: NSObject, FiberWindowActions {
         with: content, window: ui.window, actions: actions),
       actions
     )
+  }
+
+  /// What `sample` asks, in a bubble on the active tab.
+  func showBubble(_ sample: BubbleSample) {
+    let tabID = activeTab.id
+    let actions = PromptActions { [weak self] button in
+      print("Bubble on tab \(tabID): \(button.map { "button \($0)" } ?? "dismissed")")
+      self?.bubbles[tabID] = nil
+    }
+    let prompt = FiberPromptFactory.bubble(
+      with: sample.content(site: URL(string: activeTab.url)?.host() ?? activeTab.url),
+      tabID: tabID, window: ui.window, actions: actions)
+    bubbles[tabID] = (prompt, actions)
   }
 
   // MARK: Omnibox
@@ -869,5 +885,99 @@ private final class MockDialogActions: NSObject, FiberJavaScriptDialogActions {
 
   func dialogDidDismiss() {
     completion(.dismissed)
+  }
+}
+
+/// What a bubble can ask, worded as Fiber's prompts word it.
+enum BubbleSample: CaseIterable {
+  case location, camera, notifications, extensionInstall, openApp
+
+  var label: String {
+    switch self {
+    case .location: "Location"
+    case .camera: "Camera"
+    case .notifications: "Notifications"
+    case .extensionInstall: "Extension"
+    case .openApp: "Open App"
+    }
+  }
+
+  /// For the harness's `--bubble` flag.
+  var flag: String {
+    switch self {
+    case .location: "location"
+    case .camera: "camera"
+    case .notifications: "notifications"
+    case .extensionInstall: "extension"
+    case .openApp: "open-app"
+    }
+  }
+
+  @MainActor
+  func content(site: String) -> FiberPromptContent {
+    let allowButtons = [
+      FiberPromptButton(buttonID: 0, title: "Never allow", role: .other),
+      FiberPromptButton(buttonID: 1, title: "Allow this time", role: .confirm),
+      FiberPromptButton(buttonID: 2, title: "Allow", role: .confirm),
+    ]
+    switch self {
+    case .location:
+      return Self.content(
+        icon: Self.icon("location.fill", [.systemBlue]),
+        eyebrow: "\(site) wants to", title: "Know your location",
+        buttons: allowButtons)
+    case .camera:
+      return Self.content(
+        icon: Self.icon("video.fill", [.systemGreen]),
+        eyebrow: "\(site) wants to", title: "Use your camera",
+        lines: ["Use your microphone"], buttons: allowButtons)
+    case .notifications:
+      return Self.content(
+        icon: Self.icon("bell.badge.fill", [.systemRed]),
+        eyebrow: "\(site) wants to", title: "Show notifications",
+        buttons: [
+          FiberPromptButton(buttonID: 0, title: "Block", role: .other),
+          FiberPromptButton(buttonID: 2, title: "Allow", role: .confirm),
+        ])
+    case .extensionInstall:
+      return Self.content(
+        icon: Self.icon("wand.and.stars", [.systemTeal]),
+        eyebrow: "", title: "Add “Page Polisher”?",
+        lines: [
+          "Read and change all your data on all websites",
+          "Block content on any page",
+        ],
+        buttons: [
+          FiberPromptButton(buttonID: 0, title: "Cancel", role: .cancel),
+          FiberPromptButton(
+            buttonID: 1, title: "Add extension", role: .confirm),
+        ])
+    case .openApp:
+      return Self.content(
+        icon: Self.icon("arrow.up.forward.app.fill", [.white, .systemIndigo]),
+        eyebrow: "\(site) wants to", title: "Open “Zoom”",
+        buttons: [
+          FiberPromptButton(buttonID: 0, title: "Cancel", role: .cancel),
+          FiberPromptButton(buttonID: 1, title: "Open Zoom", role: .default),
+        ])
+    }
+  }
+
+  private static func content(
+    icon: NSImage?, eyebrow: String, title: String, lines: [String] = [],
+    buttons: [FiberPromptButton]
+  ) -> FiberPromptContent {
+    FiberPromptContent(
+      icon: icon, eyebrow: eyebrow, title: title, message: "",
+      listHeading: "",
+      listItems: lines.map { FiberPromptListItem(text: $0, detail: "") },
+      buttons: buttons)
+  }
+
+  private static func icon(_ symbol: String, _ colors: [NSColor]) -> NSImage? {
+    NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+      .withSymbolConfiguration(
+        NSImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
+          .applying(.init(paletteColors: colors)))
   }
 }

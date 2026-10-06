@@ -3,8 +3,8 @@ import FiberBridge
 import SwiftUI
 
 /// The harness's own controls, in a panel beside the browser window they act
-/// on: its tabs, the profile's pins, a prompt over its page, a tab opened from
-/// a link on it, and how slowly the UI animates.
+/// on: its tabs, the profile's pins, a prompt over its page or in a bubble on
+/// its tab, a tab opened from a link on it, and how slowly the UI animates.
 @MainActor
 final class HarnessControls: NSObject, NSWindowDelegate {
   @Observable
@@ -15,6 +15,7 @@ final class HarnessControls: NSObject, NSWindowDelegate {
     @ObservationIgnored var setTabCount: (Int) -> Void = { _ in }
     @ObservationIgnored var setPinCount: (Int) -> Void = { _ in }
     @ObservationIgnored var showLocationPrompt: () -> Void = {}
+    @ObservationIgnored var showBubble: (BubbleSample) -> Void = { _ in }
     /// In front, or behind.
     @ObservationIgnored var openTabFromLink: (Bool) -> Void = { _ in }
   }
@@ -149,6 +150,20 @@ private struct ControlsView: View {
       }
       LabeledContent("Veil:") {
         Button("Location Prompt") { model.showLocationPrompt() }
+      }
+      LabeledContent("Bubble:") {
+        VStack(alignment: .leading) {
+          HStack {
+            ForEach(BubbleSample.allCases.prefix(3), id: \.self) { sample in
+              Button(sample.label) { model.showBubble(sample) }
+            }
+          }
+          HStack {
+            ForEach(BubbleSample.allCases.dropFirst(3), id: \.self) { sample in
+              Button(sample.label) { model.showBubble(sample) }
+            }
+          }
+        }
       }
       LabeledContent("Link:") {
         HStack {

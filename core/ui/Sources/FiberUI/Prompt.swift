@@ -87,6 +87,15 @@ import FiberBridge
   ) -> any FiberPrompt {
     Prompt(content: content, window: window, actions: actions)
   }
+
+  @objc(bubbleWithContent:tabID:window:actions:)
+  class func bubble(
+    with content: FiberPromptContent, tabID: Int, window: NSWindow,
+    actions: any FiberPromptActions
+  ) -> any FiberPrompt {
+    BubblePrompt(
+      content: content, tabID: tabID, window: window, actions: actions)
+  }
 }
 
 /// Something the browser asks the user over the veiled page (adding an

@@ -115,7 +115,7 @@ NS_SWIFT_UI_ACTOR
 
 - (void)promptDidPressButtonWithID:(NSInteger)buttonID;
 // The prompt ended without an answer: Escape dismissed it, -close was called,
-// another prompt took its place, or its window closed.
+// another prompt took its place, or its tab or window closed.
 - (void)promptDidDismiss;
 
 @end
@@ -140,6 +140,15 @@ NS_SWIFT_UI_ACTOR
 // isn't a browser window, the prompt is dismissed at once (after this
 // returns).
 + (id<FiberPrompt>)promptWithContent:(FiberPromptContent*)content
+                              window:(NSWindow*)window
+                             actions:(id<FiberPromptActions>)actions;
+
+// Asks in a glass bubble over the middle of the page of tab `tabID` in
+// `window`, shown while that tab is active, leaving the page usable around it.
+// It has no room for fields or a checkbox. If `window` isn't a browser window,
+// the prompt is dismissed at once (after this returns).
++ (id<FiberPrompt>)bubbleWithContent:(FiberPromptContent*)content
+                               tabID:(NSInteger)tabID
                               window:(NSWindow*)window
                              actions:(id<FiberPromptActions>)actions;
 

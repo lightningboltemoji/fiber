@@ -28,9 +28,10 @@ window, are listed at the top of `FiberUIHarness/main.swift`.
 
 - **Its controls:** a panel beside the window last used (View › Harness
   Controls, ⇧⌘H, if closed) sets that window's tabs and the profile's pins,
-  shows a location prompt over its page, opens a tab from a link on it, in
-  front or behind (as ⇧⌘- or ⌘-clicking one does), and plays animations
-  slower. It floats (layer 3), so step 2 still finds only browser windows.
+  shows a location prompt over its page or a prompt bubble on its tab (also
+  `--bubble KIND`), opens a tab from a link on it, in front or behind (as
+  ⇧⌘- or ⌘-clicking one does), and plays animations slower. It floats
+  (layer 3), so step 2 still finds only browser windows.
 - **States without a flag** (omnibar open): a temporary hook after
   `NSApp.activate()` in `main.swift`, e.g. `openLocation(nil)`.
 - **Keys and clicks:** from the same hook, made with `NSEvent.keyEvent` or
