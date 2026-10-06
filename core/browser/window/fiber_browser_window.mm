@@ -150,9 +150,9 @@ class FiberStatusBubble : public StatusBubble {
   void Hide() override {
     status_.clear();
     url_.clear();
-    Refresh();
+    [ui_ hideStatusText];
   }
-  void MouseMoved(bool left_content) override {}
+  void MouseMoved(bool left_content) override { [ui_ pointerMovedOverPage]; }
 
  private:
   void Refresh() {

@@ -6,7 +6,7 @@ final class MockPageView: NSView {
   private static let links = [
     "https://fiber.example/",
     "https://fiber.example/about",
-    "https://www.example.com/a/rather/long/path/to/show/truncation?query=1",
+    "https://www.example.com/a/rather/long/path/to/show/truncation/and/then/the/whole/of/it/once/the/pointer/rests/on/it?query=1&page=2",
   ]
 
   weak var browser: MockBrowser?
@@ -29,6 +29,14 @@ final class MockPageView: NSView {
 
   override func rightMouseDown(with event: NSEvent) {
     showContextMenu(for: nil, event: event)
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    browser?.pointerMoved()
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    browser?.pointerMoved()
   }
 
   /// What it looks like now, as Chrome's page snapshots would be.
@@ -76,6 +84,15 @@ final class MockPageView: NSView {
     if CommandLine.arguments.contains("--ask-before-leaving") {
       leaveCheckbox.state = .on
     }
+    // Chrome reports the pointer's moves over a page (ContentsMouseEvent()).
+    addTrackingArea(
+      NSTrackingArea(
+        rect: .zero,
+        options: [
+          .mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow,
+          .inVisibleRect,
+        ],
+        owner: self))
     titleLabel.font = .systemFont(ofSize: 28, weight: .semibold)
     urlLabel.textColor = .secondaryLabelColor
     resultLabel.textColor = .secondaryLabelColor

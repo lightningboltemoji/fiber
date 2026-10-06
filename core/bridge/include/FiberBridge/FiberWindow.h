@@ -148,9 +148,15 @@ NS_SWIFT_UI_ACTOR
 // Shows the page's load progress (0 to 1) while `loading`, and completes and
 // hides it once not.
 - (void)setLoading:(BOOL)loading progress:(double)progress;
-// Shows `text` (for example a hovered link's URL) in the window's bottom
-// corner. Empty hides it.
+// Shows `text`, a hovered link's URL or the page's load status, in the
+// page's bottom corner. Empty hides it after a moment, for the pointer to
+// reach the next link.
 - (void)setStatusText:(NSString*)text;
+// Hides the status text at once, as the page navigates or another tab's shows.
+- (void)hideStatusText;
+// The pointer moved over the page or off it. The status text keeps clear of
+// it.
+- (void)pointerMovedOverPage;
 // The toolbar and tab picker are hidden while a page is fullscreen, for
 // example a video.
 - (void)setControlsVisible:(BOOL)visible;

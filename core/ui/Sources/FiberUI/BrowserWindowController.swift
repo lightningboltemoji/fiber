@@ -40,8 +40,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// The window's own corner radius, which the page's corners match.
   static let pageCornerRadius: CGFloat = 16
   private static let progressBarHeight: CGFloat = 3
-  // Inset from the window's bottom-left corner, clear of its rounding.
-  private static let statusBubbleInset: CGFloat = 10
 
   var window: NSWindow { browserWindow }
 
@@ -272,9 +270,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     progressBar.autoresizingMask = [.width, .minYMargin]
     pageOverlay.addSubview(progressBar)
 
-    statusBubble.setFrameOrigin(
-      NSPoint(x: Self.statusBubbleInset, y: Self.statusBubbleInset))
-    statusBubble.autoresizingMask = [.maxXMargin, .maxYMargin]
+    statusBubble.frame = pageOverlay.bounds
+    statusBubble.autoresizingMask = [.width, .height]
     pageOverlay.addSubview(statusBubble)
 
     controlsView.frame = content.bounds
@@ -785,6 +782,16 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   func setStatusText(_ text: String) {
     statusBubble.setText(text)
+  }
+
+  func hideStatusText() {
+    statusBubble.hide()
+  }
+
+  func pointerMovedOverPage() {
+    let point = statusBubble.convert(
+      window.mouseLocationOutsideOfEventStream, from: nil)
+    statusBubble.setPointer(statusBubble.bounds.contains(point) ? point : nil)
   }
 
   func setControlsVisible(_ visible: Bool) {

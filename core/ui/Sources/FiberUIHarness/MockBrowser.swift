@@ -402,6 +402,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
     ui.setStatusText(url ?? "")
   }
 
+  func pointerMoved() {
+    ui.pointerMovedOverPage()
+  }
+
   func linkClicked(_ url: String, event: NSEvent?) {
     if opensElsewhere(event) {
       // Like Command-clicking a link in Chrome: a new tab in the background,
@@ -497,6 +501,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     activeTab = tab
     tab.lastActive = Date()
     ui.setContentsView(tab.page)
+    ui.hideStatusText()
     madeFindBar?.tabDidActivate(tab)
     pushPageState()
     pushTabs()
