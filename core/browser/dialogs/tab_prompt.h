@@ -3,6 +3,7 @@
 
 #include <memory>
 
+#include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "fiber/browser/dialogs/prompt.h"
 
@@ -10,8 +11,9 @@
 
 namespace fiber {
 
-// A Prompt for a tab, in its Fiber window. Like Chrome's tab-modal dialogs, it
-// ends without an answer if the tab closes or goes to another site.
+// A Prompt over a tab's page (Prompt::ShowForTab()). Like Chrome's tab-modal
+// dialogs, it ends without an answer if the tab closes or goes to another
+// site.
 class TabPrompt : public content::WebContentsObserver {
  public:
   // Runs `callback`, which may destroy this, when the prompt ends, unless this
@@ -41,6 +43,8 @@ class TabPrompt : public content::WebContentsObserver {
   void EndUnanswered();
 
   Prompt::Callback callback_;
+  // The page it was shown over.
+  content::WeakDocumentPtr document_;
   std::unique_ptr<Prompt> prompt_;
 };
 

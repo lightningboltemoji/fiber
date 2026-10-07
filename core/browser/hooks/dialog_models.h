@@ -13,8 +13,8 @@ namespace ui {
 class DialogModel;
 }
 
-// Chrome's ui::DialogModel dialogs as Fiber prompts, over the veiled page, in
-// place of views' BubbleDialogModelHost. One with what a prompt can't show (a
+// Chrome's ui::DialogModel dialogs as Fiber prompts, in place of views'
+// BubbleDialogModelHost. One with what a prompt can't show (a
 // combobox, a views field) ends at once, as if dismissed.
 namespace fiber {
 

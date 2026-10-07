@@ -382,11 +382,24 @@ final class ProfileSwitcherOverlay: NSView, VeilContent {
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     if let editor = window?.firstResponder as? NSText,
       editor.isDescendant(of: self),
-      let action = VeilPrompt.editingAction(for: event)
+      let action = Self.editingAction(for: event)
     {
       NSApp.sendAction(action, to: nil, from: self)
     }
     return true
+  }
+
+  private static func editingAction(for event: NSEvent) -> Selector? {
+    let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    switch (event.charactersIgnoringModifiers?.lowercased(), modifiers) {
+    case ("x", .command): return #selector(NSText.cut(_:))
+    case ("c", .command): return #selector(NSText.copy(_:))
+    case ("v", .command): return #selector(NSText.paste(_:))
+    case ("a", .command): return #selector(NSText.selectAll(_:))
+    case ("z", .command): return Selector(("undo:"))
+    case ("z", [.command, .shift]): return Selector(("redo:"))
+    default: return nil
+    }
   }
 
   // It covers the window, so scrolls and clicks outside the SwiftUI view's

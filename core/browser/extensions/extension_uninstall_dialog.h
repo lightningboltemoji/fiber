@@ -10,7 +10,7 @@ class Profile;
 
 namespace fiber {
 
-// Chrome's confirmation before removing an extension, over the veiled page in
+// Chrome's confirmation before removing an extension, as a window's prompt in
 // place of Chrome's dialog. Asked in `parent`, or else the profile's last
 // active window; with neither, the answer is no.
 std::unique_ptr<extensions::ExtensionUninstallDialog> CreateUninstallDialog(

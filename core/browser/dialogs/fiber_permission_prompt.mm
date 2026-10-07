@@ -95,6 +95,48 @@ std::u16string SiteName(content::WebContents* web_contents,
   return identity.name;
 }
 
+FiberPromptTopic TopicForRequest(RequestType type) {
+  switch (type) {
+    case RequestType::kGeolocation:
+      return FiberPromptTopicLocation;
+    case RequestType::kCameraPanTiltZoom:
+    case RequestType::kCameraStream:
+      return FiberPromptTopicCamera;
+    case RequestType::kMicStream:
+      return FiberPromptTopicMicrophone;
+    case RequestType::kNotifications:
+      return FiberPromptTopicNotifications;
+    case RequestType::kClipboard:
+      return FiberPromptTopicClipboard;
+    case RequestType::kFileSystemAccess:
+      return FiberPromptTopicFiles;
+    case RequestType::kMultipleDownloads:
+      return FiberPromptTopicDownloads;
+    case RequestType::kRegisterProtocolHandler:
+      return FiberPromptTopicOpenApp;
+    case RequestType::kLocalNetwork:
+    case RequestType::kLoopbackNetwork:
+      return FiberPromptTopicLocalNetwork;
+    case RequestType::kMidiSysex:
+      return FiberPromptTopicMIDI;
+    case RequestType::kWindowManagement:
+      return FiberPromptTopicWindows;
+    case RequestType::kStorageAccess:
+    case RequestType::kTopLevelStorageAccess:
+      return FiberPromptTopicStorageAccess;
+    case RequestType::kKeyboardLock:
+      return FiberPromptTopicKeyboardLock;
+    case RequestType::kPointerLock:
+      return FiberPromptTopicPointerLock;
+    case RequestType::kArSession:
+    case RequestType::kHandTracking:
+    case RequestType::kVrSession:
+      return FiberPromptTopicSpatial;
+    default:
+      return FiberPromptTopicGeneral;
+  }
+}
+
 std::u16string FormatSite(const GURL& url) {
   return url_formatter::FormatUrlForSecurityDisplay(
       url, url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC);
@@ -102,9 +144,11 @@ std::u16string FormatSite(const GURL& url) {
 
 FiberPromptContent* ContentForPrompt(content::WebContents* web_contents,
                                      PermissionPrompt::Delegate& delegate) {
+  NSString* eyebrow = @"";
   NSString* title;
   NSString* message = @"";
   NSMutableArray<FiberPromptListItem*>* items = [NSMutableArray array];
+  const std::vector<PermissionRequest*> requests = VisibleRequests(delegate);
   if (delegate.Requests()[0]->ShouldUseTwoOriginPrompt()) {
     // Storage access, for a site embedded in the page: the sites it would
     // join, by the patterns the grant would cover.
@@ -120,13 +164,16 @@ FiberPromptContent* ContentForPrompt(content::WebContents* web_contents,
         IDS_STORAGE_ACCESS_PERMISSION_TWO_ORIGIN_EXPLANATION, embedded,
         FormatSite(patterns.second.ToRepresentativeUrl()));
   } else {
-    title = l10n_util::GetNSStringF(IDS_PERMISSIONS_BUBBLE_PROMPT,
-                                    SiteName(web_contents, delegate));
-    for (PermissionRequest* request : VisibleRequests(delegate)) {
-      [items addObject:[[FiberPromptListItem alloc]
-                           initWithText:base::SysUTF16ToNSString(
-                                            request->GetMessageTextFragment())
-                                 detail:@""]];
+    // The site over what it asks first, and the rest under that.
+    eyebrow = l10n_util::GetNSStringF(IDS_PERMISSIONS_BUBBLE_PROMPT,
+                                      SiteName(web_contents, delegate));
+    title = base::SysUTF16ToNSString(requests[0]->GetMessageTextFragment());
+    for (size_t i = 1; i < requests.size(); ++i) {
+      [items
+          addObject:[[FiberPromptListItem alloc]
+                        initWithText:base::SysUTF16ToNSString(
+                                         requests[i]->GetMessageTextFragment())
+                              detail:@""]];
     }
   }
 
@@ -154,30 +201,33 @@ FiberPromptContent* ContentForPrompt(content::WebContents* web_contents,
                                               IDS_PERMISSION_ALLOW)
                                      role:FiberPromptButtonRoleConfirm]];
 
-  return [[FiberPromptContent alloc] initWithIcon:nil
-                                          eyebrow:@""
-                                            title:title
-                                          message:message
-                                      listHeading:@""
-                                        listItems:items
-                                          buttons:buttons];
+  return [[FiberPromptContent alloc]
+      initWithIcon:nil
+             topic:TopicForRequest(requests[0]->request_type())
+           eyebrow:eyebrow
+             title:title
+           message:message
+       listHeading:@""
+         listItems:items
+           buttons:buttons];
 }
 
 class FiberPermissionPrompt : public PermissionPrompt {
  public:
-  FiberPermissionPrompt(gfx::NativeWindow window,
+  FiberPermissionPrompt(content::WebContents* web_contents,
                         FiberPromptContent* content,
                         Delegate* delegate)
       : delegate_(delegate) {
-    ui_ = Prompt::Show(window, content,
-                       base::BindOnce(&FiberPermissionPrompt::OnEnded,
-                                      base::Unretained(this)));
+    ui_ = Prompt::ShowForTab(web_contents, content,
+                             base::BindOnce(&FiberPermissionPrompt::OnEnded,
+                                            base::Unretained(this)));
   }
 
   // PermissionPrompt:
   bool UpdateAnchor() override { return true; }
+  // The prompt waits, hidden, while its tab isn't active.
   TabSwitchingBehavior GetTabSwitchingBehavior() override {
-    return kDestroyPromptButKeepRequestPending;
+    return kKeepPromptAlive;
   }
   permissions::PermissionPromptDisposition GetPromptDisposition()
       const override {
@@ -237,11 +287,9 @@ class FiberPermissionPrompt : public PermissionPrompt {
 std::unique_ptr<PermissionPrompt> ShowPermissionPrompt(
     content::WebContents* web_contents,
     PermissionPrompt::Delegate* delegate) {
-  FiberBrowserWindow* window = FiberBrowserWindow::FromWebContents(web_contents);
-  CHECK(window);
+  CHECK(FiberBrowserWindow::FromWebContents(web_contents));
   return std::make_unique<FiberPermissionPrompt>(
-      window->GetNativeWindow(), ContentForPrompt(web_contents, *delegate),
-      delegate);
+      web_contents, ContentForPrompt(web_contents, *delegate), delegate);
 }
 
 }  // namespace fiber

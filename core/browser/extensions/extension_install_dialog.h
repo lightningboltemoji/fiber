@@ -17,9 +17,9 @@ class InstallPromptData;
 
 namespace fiber {
 
-// Chrome's extension install and permission prompts, over the veiled page in
-// place of Chrome's dialog. Asked in the window it's for, or else the
-// profile's last active one; with none, the answer is no.
+// Chrome's extension install and permission prompts, in place of Chrome's
+// dialog. Asked on the tab it's for, or else as the window's own: the one it's
+// for, or the profile's last active one; with none, the answer is no.
 void ShowExtensionInstallDialog(
     std::unique_ptr<ExtensionInstallPromptShowParams> show_params,
     ExtensionInstallPrompt::DoneCallback done_callback,

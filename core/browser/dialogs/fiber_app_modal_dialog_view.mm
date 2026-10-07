@@ -5,6 +5,8 @@
 #include <utility>
 
 #import "FiberBridge/FiberJavaScriptDialog.h"
+#import "FiberBridge/FiberPrompt.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/strings/sys_string_conversions.h"
@@ -16,6 +18,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
+#include "fiber/browser/dialogs/prompt.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 #include "ui/strings/grit/ui_strings.h"
@@ -66,6 +69,11 @@ namespace fiber {
 
 namespace {
 
+enum LeaveButtonID {
+  kLeave,
+  kStay,
+};
+
 FiberJavaScriptDialogKind DialogKind(content::JavaScriptDialogType type) {
   switch (type) {
     case content::JAVASCRIPT_DIALOG_TYPE_ALERT:
@@ -83,6 +91,33 @@ NSString* SiteForDisplay(content::WebContents* web_contents) {
   return base::SysUTF16ToNSString(url_formatter::FormatOriginForSecurityDisplay(
       web_contents->GetPrimaryMainFrame()->GetLastCommittedOrigin(),
       url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS));
+}
+
+// Chrome's words for leaving or reloading the page, under its site.
+FiberPromptContent* LeavePromptContent(
+    const javascript_dialogs::AppModalDialogController& controller) {
+  return [[FiberPromptContent alloc]
+      initWithIcon:nil
+             topic:FiberPromptTopicLeave
+           eyebrow:SiteForDisplay(controller.web_contents())
+             title:base::SysUTF16ToNSString(controller.title())
+           message:base::SysUTF16ToNSString(controller.message_text())
+       listHeading:@""
+         listItems:@[]
+           buttons:@[
+             [[FiberPromptButton alloc]
+                 initWithButtonID:kStay
+                            title:l10n_util::GetNSString(IDS_APP_CANCEL)
+                             role:FiberPromptButtonRoleCancel],
+             [[FiberPromptButton alloc]
+                 initWithButtonID:kLeave
+                            title:
+                                l10n_util::GetNSString(
+                                    controller.is_reload()
+                                        ? IDS_BEFORERELOAD_MESSAGEBOX_OK_BUTTON_LABEL
+                                        : IDS_BEFOREUNLOAD_MESSAGEBOX_OK_BUTTON_LABEL)
+                             role:FiberPromptButtonRoleDefault],
+           ]];
 }
 
 }  // namespace
@@ -139,11 +174,12 @@ void FiberAppModalDialogView::ShowAppModalDialog() {
     return;
   }
 
-  NSString* accept_title = l10n_util::GetNSString(IDS_APP_OK);
   if (controller_->is_before_unload_dialog()) {
-    accept_title = l10n_util::GetNSString(
-        controller_->is_reload() ? IDS_BEFORERELOAD_MESSAGEBOX_OK_BUTTON_LABEL
-                                 : IDS_BEFOREUNLOAD_MESSAGEBOX_OK_BUTTON_LABEL);
+    leave_prompt_ = Prompt::ShowForTab(
+        web_contents, LeavePromptContent(*controller_),
+        base::BindOnce(&FiberAppModalDialogView::OnLeavePromptEnded,
+                       base::Unretained(this)));
+    return;
   }
   FiberJavaScriptDialogContent* content = [[FiberJavaScriptDialogContent alloc]
            initWithKind:DialogKind(controller_->javascript_dialog_type())
@@ -151,19 +187,20 @@ void FiberAppModalDialogView::ShowAppModalDialog() {
                 message:base::SysUTF16ToNSString(controller_->message_text())
       defaultPromptText:base::SysUTF16ToNSString(
                             controller_->default_prompt_text())
-      acceptButtonTitle:accept_title
+      acceptButtonTitle:l10n_util::GetNSString(IDS_APP_OK)
       cancelButtonTitle:l10n_util::GetNSString(IDS_APP_CANCEL)];
-  NSWindow* ns_window = window->GetNativeWindow().GetNativeNSWindow();
-  if (controller_->is_before_unload_dialog()) {
-    dialog_ = [FiberJavaScriptDialogFactory
-        leavePromptWithContent:content
-                          site:SiteForDisplay(web_contents)
-                        window:ns_window
-                       actions:actions_];
+  dialog_ = [FiberJavaScriptDialogFactory
+      dialogWithContent:content
+                 window:window->GetNativeWindow().GetNativeNSWindow()
+                actions:actions_];
+}
+
+void FiberAppModalDialogView::OnLeavePromptEnded(std::optional<int> button_id) {
+  // Ending without an answer (another prompt took its place, say) stays.
+  if (button_id == kLeave) {
+    OnAccepted(std::u16string());
   } else {
-    dialog_ = [FiberJavaScriptDialogFactory dialogWithContent:content
-                                                       window:ns_window
-                                                      actions:actions_];
+    OnCancelled();
   }
 }
 
@@ -192,10 +229,11 @@ void FiberAppModalDialogView::CancelAppModalDialog() {
 }
 
 bool FiberAppModalDialogView::IsShowing() const {
-  return dialog_ != nil;
+  return dialog_ != nil || leave_prompt_;
 }
 
 void FiberAppModalDialogView::CloseDialog() {
+  leave_prompt_.reset();
   // Closing reports -dialogDidDismiss, which would delete this.
   [actions_ detachOwner];
   id<FiberJavaScriptDialog> dialog = dialog_;

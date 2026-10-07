@@ -62,6 +62,7 @@ class FiberExtensionUninstallDialog : public ExtensionUninstallDialog {
     }
     FiberPromptContent* content = [[FiberPromptContent alloc]
         initWithIcon:icon().isNull() ? nil : gfx::NSImageFromImageSkia(icon())
+               topic:FiberPromptTopicExtension
              eyebrow:@""
                title:l10n_util::GetNSStringF(
                          IDS_EXTENSION_PROMPT_UNINSTALL_TITLE,

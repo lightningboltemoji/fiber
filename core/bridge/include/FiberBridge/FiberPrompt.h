@@ -46,30 +46,70 @@ NS_SWIFT_SENDABLE
 
 @end
 
+// What a prompt's text field holds, which says what AutoFill may offer.
+typedef NS_ENUM(NSInteger, FiberPromptFieldKind) {
+  FiberPromptFieldKindText,
+  FiberPromptFieldKindUsername,
+  // Hides what's typed.
+  FiberPromptFieldKindPassword,
+};
+
 // A text field in a prompt (a username, say), named by its placeholder.
 NS_SWIFT_SENDABLE
 @interface FiberPromptField : NSObject
 
 - (instancetype)initWithPlaceholder:(NSString*)placeholder
                                text:(NSString*)text
-                             secure:(BOOL)secure NS_DESIGNATED_INITIALIZER;
+                               kind:(FiberPromptFieldKind)kind
+    NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 @property(readonly, copy) NSString* placeholder;
 // What it holds at first.
 @property(readonly, copy) NSString* text;
-// Hides what's typed, for a password.
-@property(readonly) BOOL secure;
+@property(readonly) FiberPromptFieldKind kind;
 
 @end
 
-// What a prompt says: from the top, an icon, a title with a line over it and a
-// message under it, a list, text fields, a checkbox, and a row of buttons.
+// What a prompt is about, which its icon shows unless it has an image of its
+// own.
+typedef NS_ENUM(NSInteger, FiberPromptTopic) {
+  FiberPromptTopicGeneral,
+  FiberPromptTopicLocation,
+  FiberPromptTopicCamera,
+  FiberPromptTopicMicrophone,
+  FiberPromptTopicNotifications,
+  FiberPromptTopicClipboard,
+  FiberPromptTopicFiles,
+  FiberPromptTopicDownloads,
+  // Opening another app, or links of a kind, with a site.
+  FiberPromptTopicOpenApp,
+  FiberPromptTopicSignIn,
+  // Leaving a page that may lose what was typed into it.
+  FiberPromptTopicLeave,
+  FiberPromptTopicExtension,
+  // Devices on the user's local network.
+  FiberPromptTopicLocalNetwork,
+  FiberPromptTopicMIDI,
+  // Placing windows across the user's displays.
+  FiberPromptTopicWindows,
+  // A site embedded in another using what it saved about the user.
+  FiberPromptTopicStorageAccess,
+  FiberPromptTopicKeyboardLock,
+  FiberPromptTopicPointerLock,
+  // Virtual and augmented reality, and hand tracking.
+  FiberPromptTopicSpatial,
+};
+
+// What a prompt says: from the top, a title with a line over it and a
+// message under it, a list, a checkbox, text fields, and the buttons, beside
+// an icon.
 NS_SWIFT_SENDABLE
 @interface FiberPromptContent : NSObject
 
 // Without fields or a checkbox.
 - (instancetype)initWithIcon:(nullable NSImage*)icon
+                       topic:(FiberPromptTopic)topic
                      eyebrow:(NSString*)eyebrow
                        title:(NSString*)title
                      message:(NSString*)message
@@ -77,6 +117,7 @@ NS_SWIFT_SENDABLE
                    listItems:(NSArray<FiberPromptListItem*>*)listItems
                      buttons:(NSArray<FiberPromptButton*>*)buttons;
 - (instancetype)initWithIcon:(nullable NSImage*)icon
+                       topic:(FiberPromptTopic)topic
                      eyebrow:(NSString*)eyebrow
                        title:(NSString*)title
                      message:(NSString*)message
@@ -88,12 +129,13 @@ NS_SWIFT_SENDABLE
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
-// What the prompt is about, like an extension's icon.
+// What the prompt is about, like an extension's icon. Without one, `topic`'s.
 @property(readonly, nullable) NSImage* icon;
+@property(readonly) FiberPromptTopic topic;
 // Over the title, smaller: who's asking, say. Empty for none.
 @property(readonly, copy) NSString* eyebrow;
 @property(readonly, copy) NSString* title;
-// Empty for none.
+// Empty for none. May run to several lines, and paragraphs.
 @property(readonly, copy) NSString* message;
 // Over the list, like "It can:". Empty for none.
 @property(readonly, copy) NSString* listHeading;
@@ -133,22 +175,24 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
+// Prompts are glass bubbles over the page, which stays usable around them.
+// One takes the keyboard as it shows, unless something else in the window
+// (the omnibar, say) has it, and gives it back when the user clicks the page.
 NS_SWIFT_UI_ACTOR
 @interface FiberPromptFactory : NSObject
 
-// Asks over the page, veiled, in `window`, which comes forward. If `window`
-// isn't a browser window, the prompt is dismissed at once (after this
-// returns).
+// Asks over the page of tab `tabID` in `window`, while that tab is active, in
+// place of any other of the tab's. If `window` isn't a browser window, the
+// prompt is dismissed at once (after this returns).
 + (id<FiberPrompt>)promptWithContent:(FiberPromptContent*)content
+                               tabID:(NSInteger)tabID
                               window:(NSWindow*)window
                              actions:(id<FiberPromptActions>)actions;
 
-// Asks in a glass bubble over the middle of the page of tab `tabID` in
-// `window`, shown while that tab is active, leaving the page usable around it.
-// It has no room for fields or a checkbox. If `window` isn't a browser window,
-// the prompt is dismissed at once (after this returns).
-+ (id<FiberPrompt>)bubbleWithContent:(FiberPromptContent*)content
-                               tabID:(NSInteger)tabID
+// Asks over the page in `window`, whichever tab is active, ahead of its tabs'
+// prompts and in place of any other of the window's, bringing it forward. If
+// `window` isn't a browser window, it's dismissed at once (after this returns).
++ (id<FiberPrompt>)promptWithContent:(FiberPromptContent*)content
                               window:(NSWindow*)window
                              actions:(id<FiberPromptActions>)actions;
 

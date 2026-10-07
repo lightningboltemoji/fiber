@@ -11,8 +11,7 @@ typedef NS_ENUM(NSInteger, FiberJavaScriptDialogKind) {
   FiberJavaScriptDialogKindPrompt,
 };
 
-// A page's alert(), confirm(), or prompt(), or its confirmation before leaving
-// the page.
+// A page's alert(), confirm(), or prompt().
 NS_SWIFT_SENDABLE
 @interface FiberJavaScriptDialogContent : NSObject
 
@@ -69,15 +68,6 @@ NS_SWIFT_UI_ACTOR
     dialogWithContent:(FiberJavaScriptDialogContent*)content
                window:(NSWindow*)window
               actions:(id<FiberJavaScriptDialogActions>)actions;
-
-// Asks, for a page's beforeunload handler, whether to leave or reload it
-// (`content` says which), over the veiled page in `window`, which comes
-// forward. `content`'s kind is confirm. `site` names the page's site.
-+ (id<FiberJavaScriptDialog>)
-    leavePromptWithContent:(FiberJavaScriptDialogContent*)content
-                      site:(NSString*)site
-                    window:(NSWindow*)window
-                   actions:(id<FiberJavaScriptDialogActions>)actions;
 
 - (instancetype)init NS_UNAVAILABLE;
 

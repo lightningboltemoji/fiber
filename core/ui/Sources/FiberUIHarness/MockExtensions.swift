@@ -18,6 +18,8 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
 
   private let ui: any FiberExtensions
   private let window: NSWindow
+  /// The window's active tab's, which a store's install prompt is on.
+  private let activeTabID: () -> Int
   private var mocks: [Mock] = [
     Mock(
       id: "blocker", name: "Mock Blocker", symbol: "shield.lefthalf.filled",
@@ -37,9 +39,13 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
   private var promptActions: PromptActions?
   private var countTimer: Timer?
 
-  init(ui: any FiberExtensions, window: NSWindow) {
+  init(
+    ui: any FiberExtensions, window: NSWindow,
+    activeTabID: @escaping () -> Int
+  ) {
     self.ui = ui
     self.window = window
+    self.activeTabID = activeTabID
     super.init()
     ui.actions = self
     push()
@@ -104,7 +110,7 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
     let menu = ExtensionMenu { [weak self] choice in
       switch choice {
       case .pin: self?.setPinned(!mock.isPinned, forExtensionWithID: mock.id)
-      case .remove: self?.remove(mock.id)
+      case .remove: self?.confirmRemoving(mock)
       case .options: print("Options for \(mock.name)")
       }
     }
@@ -115,27 +121,13 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
     print("Manage Extensions")
   }
 
-  /// What adding an extension from a store looks like: Fiber's prompt, then
-  /// the one saying it was added.
+  /// What adding an extension from a store looks like: Fiber's prompt on the
+  /// store's tab, then the window's saying it was added.
   func simulateInstall() {
-    let content = FiberPromptContent(
-      icon: Self.icon("wand.and.stars", .systemTeal, size: 64), eyebrow: "",
-      title: "Add \"Page Polisher\"?", message: "",
-      listHeading: "It can:",
-      listItems: [
-        FiberPromptListItem(
-          text: "Read and change all your data on all websites", detail: ""),
-        FiberPromptListItem(
-          text: "Read and change your data on a number of websites",
-          detail: "example.com\nnews.example\nmail.example"),
-        FiberPromptListItem(text: "Block content on any page", detail: ""),
-      ],
-      buttons: [
-        FiberPromptButton(buttonID: 0, title: "Cancel", role: .cancel),
-        FiberPromptButton(buttonID: 1, title: "Add extension", role: .confirm),
-      ])
-    showPrompt(content) { [weak self] button in
-      guard button == 1 else {
+    showPrompt(
+      PromptSample.addExtension.content(site: "")!, onTabWithID: activeTabID()
+    ) { [weak self] button in
+      guard button == 0 else {
         return
       }
       // The download and install take a moment.
@@ -166,32 +158,44 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
         id: "polisher", name: "Page Polisher", symbol: "wand.and.stars",
         color: .systemTeal))
     push()
-    let content = FiberPromptContent(
-      icon: Self.icon("wand.and.stars", .systemTeal, size: 64), eyebrow: "",
-      title: "Added “Page Polisher”",
-      message: "Open it from the extensions menu, at the end of the toolbar.",
-      listHeading: "", listItems: [],
-      buttons: [
-        FiberPromptButton(buttonID: 0, title: "Pin to Toolbar", role: .other),
-        FiberPromptButton(buttonID: 1, title: "Done", role: .default),
-      ])
-    showPrompt(content) { [weak self] button in
-      if button == 0 {
+    showPrompt(PromptSample.extensionAdded.content(site: "")!) {
+      [weak self] button in
+      if button == 2 {
         self?.setPinned(true, forExtensionWithID: "polisher")
       }
     }
   }
 
+  /// Asks on tab `tabID`'s page, or, without one, as the window's prompt.
   private func showPrompt(
-    _ content: FiberPromptContent, then answered: @escaping (Int?) -> Void
+    _ content: FiberPromptContent, onTabWithID tabID: Int? = nil,
+    then answered: @escaping (Int?) -> Void
   ) {
     let actions = PromptActions { [weak self] button in
       self?.prompt = nil
       answered(button)
     }
     promptActions = actions
-    prompt = FiberPromptFactory.prompt(
-      with: content, window: window, actions: actions)
+    prompt =
+      if let tabID {
+        FiberPromptFactory.prompt(
+          with: content, tabID: tabID, window: window, actions: actions)
+      } else {
+        FiberPromptFactory.prompt(
+          with: content, window: window, actions: actions)
+      }
+  }
+
+  /// As Chrome's extensions menu does, before removing one.
+  private func confirmRemoving(_ mock: Mock) {
+    showPrompt(
+      PromptSample.removeExtension(
+        named: mock.name, icon: Self.icon(mock.symbol, mock.color, size: 64))
+    ) { [weak self] button in
+      if button == 0 {
+        self?.remove(mock.id)
+      }
+    }
   }
 
   private func remove(_ id: String) {
@@ -221,7 +225,7 @@ final class MockExtensions: NSObject, FiberExtensionsActions {
       states, pinnedIDs: mocks.filter(\.isPinned).map(\.id))
   }
 
-  private static func icon(_ symbol: String, _ color: NSColor, size: CGFloat)
+  static func icon(_ symbol: String, _ color: NSColor, size: CGFloat)
     -> NSImage?
   {
     NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?

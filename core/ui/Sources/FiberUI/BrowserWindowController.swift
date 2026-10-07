@@ -150,11 +150,15 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// Blurs the page and darkens the window while it waits on the user.
   private lazy var veil = Veil(blurring: contentArea)
   private lazy var historySwipe = HistorySwipe(pageArea: pageArea, page: pageView)
-  /// What the window is waiting on the user for, over the veil.
-  private var prompt: (any VeilContent)?
-  /// What each tab's page asks, by tab ID; the active tab's shows.
-  private var promptBubbles: [Int: PromptBubble] = [:]
-  private weak var responderBeforePrompt: NSResponder?
+  /// What the window is waiting on the user for, over the veil: the profile
+  /// switcher.
+  private var veilContent: (any VeilContent)?
+  /// What each tab's page asks, by tab ID; the active tab's shows, unless
+  /// the window's own does.
+  private var tabBubbles: [Int: PromptBubble] = [:]
+  /// What the window asks, over whichever tab is active.
+  private var windowBubble: PromptBubble?
+  private weak var responderBeforeVeilContent: NSResponder?
   private let windowControlsBackground = RimmedGlassView(
     rimWidth: BrowserWindowController.windowControlsRimWidth)
   /// Set while a page is fullscreen (a video, say), which shows alone.
@@ -522,9 +526,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  /// Not while a prompt waits on the user, or the controls are hidden.
+  /// Not while the veil's up, or the controls are hidden.
   fileprivate var canShowTabOverlay: Bool {
-    actions != nil && prompt == nil && areControlsVisible
+    actions != nil && veilContent == nil && areControlsVisible
   }
 
   fileprivate func toggleTabOverlay() {
@@ -730,15 +734,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
       closeTabOverlay()
     }
     windowTabs = tabs
+    let didSwitchTabs = activeTabID != self.activeTabID
     self.activeTabID = activeTabID
     commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
-    updatePromptBubbles()
+    removeClosedTabsBubbles()
+    updatePromptBubbles(didSwitchTabs: didSwitchTabs)
   }
 
-  /// Not while the window waits on the user, or the omnibar, command palette
-  /// or tab overlay covers the page.
+  /// Not while the veil's up, or the omnibar, command palette or tab overlay
+  /// covers the page.
   func didOpenTab(withID tabID: Int, fromTabWithID openerTabID: Int) {
-    guard prompt == nil, areControlsVisible, madeOmnibar?.isOpen != true,
+    guard veilContent == nil, areControlsVisible, madeOmnibar?.isOpen != true,
       commandPalette?.isOpen != true, !tabOverlay.isOpen
     else {
       return
@@ -930,33 +936,32 @@ final class BrowserWindowController: NSObject, FiberWindow {
 
   // MARK: Veil
 
-  private static let promptFadeDuration: TimeInterval = 0.2
-  /// How long the veil stays after a prompt goes, for the next one: quitting
-  /// asks each page in turn.
-  private static let veilLingerDuration: TimeInterval = 0.15
+  private static let fadeDuration: TimeInterval = 0.2
+  /// How long a prompt bubble waits to see the page behind it.
+  private static let backdropTimeout: TimeInterval = 0.2
 
-  /// Draws the veil to `amount` (see Veil); it stays fully drawn while a
-  /// prompt is up.
+  /// Draws the veil to `amount` (see Veil); it stays fully drawn while
+  /// something's over it.
   func setVeil(
     _ amount: CGFloat, duration: TimeInterval,
     timing: CAMediaTimingFunctionName = .easeInEaseOut
   ) {
     veil.setAmount(
-      prompt == nil ? amount : 1, duration: duration, timing: timing)
+      veilContent == nil ? amount : 1, duration: duration, timing: timing)
   }
 
-  /// Shows `prompt` over the veil, in place of any other (whose onRemoved is
-  /// called), and brings the window forward: it may have faded out as the user
-  /// quit.
-  func present(_ prompt: any VeilContent) {
-    if let replaced = self.prompt {
+  /// Shows `veilContent` over the veil, in place of any other (whose
+  /// onRemoved is called), and brings the window forward: it may have faded
+  /// out as the user quit.
+  func present(_ veilContent: any VeilContent) {
+    if let replaced = self.veilContent {
       replaced.removeFromSuperview()
       replaced.onRemoved?()
     }
-    if self.prompt == nil {
-      responderBeforePrompt = window.firstResponder
+    if self.veilContent == nil {
+      responderBeforeVeilContent = window.firstResponder
     }
-    self.prompt = prompt
+    self.veilContent = veilContent
     tabPicker.close()
     openedTabNotice.dismiss()
     closeOmnibar()
@@ -964,94 +969,216 @@ final class BrowserWindowController: NSObject, FiberWindow {
     replaceTabOverlay()
 
     let content = window.contentView!
-    prompt.frame = content.bounds
-    prompt.autoresizingMask = [.width, .height]
-    prompt.alphaValue = 0
-    content.addSubview(prompt)
+    veilContent.frame = content.bounds
+    veilContent.autoresizingMask = [.width, .height]
+    veilContent.alphaValue = 0
+    content.addSubview(veilContent)
     setVeil(1, duration: 0.25, timing: .easeOut)
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = Self.promptFadeDuration
-      prompt.animator().alphaValue = 1
+      context.duration = Self.fadeDuration
+      veilContent.animator().alphaValue = 1
       if window.alphaValue < 1 {
         window.animator().alphaValue = 1
       }
     }
     window.makeKeyAndOrderFront(nil)
-    window.makeFirstResponder(prompt.initialFirstResponder ?? prompt)
+    window.makeFirstResponder(veilContent.initialFirstResponder ?? veilContent)
   }
 
-  /// Takes `prompt` down, if it's still up, returning focus to where it was.
-  /// The veil lifts unless another prompt follows.
-  func dismiss(_ prompt: any VeilContent) {
-    guard prompt === self.prompt else {
+  /// Takes `veilContent` down, if it's still up, returning focus to where it
+  /// was, and lifts the veil.
+  func dismiss(_ veilContent: any VeilContent) {
+    guard veilContent === self.veilContent else {
       return
     }
-    self.prompt = nil
+    self.veilContent = nil
     if let responder = window.firstResponder as? NSView,
-      responder.isDescendant(of: prompt)
+      responder.isDescendant(of: veilContent)
     {
-      window.makeFirstResponder(responderBeforePrompt)
+      window.makeFirstResponder(responderBeforeVeilContent)
     }
     NSAnimationContext.runAnimationGroup { context in
-      context.duration = Self.promptFadeDuration
-      prompt.animator().alphaValue = 0
+      context.duration = Self.fadeDuration
+      veilContent.animator().alphaValue = 0
     } completionHandler: {
-      MainActor.assumeIsolated { prompt.removeFromSuperview() }
+      MainActor.assumeIsolated { veilContent.removeFromSuperview() }
     }
-    DispatchQueue.main.asyncAfter(
-      deadline: .now() + SlowMotion.duration(Self.veilLingerDuration)
-    ) { [weak self] in
-      MainActor.assumeIsolated {
-        guard let self, self.prompt == nil else {
-          return
-        }
-        self.veil.setAmount(0, duration: 0.25, timing: .easeOut)
-      }
-    }
+    veil.setAmount(0, duration: 0.25, timing: .easeOut)
   }
 
   // MARK: Prompt bubbles
 
-  /// Shows `bubble` over the page while tab `tabID` is active, in place of
-  /// any other of the tab's (whose onRemoved is called).
-  func present(_ bubble: PromptBubble, forTabWithID tabID: Int) {
-    if let replaced = promptBubbles.removeValue(forKey: tabID) {
-      replaced.leave()
+  /// Shows `bubble` over the page while tab `tabID` is active, or else as the
+  /// window's own, over whichever tab is and brought forward, in place of any
+  /// other of the tab's or window's (whose onRemoved is called).
+  func present(_ bubble: PromptBubble, forTabWithID tabID: Int?) {
+    let replaced: PromptBubble?
+    if let tabID {
+      replaced = tabBubbles.updateValue(bubble, forKey: tabID)
+    } else {
+      replaced = windowBubble
+      windowBubble = bubble
+    }
+    if let replaced {
+      takeDown(replaced)
       replaced.onRemoved?()
     }
-    promptBubbles[tabID] = bubble
     bubble.frame = controlsView.bounds
     bubble.autoresizingMask = [.width, .height]
     controlsView.addSubview(bubble, positioned: .below, relativeTo: tabPicker)
-    if tabID == activeTabID {
-      bubble.show()
+    if tabID == nil {
+      tabPicker.close()
+      openedTabNotice.dismiss()
+      closeOmnibar()
+      closeCommandPalette()
+      replaceTabOverlay()
+      window.makeKeyAndOrderFront(nil)
     }
+    updatePromptBubbles()
   }
 
   /// Takes `bubble` down, if it's still up.
   func dismiss(_ bubble: PromptBubble) {
-    guard let tabID = promptBubbles.first(where: { $0.value === bubble })?.key
+    if windowBubble === bubble {
+      windowBubble = nil
+    } else if let tabID = tabBubbles.first(where: { $0.value === bubble })?.key
+    {
+      tabBubbles[tabID] = nil
+    } else {
+      return
+    }
+    takeDown(bubble)
+    updatePromptBubbles()
+  }
+
+  /// The bubble over the page: the window's, or the active tab's.
+  private var shownBubble: PromptBubble? {
+    windowBubble ?? tabBubbles[activeTabID]
+  }
+
+  /// Shows the window's bubble or the active tab's, and hides the others.
+  /// The one shown takes the keyboard as it shows, and again as its window
+  /// switches tabs under it.
+  private func updatePromptBubbles(didSwitchTabs: Bool = false) {
+    let shown = shownBubble
+    for bubble in tabBubbles.values + [windowBubble].compactMap(\.self)
+    where bubble !== shown {
+      if bubble.hasKeyboard {
+        actions?.focusPage()
+      }
+      bubble.hide()
+    }
+    guard let shown else {
+      return
+    }
+    if shown.isShown {
+      if didSwitchTabs {
+        giveKeyboardSoon(to: shown)
+      }
+      return
+    }
+    guard !shown.isMeasuringBackdrop else {
+      return
+    }
+    shown.isMeasuringBackdrop = true
+    returnFromQuit()
+    measureBackdrop(behind: shown) { [weak self, weak shown] in
+      shown?.isMeasuringBackdrop = false
+      guard let self, let shown, shown === self.shownBubble, !shown.isShown
+      else {
+        return
+      }
+      shown.show()
+      self.giveKeyboardSoon(to: shown)
+    }
+  }
+
+  /// Once the page has taken the keyboard, if it's becoming active.
+  private func giveKeyboardSoon(to bubble: PromptBubble) {
+    DispatchQueue.main.async { [weak self, weak bubble] in
+      MainActor.assumeIsolated {
+        guard let self, let bubble, bubble === self.shownBubble else {
+          return
+        }
+        self.giveKeyboard(to: bubble)
+      }
+    }
+  }
+
+  /// Sets `bubble`'s glass for how light the page behind it is, then calls
+  /// `ready`, or calls it anyway if the page doesn't come back in time.
+  private func measureBackdrop(
+    behind bubble: PromptBubble, then ready: @escaping () -> Void
+  ) {
+    let once = Once(ready)
+    let contentsView = contentsView
+    actions?.capturePageThumbnail { [weak self, weak bubble] thumbnail in
+      MainActor.assumeIsolated {
+        if let self, let bubble, let thumbnail,
+          self.contentsView === contentsView
+        {
+          bubble.setBackdrop(thumbnail)
+        }
+        once.run()
+      }
+    }
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + Self.backdropTimeout
+    ) {
+      MainActor.assumeIsolated { once.run() }
+    }
+  }
+
+  /// Bubbles of tabs that closed, or left the window, go unanswered.
+  private func removeClosedTabsBubbles() {
+    let tabIDs = Set(windowTabs.map(\.tabID))
+    for (tabID, bubble) in tabBubbles where !tabIDs.contains(tabID) {
+      tabBubbles[tabID] = nil
+      bubble.removeFromSuperview()
+      bubble.onRemoved?()
+    }
+  }
+
+  /// Gives `bubble` the keyboard, unless something over the page has it: the
+  /// omnibar, say.
+  private func giveKeyboard(to bubble: PromptBubble) {
+    let responder = window.firstResponder
+    guard
+      responder == nil || responder === window
+        || (responder as? NSView)?.isDescendant(of: contentArea) == true
     else {
       return
     }
-    promptBubbles[tabID] = nil
+    bubble.takeKeyboard()
+  }
+
+  private static func isClick(_ event: NSEvent?) -> Bool {
+    switch event?.type {
+    case .leftMouseDown, .rightMouseDown, .otherMouseDown: true
+    default: false
+    }
+  }
+
+  /// Folds `bubble` away, giving the keyboard back to the page if it has it.
+  private func takeDown(_ bubble: PromptBubble) {
+    if bubble.hasKeyboard {
+      actions?.focusPage()
+    }
     bubble.leave()
   }
 
-  /// Shows the active tab's bubble and hides the others'. Those of tabs that
-  /// closed go unanswered.
-  private func updatePromptBubbles() {
-    let tabIDs = Set(windowTabs.map(\.tabID))
-    for (tabID, bubble) in promptBubbles {
-      if !tabIDs.contains(tabID) {
-        promptBubbles[tabID] = nil
-        bubble.removeFromSuperview()
-        bubble.onRemoved?()
-      } else if tabID == activeTabID {
-        bubble.show()
-      } else {
-        bubble.hide()
-      }
+  /// Brings the window back for a bubble, if a quit faded it out (see
+  /// QuitHold), lifting the veil the quit drew.
+  private func returnFromQuit() {
+    guard window.alphaValue < 1 else {
+      return
+    }
+    if veilContent == nil {
+      veil.setAmount(0, duration: 0.25, timing: .easeOut)
+    }
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = Self.fadeDuration
+      window.animator().alphaValue = 1
     }
   }
 
@@ -1091,14 +1218,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
     actions?.focusPage()
   }
 
-  /// Not while a prompt waits on the user, or a page is fullscreen.
+  /// Not while the veil's up, or a page is fullscreen.
   fileprivate var canShowCommandPalette: Bool {
-    prompt == nil && !isPageFullScreen
+    veilContent == nil && !isPageFullScreen
   }
 
-  /// Not while a prompt waits on the user, which the switcher would replace.
+  /// Not while the veil's up, for what the switcher would replace.
   var canShowProfileSwitcher: Bool {
-    prompt == nil
+    veilContent == nil
   }
 
   func showCommandPalette() {
@@ -1156,6 +1283,24 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// give way, as Chrome's omnibox does.
   fileprivate func firstResponderDidChange() {
     madeFindBar?.firstResponderDidChange()
+    if let bubble = shownBubble {
+      if bubble.model.hasKeyboard, !bubble.hasKeyboard,
+        isFirstResponder(in: contentArea), !Self.isClick(NSApp.currentEvent)
+      {
+        // Only a click gives the page the keyboard back from a bubble: Chrome
+        // focuses a page as it loads, which its tab-modal dialogs block.
+        DispatchQueue.main.async { [weak self, weak bubble] in
+          MainActor.assumeIsolated {
+            guard let bubble, bubble === self?.shownBubble else {
+              return
+            }
+            bubble.takeKeyboard()
+          }
+        }
+      } else {
+        bubble.firstResponderDidChange()
+      }
+    }
     let pages = [contentsView, devTools?.view].compactMap { $0 }
     guard pages.contains(where: isFirstResponder(in:)) else {
       return
@@ -1223,8 +1368,8 @@ extension BrowserWindowController: NSWindowDelegate {
     guard let actions else {
       return true
     }
-    // A prompt is waiting on the user first.
-    if prompt == nil {
+    // What's over the veil is waiting on the user first.
+    if veilContent == nil {
       actions.windowShouldClose()
     }
     return false
@@ -1246,12 +1391,13 @@ extension BrowserWindowController: NSWindowDelegate {
 
   func windowWillClose(_ notification: Notification) {
     // What was waiting on the user goes unanswered.
-    if let prompt {
-      self.prompt = nil
-      prompt.onRemoved?()
+    if let veilContent {
+      self.veilContent = nil
+      veilContent.onRemoved?()
     }
-    let bubbles = promptBubbles.values
-    promptBubbles = [:]
+    let bubbles = tabBubbles.values + [windowBubble].compactMap(\.self)
+    tabBubbles = [:]
+    windowBubble = nil
     for bubble in bubbles {
       bubble.onRemoved?()
     }
@@ -1382,5 +1528,21 @@ private final class PassthroughView: NSView {
   override func hitTest(_ point: NSPoint) -> NSView? {
     let view = super.hitTest(point)
     return view === self ? nil : view
+  }
+}
+
+/// A call made the first time it's asked for.
+@MainActor
+private final class Once {
+  private var call: (() -> Void)?
+
+  init(_ call: @escaping () -> Void) {
+    self.call = call
+  }
+
+  func run() {
+    let call = call
+    self.call = nil
+    call?()
   }
 }

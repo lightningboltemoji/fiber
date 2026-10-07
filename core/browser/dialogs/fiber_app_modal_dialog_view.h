@@ -2,6 +2,7 @@
 #define FIBER_BROWSER_DIALOGS_FIBER_APP_MODAL_DIALOG_VIEW_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "components/javascript_dialogs/app_modal_dialog_view.h"
@@ -16,9 +17,11 @@ class AppModalDialogController;
 
 namespace fiber {
 
-// A JavaScript dialog Chrome shows app-modally: beforeunload, asked over the
-// veiled page, or one from a page without a tab-modal dialog manager, as a
-// sheet. Cancelled outside Fiber's windows. Owns itself until it ends.
+class Prompt;
+
+// A JavaScript dialog Chrome shows app-modally: beforeunload, in a Prompt on
+// its tab, or one from a page without a tab-modal dialog manager, as a sheet.
+// Cancelled outside Fiber's windows. Owns itself until it ends.
 class FiberAppModalDialogView : public javascript_dialogs::AppModalDialogView {
  public:
   FiberAppModalDialogView(const FiberAppModalDialogView&) = delete;
@@ -49,6 +52,9 @@ class FiberAppModalDialogView : public javascript_dialogs::AppModalDialogView {
           controller);
   ~FiberAppModalDialogView() override;
 
+  // Deletes this.
+  void OnLeavePromptEnded(std::optional<int> button_id);
+
   // Takes the dialog down without reporting how it ended.
   void CloseDialog();
 
@@ -56,6 +62,8 @@ class FiberAppModalDialogView : public javascript_dialogs::AppModalDialogView {
   std::unique_ptr<PopunderPreventer> popunder_preventer_;
   FiberAppModalDialogViewActions* __strong actions_;
   id<FiberJavaScriptDialog> __strong dialog_;
+  // Instead of `dialog_`, for beforeunload.
+  std::unique_ptr<Prompt> leave_prompt_;
 };
 
 }  // namespace fiber

@@ -16,8 +16,8 @@ class Profile;
 
 namespace fiber {
 
-// A quit, or a window's close, waiting for downloads to finish, listed over
-// the page by FiberDownloadsWaitFactory. Owns itself until it's done.
+// A quit, or a window's close, waiting for downloads to finish, listed in a
+// prompt by FiberDownloadsWaitFactory. Owns itself until it's done.
 class DownloadsWait : public download::AllDownloadItemNotifier::Observer {
  public:
   enum class Reason {

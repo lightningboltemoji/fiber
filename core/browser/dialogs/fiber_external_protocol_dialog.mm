@@ -70,6 +70,7 @@ FiberPromptContent* ContentForDialog(
   // a page can't rush the user into it.
   return [[FiberPromptContent alloc]
        initWithIcon:nil
+              topic:FiberPromptTopicOpenApp
             eyebrow:@""
               title:l10n_util::GetNSStringF(IDS_EXTERNAL_PROTOCOL_TITLE,
                                             elided_program_name)

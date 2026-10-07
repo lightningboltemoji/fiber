@@ -5,8 +5,8 @@
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
-#include "fiber/browser/window/fiber_browser_window.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 
 namespace fiber {
@@ -17,27 +17,29 @@ std::unique_ptr<TabPrompt> TabPrompt::Show(content::WebContents* web_contents,
                                            Prompt::Callback callback) {
   auto tab_prompt =
       base::WrapUnique(new TabPrompt(web_contents, std::move(callback)));
-  FiberBrowserWindow* window =
-      FiberBrowserWindow::FromWebContents(web_contents);
-  tab_prompt->prompt_ = Prompt::Show(
-      window ? window->GetNativeWindow() : gfx::NativeWindow(), content,
-      base::BindOnce(&TabPrompt::OnEnded,
-                     base::Unretained(tab_prompt.get())));
+  tab_prompt->prompt_ = Prompt::ShowForTab(
+      web_contents, content,
+      base::BindOnce(&TabPrompt::OnEnded, base::Unretained(tab_prompt.get())));
   return tab_prompt;
 }
 
 TabPrompt::TabPrompt(content::WebContents* web_contents,
                      Prompt::Callback callback)
     : content::WebContentsObserver(web_contents),
-      callback_(std::move(callback)) {}
+      callback_(std::move(callback)),
+      document_(web_contents->GetPrimaryMainFrame()->GetWeakDocumentPtr()) {}
 
 TabPrompt::~TabPrompt() = default;
 
 void TabPrompt::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  // As web_modal::WebContentsModalDialogManager closes Chrome's.
+  // As web_modal::WebContentsModalDialogManager closes Chrome's, but for the
+  // navigation that committed its page: a sign-in prompt shows as that
+  // finishes, which this hears about too.
   if (!navigation_handle->IsInPrimaryMainFrame() ||
       !navigation_handle->HasCommitted() ||
+      navigation_handle->GetRenderFrameHost() ==
+          document_.AsRenderFrameHostIfValid() ||
       net::registry_controlled_domains::SameDomainOrHost(
           navigation_handle->GetPreviousPrimaryMainFrameURL(),
           navigation_handle->GetURL(),

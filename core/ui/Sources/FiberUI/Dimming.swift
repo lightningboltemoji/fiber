@@ -17,6 +17,28 @@ struct Dimming {
   /// How light `image` looks: its pixels' mean L*, the middle counting most,
   /// as the tab overlay is there.
   static func lightness(of image: CGImage) -> Double? {
+    meanLightness(of: image) { dx, dy in 1 - (dx * dx + dy * dy) / 2 }
+  }
+
+  /// How light the part of `image` in `region` looks: its pixels' mean L*.
+  /// `region` is in units of the image's size, from its top-left corner.
+  static func lightness(of image: CGImage, in region: CGRect) -> Double? {
+    let size = CGSize(width: image.width, height: image.height)
+    let pixels = CGRect(
+      x: region.minX * size.width, y: region.minY * size.height,
+      width: region.width * size.width, height: region.height * size.height
+    ).integral.intersection(CGRect(origin: .zero, size: size))
+    guard !pixels.isEmpty, let part = image.cropping(to: pixels) else {
+      return nil
+    }
+    return meanLightness(of: part) { _, _ in 1 }
+  }
+
+  /// `image`'s pixels' mean L*, each weighted by `weight` of where it is,
+  /// from -1 to 1 across and down.
+  private static func meanLightness(
+    of image: CGImage, weight: (Double, Double) -> Double
+  ) -> Double? {
     let width = image.width
     let height = image.height
     guard width > 0, height > 0,
@@ -40,13 +62,12 @@ struct Dimming {
     var totalWeight = 0.0
     for y in 0..<height {
       for x in 0..<width {
-        // From 1 in the middle to 0 in the corners.
-        let dx = (Double(x) + 0.5) / Double(width) * 2 - 1
-        let dy = (Double(y) + 0.5) / Double(height) * 2 - 1
-        let weight = 1 - (dx * dx + dy * dy) / 2
+        let pixelWeight = weight(
+          (Double(x) + 0.5) / Double(width) * 2 - 1,
+          (Double(y) + 0.5) / Double(height) * 2 - 1)
         let luminance = Double(luminances[y * rowLength + x])
-        total += weight * lightness(ofLuminance: luminance)
-        totalWeight += weight
+        total += pixelWeight * lightness(ofLuminance: luminance)
+        totalWeight += pixelWeight
       }
     }
     return total / totalWeight

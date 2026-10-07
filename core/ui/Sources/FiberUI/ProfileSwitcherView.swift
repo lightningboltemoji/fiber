@@ -363,7 +363,7 @@ private struct OrbitBubble: View {
   }
 }
 
-/// A button whose key is after its title, fainter, as VeilPrompt's are.
+/// A button whose key is after its title, fainter.
 private struct KeyedButtonLabel: View {
   let title: String
   let key: String

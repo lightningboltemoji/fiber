@@ -50,6 +50,7 @@ FiberPromptContent* ContentForDialog(TabModalConfirmDialogDelegate& delegate) {
   gfx::Image* icon = delegate.GetIcon();
   return [[FiberPromptContent alloc]
       initWithIcon:icon && !icon->IsEmpty() ? icon->ToNSImage() : nil
+             topic:FiberPromptTopicGeneral
            eyebrow:@""
              title:base::SysUTF16ToNSString(delegate.GetTitle())
            message:base::SysUTF16ToNSString(delegate.GetDialogMessage())

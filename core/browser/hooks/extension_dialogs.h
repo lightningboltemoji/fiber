@@ -16,8 +16,8 @@ namespace extensions {
 class Extension;
 }  // namespace extensions
 
-// Fiber's prompts for adding and removing extensions, over the veiled page, in
-// place of Chrome's dialogs, which are cut.
+// Fiber's prompts for adding and removing extensions, in place of Chrome's
+// dialogs, which are cut.
 namespace fiber {
 
 // For ExtensionInstallPrompt::GetDefaultShowDialogCallback(): adding an

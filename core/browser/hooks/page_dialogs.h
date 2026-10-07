@@ -25,8 +25,8 @@ namespace url {
 class Origin;
 }
 
-// Fiber's prompts, over the veiled page, in place of the dialogs Chrome shows
-// over a tab in a Fiber window, which has no views window for them. Each is
+// Fiber's prompts, over the page, in place of the dialogs Chrome shows over a
+// tab in a Fiber window, which has no views window for them. Each is
 // called from Chrome's factory for its dialog.
 namespace fiber {
 

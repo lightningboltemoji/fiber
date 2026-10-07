@@ -3,8 +3,8 @@ import FiberBridge
 import SwiftUI
 
 /// The harness's own controls, in a panel beside the browser window they act
-/// on: its tabs, the profile's pins, a prompt over its page or in a bubble on
-/// its tab, a tab opened from a link on it, and how slowly the UI animates.
+/// on: its tabs, the profile's pins, a prompt on its page, a tab opened from a
+/// link on it, and how slowly the UI animates.
 @MainActor
 final class HarnessControls: NSObject, NSWindowDelegate {
   @Observable
@@ -14,8 +14,7 @@ final class HarnessControls: NSObject, NSWindowDelegate {
     var slowMotion = 1.0
     @ObservationIgnored var setTabCount: (Int) -> Void = { _ in }
     @ObservationIgnored var setPinCount: (Int) -> Void = { _ in }
-    @ObservationIgnored var showLocationPrompt: () -> Void = {}
-    @ObservationIgnored var showBubble: (BubbleSample) -> Void = { _ in }
+    @ObservationIgnored var showPrompt: (PromptSample) -> Void = { _ in }
     /// In front, or behind.
     @ObservationIgnored var openTabFromLink: (Bool) -> Void = { _ in }
   }
@@ -148,22 +147,16 @@ private struct ControlsView: View {
           in: 0...40
         ) { count(model.pinCount) }
       }
-      LabeledContent("Veil:") {
-        Button("Location Prompt") { model.showLocationPrompt() }
-      }
-      LabeledContent("Bubble:") {
-        VStack(alignment: .leading) {
-          HStack {
-            ForEach(BubbleSample.allCases.prefix(3), id: \.self) { sample in
-              Button(sample.label) { model.showBubble(sample) }
-            }
+      LabeledContent("Prompt:") {
+        Menu("Show") {
+          Section("On the Tab") {
+            samples(PromptSample.allCases.filter { !$0.isWindows })
           }
-          HStack {
-            ForEach(BubbleSample.allCases.dropFirst(3), id: \.self) { sample in
-              Button(sample.label) { model.showBubble(sample) }
-            }
+          Section("The Window's") {
+            samples(PromptSample.allCases.filter(\.isWindows))
           }
         }
+        .fixedSize()
       }
       LabeledContent("Link:") {
         HStack {
@@ -184,6 +177,12 @@ private struct ControlsView: View {
     }
     .formStyle(.columns)
     .padding(16)
+  }
+
+  private func samples(_ samples: [PromptSample]) -> some View {
+    ForEach(samples, id: \.self) { sample in
+      Button(sample.label) { model.showPrompt(sample) }
+    }
   }
 
   /// Wide enough for two digits, so the stepper beside it stays put.

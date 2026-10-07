@@ -51,15 +51,16 @@ FiberPromptContent* ContentForPrompt(const RequestData& request,
   // a page can't rush the user into it.
   return [[FiberPromptContent alloc]
       initWithIcon:nil
-           eyebrow:@""
-             title:l10n_util::GetNSStringF(
+             topic:FiberPromptTopicFiles
+           eyebrow:l10n_util::GetNSStringF(
                        IDS_PERMISSIONS_BUBBLE_PROMPT,
                        file_system_access_ui_helper::GetUrlIdentityName(
                            Profile::FromBrowserContext(
                                web_contents->GetBrowserContext()),
                            request.origin.GetURL()))
-           message:l10n_util::GetNSString(
+             title:l10n_util::GetNSString(
                        IDS_FILE_SYSTEM_ACCESS_RESTORE_PERMISSION_DESCRIPTION)
+           message:@""
        listHeading:@""
          listItems:items
            buttons:@[

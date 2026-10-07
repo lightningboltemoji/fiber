@@ -101,6 +101,7 @@ FiberPromptContent* ContentForPrompt(const InstallPromptData& prompt) {
 
   return [[FiberPromptContent alloc]
       initWithIcon:prompt.icon().IsEmpty() ? nil : prompt.icon().ToNSImage()
+             topic:FiberPromptTopicExtension
            eyebrow:@""
              title:base::SysUTF16ToNSString(prompt.GetDialogTitle())
            message:@""
@@ -124,11 +125,15 @@ class ExtensionInstallDialog : public extensions::ExtensionRegistryObserver {
     }
   }
 
-  void Show(FiberBrowserWindow* window) {
+  // On `tab`'s page if it's set, else as `window`'s own.
+  void Show(FiberBrowserWindow* window, content::WebContents* tab) {
     prompt_->OnDialogOpened();
-    ui_ = Prompt::Show(window->GetNativeWindow(), ContentForPrompt(*prompt_),
-                       base::BindOnce(&ExtensionInstallDialog::OnEnded,
-                                      base::Unretained(this)));
+    auto on_ended = base::BindOnce(&ExtensionInstallDialog::OnEnded,
+                                   base::Unretained(this));
+    ui_ = tab ? Prompt::ShowForTab(tab, ContentForPrompt(*prompt_),
+                                   std::move(on_ended))
+              : Prompt::Show(window->GetNativeWindow(),
+                             ContentForPrompt(*prompt_), std::move(on_ended));
   }
 
  private:
@@ -182,11 +187,16 @@ void ShowExtensionInstallDialog(
             ExtensionInstallPrompt::Result::ABORTED));
     return;
   }
-  // Like Chrome's dialog, the tab it's for comes forward.
-  window->ActivateTab(show_params->GetParentWebContents());
+  // Like Chrome's dialog, the tab it's for comes forward, and it's asked on
+  // that tab's page.
+  content::WebContents* tab = show_params->GetParentWebContents();
+  if (tab && FiberBrowserWindow::FromWebContents(tab) != window) {
+    tab = nullptr;
+  }
+  window->ActivateTab(tab);
   (new ExtensionInstallDialog(show_params->profile(), std::move(done_callback),
                               std::move(prompt)))
-      ->Show(window);
+      ->Show(window, tab);
 }
 
 void ShowExtensionInstalled(
@@ -212,6 +222,7 @@ void ShowExtensionInstalled(
   FiberPromptContent* content = [[FiberPromptContent alloc]
       initWithIcon:icon && !icon->isNull() ? skia::SkBitmapToNSImage(*icon)
                                            : nil
+             topic:FiberPromptTopicExtension
            eyebrow:@""
              title:[NSString stringWithFormat:@"Added “%@”",
                                               base::SysUTF8ToNSString(

@@ -1,5 +1,6 @@
 import AppKit
 import FiberBridge
+import SwiftUI
 
 @objc @implementation extension FiberDownloadState {
   let downloadID: String
@@ -31,15 +32,19 @@ import FiberBridge
   }
 }
 
-/// A quit, or a window's close, waiting for downloads to finish, over the
-/// veiled page: each download's progress, Continue Browsing to stop waiting,
-/// and Quit (or Close) Now to go ahead without them.
+/// A quit, or a window's close, waiting for downloads to finish, as the
+/// window's prompt bubble: each download's progress, Continue Browsing to stop
+/// waiting, and Quit (or Close) Now to go ahead without them.
 @MainActor
 final class DownloadsWait: NSObject, FiberDownloadsWait {
+  private enum ButtonID: Int {
+    case continueBrowsing, proceedNow
+  }
+
   private let actions: any FiberDownloadsWaitActions
   private weak var controller: BrowserWindowController?
-  private let list = DownloadList()
-  private var prompt: VeilPrompt?
+  private let list = DownloadListModel()
+  private let bubble: PromptBubble
   private var isClosed = false
 
   init(
@@ -48,28 +53,35 @@ final class DownloadsWait: NSObject, FiberDownloadsWait {
   ) {
     self.actions = actions
     controller = BrowserWindowController.controller(for: window)
+    let isQuit = reason == .quit
+    bubble = PromptBubble(
+      model: PromptBubbleModel(
+        topic: .downloads,
+        title: isQuit
+          ? "Quitting when downloads finish" : "Closing when downloads finish",
+        buttons: [
+          FiberPromptButton(
+            buttonID: ButtonID.continueBrowsing.rawValue,
+            title: "Continue Browsing", role: .cancel),
+          FiberPromptButton(
+            buttonID: ButtonID.proceedNow.rawValue,
+            title: isQuit ? "Quit Now" : "Close Now", role: .other),
+        ],
+        accessory: AnyView(DownloadList(model: list))))
     super.init()
 
-    let isQuit = reason == .quit
     list.onCancel = { [weak self] id in
       self?.actions.cancelDownload(withID: id)
     }
     list.onResume = { [weak self] id in
       self?.actions.resumeDownload(withID: id)
     }
-    let prompt = VeilPrompt(
-      title: isQuit
-        ? "Quitting when downloads finish" : "Closing when downloads finish",
-      message: "", accessory: list,
-      buttons: [
-        .init(title: "Continue Browsing", role: .cancel) { [weak self] in
-          self?.finish { $0.stopWaiting() }
-        },
-        .init(title: isQuit ? "Quit Now" : "Close Now", role: .other) {
-          [weak self] in self?.finish { $0.proceedNow() }
-        },
-      ])
-    self.prompt = prompt
+    bubble.model.onButton = { [weak self] buttonID in
+      switch ButtonID(rawValue: buttonID) {
+      case .proceedNow: self?.finish { $0.proceedNow() }
+      default: self?.finish { $0.stopWaiting() }
+      }
+    }
     guard let controller else {
       // Nowhere to wait, so don't.
       DispatchQueue.main.async {
@@ -77,12 +89,12 @@ final class DownloadsWait: NSObject, FiberDownloadsWait {
       }
       return
     }
-    controller.present(prompt)
+    controller.present(bubble, forTabWithID: nil)
   }
 
   func setDownloads(_ downloads: [FiberDownloadState]) {
-    list.setDownloads(downloads)
-    prompt?.message =
+    list.downloads = downloads
+    bubble.model.message =
       downloads.count == 1 ? "1 download left" : "\(downloads.count) downloads left"
   }
 
@@ -91,9 +103,7 @@ final class DownloadsWait: NSObject, FiberDownloadsWait {
       return
     }
     isClosed = true
-    if let prompt {
-      controller?.dismiss(prompt)
-    }
+    controller?.dismiss(bubble)
   }
 
   /// Takes the wait down and reports what the user chose, once.
@@ -106,241 +116,94 @@ final class DownloadsWait: NSObject, FiberDownloadsWait {
   }
 }
 
+@MainActor
+@Observable
+private final class DownloadListModel {
+  var downloads: [FiberDownloadState] = []
+  @ObservationIgnored var onCancel: (String) -> Void = { _ in }
+  @ObservationIgnored var onResume: (String) -> Void = { _ in }
+}
+
 /// The downloads being waited for, a row each, scrolling past a few.
-@MainActor
-private final class DownloadList: NSView {
-  static let width: CGFloat = 440
-  private static let maxVisibleRows = 5
-  private static let rowSpacing: CGFloat = 6
+private struct DownloadList: View {
+  private static let rowHeight: CGFloat = 46
+  private static let rowSpacing: CGFloat = 8
+  private static let maxVisibleRows = 4
 
-  var onCancel: (String) -> Void = { _ in }
-  var onResume: (String) -> Void = { _ in }
+  let model: DownloadListModel
 
-  private let scrollView = NSScrollView()
-  private let rowsView = FlippedView()
-  private var rows: [String: DownloadRow] = [:]
-  private var order: [String] = []
-  private lazy var heightConstraint = heightAnchor.constraint(
-    equalToConstant: 0)
-
-  init() {
-    super.init(frame: .zero)
-    translatesAutoresizingMaskIntoConstraints = false
-    scrollView.drawsBackground = false
-    scrollView.hasVerticalScroller = true
-    scrollView.autohidesScrollers = true
-    scrollView.scrollerStyle = .overlay
-    scrollView.documentView = rowsView
-    scrollView.autoresizingMask = [.width, .height]
-    addSubview(scrollView)
-    NSLayoutConstraint.activate([
-      widthAnchor.constraint(equalToConstant: Self.width), heightConstraint,
-    ])
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) is not supported")
-  }
-
-  /// Rows stay with their downloads, so progress animates from where it was.
-  func setDownloads(_ downloads: [FiberDownloadState]) {
-    let ids = Set(downloads.map(\.downloadID))
-    for (id, row) in rows where !ids.contains(id) {
-      row.removeFromSuperview()
-      rows[id] = nil
-    }
-    order = downloads.map(\.downloadID)
-    for download in downloads {
-      let row =
-        rows[download.downloadID]
-        ?? {
-          let row = DownloadRow()
-          row.onCancel = { [weak self] in self?.onCancel(download.downloadID) }
-          row.onResume = { [weak self] in self?.onResume(download.downloadID) }
-          rows[download.downloadID] = row
-          rowsView.addSubview(row)
-          return row
-        }()
-      row.set(download)
-    }
-    layoutRows()
-  }
-
-  private func layoutRows() {
-    let pitch = DownloadRow.height + Self.rowSpacing
-    for (index, id) in order.enumerated() {
-      rows[id]?.frame = NSRect(
-        x: 0, y: CGFloat(index) * pitch, width: Self.width,
-        height: DownloadRow.height)
-    }
-    let contentHeight = max(CGFloat(order.count) * pitch - Self.rowSpacing, 0)
-    rowsView.frame = NSRect(
-      x: 0, y: 0, width: Self.width, height: contentHeight)
-    let visibleRows = min(order.count, Self.maxVisibleRows)
-    heightConstraint.constant = max(
-      CGFloat(visibleRows) * pitch - Self.rowSpacing, 0)
-    scrollView.frame = NSRect(
-      x: 0, y: 0, width: Self.width, height: heightConstraint.constant)
-  }
-}
-
-@MainActor
-private final class DownloadRow: FlippedView {
-  static let height: CGFloat = 50
-  private static let buttonSize: CGFloat = 28
-  private static let buttonSpacing: CGFloat = 8
-  private static let textInset: CGFloat = 14
-
-  var onCancel: () -> Void = {}
-  var onResume: () -> Void = {}
-
-  private let nameLabel = NSTextField(labelWithString: "")
-  private let statusLabel = NSTextField(labelWithString: "")
-  private let progressBar = ProgressBar()
-  private let resumeButton = DownloadRow.makeButton(
-    symbol: "play.fill", label: "Resume")
-  private let cancelButton = DownloadRow.makeButton(
-    symbol: "xmark", label: "Cancel")
-
-  init() {
-    super.init(frame: .zero)
-    nameLabel.font = .systemFont(ofSize: 14, weight: .medium)
-    nameLabel.textColor = .white
-    nameLabel.lineBreakMode = .byTruncatingMiddle
-    statusLabel.font = .systemFont(ofSize: 12)
-    statusLabel.textColor = .white.withAlphaComponent(0.65)
-    statusLabel.lineBreakMode = .byTruncatingTail
-    resumeButton.target = self
-    resumeButton.action = #selector(resume(_:))
-    cancelButton.target = self
-    cancelButton.action = #selector(cancel(_:))
-    for view in [nameLabel, statusLabel, progressBar, resumeButton, cancelButton]
-    {
-      addSubview(view)
-    }
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) is not supported")
-  }
-
-  func set(_ download: FiberDownloadState) {
-    nameLabel.stringValue = download.fileName
-    statusLabel.stringValue = download.statusText
-    progressBar.progress = download.progress
-    resumeButton.isHidden = !download.paused
-    needsLayout = true
-  }
-
-  override func layout() {
-    super.layout()
-    let size = Self.buttonSize
-    cancelButton.frame = NSRect(
-      x: bounds.maxX - size, y: (bounds.height - size) / 2, width: size,
-      height: size)
-    resumeButton.frame = cancelButton.frame.offsetBy(
-      dx: -(size + Self.buttonSpacing), dy: 0)
-    // Room for both buttons, so the bars line up whether or not it's paused.
-    let textWidth = resumeButton.frame.minX - Self.textInset
-    nameLabel.frame = NSRect(x: 0, y: 2, width: textWidth, height: 18)
-    statusLabel.frame = NSRect(x: 0, y: 21, width: textWidth, height: 16)
-    progressBar.frame = NSRect(
-      x: 0, y: bounds.height - ProgressBar.height - 2, width: textWidth,
-      height: ProgressBar.height)
-  }
-
-  private static func makeButton(symbol: String, label: String) -> NSButton {
-    let image = NSImage(
-      systemSymbolName: symbol, accessibilityDescription: label)!
-    let button = NSButton(image: image, target: nil, action: nil)
-    button.bezelStyle = .glass
-    button.borderShape = .circle
-    button.controlSize = .regular
-    button.imageScaling = .scaleProportionallyDown
-    button.setAccessibilityLabel(label)
-    return button
-  }
-
-  @objc private func resume(_ sender: Any?) {
-    onResume()
-  }
-
-  @objc private func cancel(_ sender: Any?) {
-    onCancel()
-  }
-}
-
-/// A thin capsule filling from the left; while the total isn't known, a
-/// segment slides along it instead.
-@MainActor
-private final class ProgressBar: NSView {
-  static let height: CGFloat = 4
-  private static let indeterminateFraction: CGFloat = 0.3
-
-  /// From 0 to 1, or negative when unknown.
-  var progress: Double = 0 {
-    didSet { needsLayout = true }
-  }
-
-  private let track = CALayer()
-  private let fill = CALayer()
-
-  override init(frame: NSRect) {
-    super.init(frame: frame)
-    wantsLayer = true
-    track.backgroundColor = NSColor.white.withAlphaComponent(0.18).cgColor
-    fill.backgroundColor = NSColor.white.withAlphaComponent(0.9).cgColor
-    track.masksToBounds = true
-    track.addSublayer(fill)
-    layer?.addSublayer(track)
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) is not supported")
-  }
-
-  override func layout() {
-    super.layout()
-    let radius = bounds.height / 2
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    track.frame = bounds
-    track.cornerRadius = radius
-    fill.cornerRadius = radius
-    CATransaction.commit()
-
-    if progress < 0 {
-      let width = bounds.width * Self.indeterminateFraction
-      guard fill.animation(forKey: "slide") == nil || fill.bounds.width != width
-      else {
-        return
+  var body: some View {
+    let rows = min(model.downloads.count, Self.maxVisibleRows)
+    ScrollView {
+      VStack(spacing: Self.rowSpacing) {
+        ForEach(model.downloads, id: \.downloadID) { download in
+          DownloadRow(
+            download: download,
+            onCancel: { model.onCancel(download.downloadID) },
+            onResume: { model.onResume(download.downloadID) }
+          )
+          .frame(height: Self.rowHeight)
+        }
       }
-      CATransaction.begin()
-      CATransaction.setDisableActions(true)
-      fill.anchorPoint = CGPoint(x: 0, y: 0)
-      fill.frame = CGRect(x: -width, y: 0, width: width, height: bounds.height)
-      CATransaction.commit()
-      let slide = CABasicAnimation(keyPath: "position.x")
-      slide.fromValue = -width
-      slide.toValue = bounds.width
-      slide.duration = 1.2
-      slide.repeatCount = .infinity
-      slide.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-      fill.add(slide, forKey: "slide")
-    } else {
-      // Implicitly animated, so it creeps rather than jumps.
-      fill.removeAnimation(forKey: "slide")
-      fill.anchorPoint = CGPoint(x: 0, y: 0)
-      fill.frame = CGRect(
-        x: 0, y: 0, width: bounds.width * min(max(progress, 0), 1),
-        height: bounds.height)
     }
+    .scrollIndicators(.automatic)
+    .scrollBounceBehavior(.basedOnSize)
+    .frame(
+      height: max(
+        CGFloat(rows) * (Self.rowHeight + Self.rowSpacing) - Self.rowSpacing, 0)
+    )
   }
 }
 
-private class FlippedView: NSView {
-  override var isFlipped: Bool { true }
+private struct DownloadRow: View {
+  let download: FiberDownloadState
+  let onCancel: () -> Void
+  let onResume: () -> Void
+
+  var body: some View {
+    HStack(spacing: 8) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(download.fileName)
+          .font(.system(size: 12, weight: .medium))
+          .lineLimit(1)
+          .truncationMode(.middle)
+        Group {
+          if download.progress < 0 {
+            ProgressView()
+          } else {
+            ProgressView(value: min(max(download.progress, 0), 1))
+              .animation(.smooth.slowMotion, value: download.progress)
+          }
+        }
+        .progressViewStyle(.linear)
+        .controlSize(.mini)
+        Text(download.statusText)
+          .font(.system(size: 11))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
+      // Room for both buttons, so the bars line up whether or not it's
+      // paused.
+      HStack(spacing: 4) {
+        rowButton("play.fill", label: "Resume", action: onResume)
+          .opacity(download.paused ? 1 : 0)
+          .disabled(!download.paused)
+        rowButton("xmark", label: "Cancel", action: onCancel)
+      }
+    }
+  }
+
+  private func rowButton(
+    _ symbol: String, label: String, action: @escaping () -> Void
+  ) -> some View {
+    Button(action: action) {
+      Image(systemName: symbol)
+        .font(.system(size: 10, weight: .bold))
+        .frame(width: 22, height: 22)
+    }
+    .buttonStyle(.glass)
+    .buttonBorderShape(.circle)
+    .controlSize(.small)
+    .accessibilityLabel(label)
+  }
 }

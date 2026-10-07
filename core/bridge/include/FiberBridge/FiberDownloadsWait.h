@@ -44,8 +44,8 @@ NS_SWIFT_UI_ACTOR
 
 @end
 
-// The downloads a quit or a window's close is waiting for, listed over the
-// veiled page in a window. When they're done, what was waiting goes ahead.
+// The downloads a quit or a window's close is waiting for, listed in a prompt
+// in a window. When they're done, what was waiting goes ahead.
 NS_SWIFT_UI_ACTOR
 @protocol FiberDownloadsWait <NSObject>
 
@@ -59,7 +59,8 @@ NS_SWIFT_UI_ACTOR
 NS_SWIFT_UI_ACTOR
 @interface FiberDownloadsWaitFactory : NSObject
 
-// Shows the wait in `window`, which comes forward.
+// Shows the wait in `window` as the window's prompt (see FiberPromptFactory),
+// and brings the window forward.
 + (id<FiberDownloadsWait>)waitWithReason:(FiberDownloadsWaitReason)reason
                                   window:(NSWindow*)window
                                  actions:(id<FiberDownloadsWaitActions>)actions;

@@ -8,8 +8,8 @@
 // `--overlay` (the tab overlay, as Command-S opens it),
 // `--key-passthrough` (the active tab has key passthrough),
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page),
-// `--bubble KIND` (a prompt bubble on the active tab: location, camera,
-// notifications, extension or open-app),
+// `--prompt KIND` (a prompt on the active tab, or the window's: see
+// PromptSample for the kinds),
 // `--slow-motion N` (animations N times slower). Its own controls (see
 // HarnessControls) sit beside the window last used.
 
@@ -32,6 +32,8 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   /// The profile's pins, which its windows share.
   let pins = MockPins()
   private lazy var downloads = MockDownloads(count: launchDownloadCount)
+  /// Waited for from the controls, without quitting.
+  private var sampleDownloads: MockDownloads?
   private lazy var profiles = MockProfiles(app: self)
   /// Set once the downloads are done, so the quit they held up goes ahead.
   private var isDoneWaiting = false
@@ -90,12 +92,17 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         }
       }
     }
-    if let kind = launchValue(of: "--bubble"),
-      let sample = BubbleSample.allCases.first(where: { $0.flag == kind })
+    if let kind = launchValue(of: "--prompt"),
+      let sample = PromptSample.allCases.first(where: { $0.flag == kind })
     {
       // Once the window has settled, so it opens as it would over a page.
       DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-        MainActor.assumeIsolated { self?.browsers.last?.showBubble(sample) }
+        MainActor.assumeIsolated {
+          guard let browser = self?.browsers.last else {
+            return
+          }
+          self?.showPrompt(sample, in: browser)
+        }
       }
     }
     if let query = launchValue(of: "--find") {
@@ -221,17 +228,32 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     controls.model.setPinCount = { [weak self] count in
       self?.setPinCount(count)
     }
-    controls.model.showLocationPrompt = { [weak self] in
-      self?.currentBrowser?.showLocationPrompt()
-    }
-    controls.model.showBubble = { [weak self] sample in
-      self?.currentBrowser?.showBubble(sample)
+    controls.model.showPrompt = { [weak self] sample in
+      guard let browser = self?.currentBrowser else {
+        return
+      }
+      self?.showPrompt(sample, in: browser)
     }
     controls.model.openTabFromLink = { [weak self] inFront in
       self?.currentBrowser?.openTabFromLink(
         MockBrowser.sampleURLs(count: 4).last!, inFront: inFront)
     }
     return controls
+  }
+
+  /// The downloads wait is the app's, as a quit's; the rest are the
+  /// browser's.
+  private func showPrompt(_ sample: PromptSample, in browser: MockBrowser) {
+    guard sample == .downloads else {
+      browser.showPrompt(sample)
+      return
+    }
+    let downloads = MockDownloads(count: 3)
+    sampleDownloads = downloads
+    downloads.wait(in: browser.window) { [weak self] proceed in
+      print("Downloads on Quit: \(proceed ? "proceed" : "stop waiting")")
+      self?.sampleDownloads = nil
+    }
   }
 
   private func makeCurrent(_ browser: MockBrowser) {

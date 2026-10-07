@@ -57,7 +57,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/TextMatching.swift",
     "Sources/FiberUI/URLFieldEditor.swift",
     "Sources/FiberUI/Veil.swift",
-    "Sources/FiberUI/VeilPrompt.swift",
+    "Sources/FiberUI/VeilContent.swift",
     "Sources/FiberUI/WindowDragArea.swift",
     "Sources/FiberUI/WindowFrame.swift",
   ]

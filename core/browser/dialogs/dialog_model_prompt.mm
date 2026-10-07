@@ -75,12 +75,12 @@ std::u16string GetText(const ui::DialogModelLabel& label) {
 FiberPromptField* MakeField(const std::u16string& label,
                             const std::u16string& accessible_name,
                             const std::u16string& text,
-                            bool secure) {
+                            FiberPromptFieldKind kind) {
   return [[FiberPromptField alloc]
       initWithPlaceholder:base::SysUTF16ToNSString(
                               label.empty() ? accessible_name : label)
                      text:base::SysUTF16ToNSString(text)
-                   secure:secure];
+                     kind:kind];
 }
 
 bool IsShown(const ui::DialogModel::Button* button) {
@@ -105,7 +105,8 @@ FiberPromptButton* MakeButton(const ui::DialogModel::Button& button,
 class DialogModelPrompt final : public ui::DialogModelHost,
                                 public ui::DialogModelFieldHost {
  public:
-  // Over `web_contents`'s page if it's set, else over Fiber window `window`.
+  // On `web_contents`'s page if it's set, else as Fiber window `window`'s
+  // own.
   DialogModelPrompt(std::unique_ptr<ui::DialogModel> model,
                     content::WebContents* web_contents,
                     gfx::NativeWindow window)
@@ -216,17 +217,19 @@ class DialogModelPrompt final : public ui::DialogModelHost,
         }
         case ui::DialogModelField::kTextfield: {
           ui::DialogModelTextfield* textfield = field->AsTextfield();
-          [fields addObject:MakeField(textfield->label(),
-                                      textfield->accessible_name(),
-                                      textfield->text(), /*secure=*/false)];
+          [fields
+              addObject:MakeField(textfield->label(),
+                                  textfield->accessible_name(),
+                                  textfield->text(), FiberPromptFieldKindText)];
           text_fields_.push_back(field.get());
           break;
         }
         case ui::DialogModelField::kPasswordField: {
           ui::DialogModelPasswordField* password = field->AsPasswordField();
-          [fields addObject:MakeField(password->label(),
-                                      password->accessible_name(),
-                                      password->text(), /*secure=*/true)];
+          [fields
+              addObject:MakeField(password->label(),
+                                  password->accessible_name(), password->text(),
+                                  FiberPromptFieldKindPassword)];
           text_fields_.push_back(field.get());
           break;
         }
@@ -298,6 +301,7 @@ class DialogModelPrompt final : public ui::DialogModelHost,
 
     return [[FiberPromptContent alloc]
          initWithIcon:ns_icon
+                topic:FiberPromptTopicGeneral
               eyebrow:@""
                 title:base::SysUTF16ToNSString(model_->title(pass_key))
               message:base::SysUTF16ToNSString(

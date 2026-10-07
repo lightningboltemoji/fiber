@@ -35,6 +35,7 @@ FiberPromptContent* ContentForPrompt(const std::u16string& authority,
                           : base::StrCat({authority, u"\n", explanation});
   return [[FiberPromptContent alloc]
        initWithIcon:nil
+              topic:FiberPromptTopicSignIn
             eyebrow:@""
               title:l10n_util::GetNSString(IDS_LOGIN_DIALOG_TITLE)
             message:base::SysUTF16ToNSString(message)
@@ -45,12 +46,12 @@ FiberPromptContent* ContentForPrompt(const std::u16string& authority,
                    initWithPlaceholder:l10n_util::GetNSString(
                                            IDS_LOGIN_DIALOG_USERNAME_FIELD)
                                   text:@""
-                                secure:NO],
+                                  kind:FiberPromptFieldKindUsername],
                [[FiberPromptField alloc]
                    initWithPlaceholder:l10n_util::GetNSString(
                                            IDS_LOGIN_DIALOG_PASSWORD_FIELD)
                                   text:@""
-                                secure:YES],
+                                  kind:FiberPromptFieldKindPassword],
              ]
       checkboxTitle:@""
             buttons:@[

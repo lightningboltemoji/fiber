@@ -42,10 +42,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
   /// The profile's, which an Incognito window has none of.
   private var pins: MockPins? { isIncognito ? nil : app?.pins }
   private var dialog: (any FiberJavaScriptDialog)?
-  private var locationPrompt: (prompt: any FiberPrompt, actions: PromptActions)?
-  /// Each tab's bubble, by tab ID.
-  private var bubbles: [Int: (prompt: any FiberPrompt, actions: PromptActions)] =
-    [:]
+  /// Each tab's prompt, by tab ID, and the window's.
+  private var tabPrompts:
+    [Int: (prompt: any FiberPrompt, actions: PromptActions)] = [:]
+  private var windowPrompt: (prompt: any FiberPrompt, actions: PromptActions)?
   private var controlsVisible = true
   private var omnibox: MockOmnibox!
   private var extensions: MockExtensions!
@@ -82,7 +82,9 @@ final class MockBrowser: NSObject, FiberWindowActions {
         self?.navigate(toInput: input, event: event)
       })
     ui.omnibox.actions = omnibox
-    extensions = MockExtensions(ui: ui.extensions, window: ui.window)
+    extensions = MockExtensions(ui: ui.extensions, window: ui.window) {
+      [weak self] in self?.activeTab.id ?? 0
+    }
     for url in urls {
       openTab(url, activate: true)
     }
@@ -164,9 +166,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
       leave()
       return
     }
-    // Like Chrome, the tab comes forward to ask.
-    activate(tab)
-    confirmLeaving(then: leave)
+    confirmLeaving(tab, then: leave)
   }
 
   func pinTab(withID tabID: Int) {
@@ -275,11 +275,11 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   func windowShouldClose() {
-    guard tabs.contains(where: \.page.asksBeforeLeaving) else {
+    guard let tab = tabs.first(where: \.page.asksBeforeLeaving) else {
       close()
       return
     }
-    confirmLeaving { [weak self] in self?.close() }
+    confirmLeaving(tab) { [weak self] in self?.close() }
   }
 
   func windowDidBecomeMain() {}
@@ -351,39 +351,47 @@ final class MockBrowser: NSObject, FiberWindowActions {
     }
   }
 
-  /// What a page asking for the user's location shows, worded as
-  /// FiberPermissionPrompt words it.
-  func showLocationPrompt() {
-    let site = URL(string: activeTab.url)?.host() ?? activeTab.url
-    let content = FiberPromptContent(
-      icon: nil, eyebrow: "", title: "\(site) wants to", message: "",
-      listHeading: "",
-      listItems: [FiberPromptListItem(text: "Know your location", detail: "")],
-      buttons: [
-        FiberPromptButton(buttonID: 0, title: "Never allow", role: .other),
-        FiberPromptButton(
-          buttonID: 1, title: "Allow this time", role: .confirm),
-        FiberPromptButton(buttonID: 2, title: "Allow", role: .confirm),
-      ])
-    let actions = PromptActions { _ in }
-    locationPrompt = (
-      FiberPromptFactory.prompt(
-        with: content, window: ui.window, actions: actions),
-      actions
-    )
+  /// What `sample` asks, on the active tab or as the window's.
+  func showPrompt(_ sample: PromptSample) {
+    guard
+      let content = sample.content(
+        site: URL(string: activeTab.url)?.host() ?? activeTab.url)
+    else {
+      return
+    }
+    showPrompt(content, onTab: sample.isWindows ? nil : activeTab) { button in
+      print(
+        "\(sample.label): \(button.map { "button \($0)" } ?? "dismissed")")
+    }
   }
 
-  /// What `sample` asks, in a bubble on the active tab.
-  func showBubble(_ sample: BubbleSample) {
-    let tabID = activeTab.id
-    let actions = PromptActions { [weak self] button in
-      print("Bubble on tab \(tabID): \(button.map { "button \($0)" } ?? "dismissed")")
-      self?.bubbles[tabID] = nil
+  /// Asks on `tab`'s page, or, without one, as the window's prompt.
+  private func showPrompt(
+    _ content: FiberPromptContent, onTab tab: MockTab?,
+    then answered: @escaping (Int?) -> Void
+  ) {
+    guard let tab else {
+      let actions = PromptActions { [weak self] button in
+        self?.windowPrompt = nil
+        answered(button)
+      }
+      windowPrompt = (
+        FiberPromptFactory.prompt(
+          with: content, window: ui.window, actions: actions),
+        actions
+      )
+      return
     }
-    let prompt = FiberPromptFactory.bubble(
-      with: sample.content(site: URL(string: activeTab.url)?.host() ?? activeTab.url),
-      tabID: tabID, window: ui.window, actions: actions)
-    bubbles[tabID] = (prompt, actions)
+    let tabID = tab.id
+    let actions = PromptActions { [weak self] button in
+      self?.tabPrompts[tabID] = nil
+      answered(button)
+    }
+    tabPrompts[tabID] = (
+      FiberPromptFactory.prompt(
+        with: content, tabID: tabID, window: ui.window, actions: actions),
+      actions
+    )
   }
 
   // MARK: Omnibox
@@ -445,7 +453,6 @@ final class MockBrowser: NSObject, FiberWindowActions {
   func showDialog(
     _ kind: FiberJavaScriptDialogKind, title: String, message: String,
     accept: String = "OK", defaultPromptText: String = "",
-    leavePromptSite: String? = nil,
     completion: @escaping (MockDialogResult) -> Void
   ) {
     let content = FiberJavaScriptDialogContent(
@@ -456,14 +463,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
       self?.dialog = nil
       completion(result)
     }
-    if let leavePromptSite {
-      dialog = FiberJavaScriptDialogFactory.leavePrompt(
-        with: content, site: leavePromptSite, window: ui.window,
-        actions: actions)
-    } else {
-      dialog = FiberJavaScriptDialogFactory.dialog(
-        with: content, window: ui.window, actions: actions)
-    }
+    dialog = FiberJavaScriptDialogFactory.dialog(
+      with: content, window: ui.window, actions: actions)
   }
 
   // MARK: Private
@@ -472,17 +473,23 @@ final class MockBrowser: NSObject, FiberWindowActions {
     event?.modifierFlags.contains(.command) ?? false
   }
 
-  private func confirmLeaving(then leave: @escaping () -> Void) {
-    showDialog(
-      .confirm, title: "Leave site?",
-      message: "Changes you made may not be saved.", accept: "Leave",
-      leavePromptSite: activeTab.map { URL(string: $0.url)?.host() ?? "" }
-    ) { result in
-      if case .accepted = result {
+  /// Asks on `tab`'s page, as Chrome does for its beforeunload handler,
+  /// bringing it forward.
+  private func confirmLeaving(
+    _ tab: MockTab, then leave: @escaping () -> Void
+  ) {
+    activate(tab)
+    showPrompt(
+      PromptSample.leaveSite.content(
+        site: URL(string: tab.url)?.host() ?? tab.url)!,
+      onTab: tab
+    ) { button in
+      if button == 0 {
         leave()
       }
     }
   }
+
 
   @discardableResult
   private func openTab(_ url: String, activate: Bool) -> MockTab {
@@ -885,99 +892,5 @@ private final class MockDialogActions: NSObject, FiberJavaScriptDialogActions {
 
   func dialogDidDismiss() {
     completion(.dismissed)
-  }
-}
-
-/// What a bubble can ask, worded as Fiber's prompts word it.
-enum BubbleSample: CaseIterable {
-  case location, camera, notifications, extensionInstall, openApp
-
-  var label: String {
-    switch self {
-    case .location: "Location"
-    case .camera: "Camera"
-    case .notifications: "Notifications"
-    case .extensionInstall: "Extension"
-    case .openApp: "Open App"
-    }
-  }
-
-  /// For the harness's `--bubble` flag.
-  var flag: String {
-    switch self {
-    case .location: "location"
-    case .camera: "camera"
-    case .notifications: "notifications"
-    case .extensionInstall: "extension"
-    case .openApp: "open-app"
-    }
-  }
-
-  @MainActor
-  func content(site: String) -> FiberPromptContent {
-    let allowButtons = [
-      FiberPromptButton(buttonID: 0, title: "Never allow", role: .other),
-      FiberPromptButton(buttonID: 1, title: "Allow this time", role: .confirm),
-      FiberPromptButton(buttonID: 2, title: "Allow", role: .confirm),
-    ]
-    switch self {
-    case .location:
-      return Self.content(
-        icon: Self.icon("location.fill", [.systemBlue]),
-        eyebrow: "\(site) wants to", title: "Know your location",
-        buttons: allowButtons)
-    case .camera:
-      return Self.content(
-        icon: Self.icon("video.fill", [.systemGreen]),
-        eyebrow: "\(site) wants to", title: "Use your camera",
-        lines: ["Use your microphone"], buttons: allowButtons)
-    case .notifications:
-      return Self.content(
-        icon: Self.icon("bell.badge.fill", [.systemRed]),
-        eyebrow: "\(site) wants to", title: "Show notifications",
-        buttons: [
-          FiberPromptButton(buttonID: 0, title: "Block", role: .other),
-          FiberPromptButton(buttonID: 2, title: "Allow", role: .confirm),
-        ])
-    case .extensionInstall:
-      return Self.content(
-        icon: Self.icon("wand.and.stars", [.systemTeal]),
-        eyebrow: "", title: "Add “Page Polisher”?",
-        lines: [
-          "Read and change all your data on all websites",
-          "Block content on any page",
-        ],
-        buttons: [
-          FiberPromptButton(buttonID: 0, title: "Cancel", role: .cancel),
-          FiberPromptButton(
-            buttonID: 1, title: "Add extension", role: .confirm),
-        ])
-    case .openApp:
-      return Self.content(
-        icon: Self.icon("arrow.up.forward.app.fill", [.white, .systemIndigo]),
-        eyebrow: "\(site) wants to", title: "Open “Zoom”",
-        buttons: [
-          FiberPromptButton(buttonID: 0, title: "Cancel", role: .cancel),
-          FiberPromptButton(buttonID: 1, title: "Open Zoom", role: .default),
-        ])
-    }
-  }
-
-  private static func content(
-    icon: NSImage?, eyebrow: String, title: String, lines: [String] = [],
-    buttons: [FiberPromptButton]
-  ) -> FiberPromptContent {
-    FiberPromptContent(
-      icon: icon, eyebrow: eyebrow, title: title, message: "",
-      listHeading: "",
-      listItems: lines.map { FiberPromptListItem(text: $0, detail: "") },
-      buttons: buttons)
-  }
-
-  private static func icon(_ symbol: String, _ colors: [NSColor]) -> NSImage? {
-    NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-      .withSymbolConfiguration(
-        NSImage.SymbolConfiguration(pointSize: 24, weight: .semibold)
-          .applying(.init(paletteColors: colors)))
   }
 }

@@ -15,8 +15,8 @@ enum class PermissionAction;
 namespace fiber {
 
 // For ShowFileSystemAccessRestorePermissionDialog() in a Fiber window: Fiber's
-// prompt, over the veiled page, in place of Chrome's bubble on its location
-// bar, asking whether a site gets back the files it had on an earlier visit.
+// prompt, over the page, in place of Chrome's bubble on its location bar,
+// asking whether a site gets back the files it had on an earlier visit.
 void ShowFileSystemAccessRestorePrompt(
     const FileSystemAccessPermissionRequestManager::RequestData& request,
     base::OnceCallback<void(permissions::PermissionAction)> callback,
