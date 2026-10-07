@@ -68,7 +68,7 @@ enum PromptSample: String, CaseIterable {
       // ExternalProtocolPrompt
       Self.content(
         topic: .openApp, title: "Open Zoom?",
-        message: "https://\(site) wants to open this application.",
+        message: "\(site) wants to open this application.",
         checkboxTitle:
           "Always allow \(site) to open links of this type in the associated app",
         buttons: [
@@ -78,9 +78,8 @@ enum PromptSample: String, CaseIterable {
     case .signIn:
       // FiberLoginHandler, for a page over HTTP.
       Self.content(
-        topic: .signIn, title: "Sign in",
-        message:
-          "http://\(site) requires a username and password.\nYour connection to this site is not private",
+        topic: .signIn, eyebrow: site, title: "Sign in",
+        message: "Your connection to this site is not private",
         fields: [
           FiberPromptField(placeholder: "Username", text: "", kind: .username),
           FiberPromptField(placeholder: "Password", text: "", kind: .password),

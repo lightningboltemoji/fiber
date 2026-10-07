@@ -8,13 +8,16 @@
 
 #import "FiberBridge/FiberPrompt.h"
 #include "base/functional/bind.h"
-#include "base/strings/strcat.h"
+#include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/ui/login/login_handler.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/url_formatter/elide_url.h"
 #include "fiber/browser/dialogs/tab_prompt.h"
 #include "fiber/browser/hooks/page_dialogs.h"
 #include "fiber/browser/window/fiber_browser_window.h"
+#include "net/base/auth.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 #include "ui/strings/grit/ui_strings.h"
 
@@ -27,18 +30,27 @@ enum ButtonID {
   kCancel,
 };
 
-// Chrome's words (see LoginView).
-FiberPromptContent* ContentForPrompt(const std::u16string& authority,
+// Chrome's words (see LoginHandler::GetDialogStrings()), under the site
+// asking, which `explanation` warns about over HTTP. A proxy says it's one.
+FiberPromptContent* ContentForPrompt(const net::AuthChallengeInfo& auth_info,
                                      const std::u16string& explanation) {
-  const std::u16string message =
-      explanation.empty() ? authority
-                          : base::StrCat({authority, u"\n", explanation});
+  const std::u16string site = url_formatter::FormatUrlForSecurityDisplay(
+      auth_info.challenger.GetURL(),
+      url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
+  std::vector<std::u16string> lines;
+  if (auth_info.is_proxy) {
+    lines.push_back(
+        l10n_util::GetStringFUTF16(IDS_LOGIN_DIALOG_PROXY_AUTHORITY, site));
+  }
+  if (!explanation.empty()) {
+    lines.push_back(explanation);
+  }
   return [[FiberPromptContent alloc]
        initWithIcon:nil
               topic:FiberPromptTopicSignIn
-            eyebrow:@""
+            eyebrow:auth_info.is_proxy ? @"" : base::SysUTF16ToNSString(site)
               title:l10n_util::GetNSString(IDS_LOGIN_DIALOG_TITLE)
-            message:base::SysUTF16ToNSString(message)
+            message:base::SysUTF16ToNSString(base::JoinString(lines, u"\n"))
         listHeading:@""
           listItems:@[]
              fields:@[
@@ -82,16 +94,15 @@ class FiberLoginHandler : public LoginHandler {
 
  protected:
   // LoginHandler:
-  bool BuildViewImpl(const std::u16string& authority,
+  bool BuildViewImpl(const std::u16string& /*authority*/,
                      const std::u16string& explanation,
                      LoginModelData* login_model_data) override {
     if (!web_contents() || !FiberBrowserWindow::FromWebContents(web_contents())) {
       return false;
     }
-    ui_ = TabPrompt::Show(web_contents(),
-                          ContentForPrompt(authority, explanation),
-                          base::BindOnce(&FiberLoginHandler::OnEnded,
-                                         base::Unretained(this)));
+    ui_ = TabPrompt::Show(
+        web_contents(), ContentForPrompt(auth_info(), explanation),
+        base::BindOnce(&FiberLoginHandler::OnEnded, base::Unretained(this)));
     return true;
   }
 

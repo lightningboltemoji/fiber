@@ -18,7 +18,6 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/url_identity.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/permissions/permission_request.h"
@@ -29,6 +28,7 @@
 #include "components/url_formatter/elide_url.h"
 #include "content/public/browser/web_contents.h"
 #include "fiber/browser/dialogs/prompt.h"
+#include "fiber/browser/dialogs/prompt_site.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_mac.h"
@@ -77,22 +77,15 @@ bool CanAllowThisTime(PermissionPrompt::Delegate& delegate) {
   return true;
 }
 
-// The asking site as Chrome's prompt names it: an extension by its name, say.
+// The asking site, or, as Chrome's prompt has it, "This file".
 std::u16string SiteName(content::WebContents* web_contents,
                         PermissionPrompt::Delegate& delegate) {
-  constexpr UrlIdentity::TypeSet kAllowedTypes = {
-      UrlIdentity::Type::kDefault, UrlIdentity::Type::kChromeExtension,
-      UrlIdentity::Type::kIsolatedWebApp, UrlIdentity::Type::kFile};
-  constexpr UrlIdentity::FormatOptions kOptions = {
-      .default_options = {
-          UrlIdentity::DefaultFormatOptions::kOmitCryptographicScheme}};
-  UrlIdentity identity = UrlIdentity::CreateFromUrl(
-      Profile::FromBrowserContext(web_contents->GetBrowserContext()),
-      delegate.GetRequestingOrigin(), kAllowedTypes, kOptions);
-  if (identity.type == UrlIdentity::Type::kFile) {
+  const GURL& url = delegate.GetRequestingOrigin();
+  if (url.SchemeIsFile()) {
     return l10n_util::GetStringUTF16(IDS_PERMISSIONS_BUBBLE_PROMPT_THIS_FILE);
   }
-  return identity.name;
+  return SiteForPrompt(
+      Profile::FromBrowserContext(web_contents->GetBrowserContext()), url);
 }
 
 FiberPromptTopic TopicForRequest(RequestType type) {
@@ -139,7 +132,7 @@ FiberPromptTopic TopicForRequest(RequestType type) {
 
 std::u16string FormatSite(const GURL& url) {
   return url_formatter::FormatUrlForSecurityDisplay(
-      url, url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC);
+      url, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
 }
 
 FiberPromptContent* ContentForPrompt(content::WebContents* web_contents,

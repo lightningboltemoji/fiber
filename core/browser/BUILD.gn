@@ -22,6 +22,8 @@ source_set("browser") {
     "dialogs/fiber_tab_modal_confirm_dialog.mm",
     "dialogs/prompt.h",
     "dialogs/prompt.mm",
+    "dialogs/prompt_site.cc",
+    "dialogs/prompt_site.h",
     "dialogs/tab_prompt.h",
     "dialogs/tab_prompt.mm",
     "downloads/downloads_wait.h",

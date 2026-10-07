@@ -100,27 +100,28 @@ final class PromptBubble: NSView {
     hostingView.autoresizingMask = [.width, .height]
     addSubview(hostingView)
     isHidden = true
-    appearance = NSAppearance(named: .aqua)
   }
 
-  /// Makes its glass light or dark for the page behind it, whatever the
-  /// window's appearance, from `thumbnail`, the page as it is now.
-  func setBackdrop(_ thumbnail: CGImage) {
+  /// Where it is once open, in units of the page's size, from its top-left
+  /// corner.
+  var openRegion: CGRect {
     let page = model.pageSize
     guard page.width > 0, page.height > 0 else {
-      return
+      return .zero
     }
     let size = CGSize(
       width: max(model.contentSize.width, PromptBubbleModel.diameter),
       height: max(model.contentSize.height, PromptBubbleModel.diameter))
     let center = model.capsuleCenter
-    let region = CGRect(
+    return CGRect(
       x: (center.x - size.width / 2) / page.width,
       y: (center.y - size.height / 2) / page.height,
       width: size.width / page.width, height: size.height / page.height)
-    guard let lightness = Dimming.lightness(of: thumbnail, in: region) else {
-      return
-    }
+  }
+
+  /// Makes its glass light or dark for how light what's behind it is (its
+  /// L*), whatever the window's appearance.
+  func setBackdropLightness(_ lightness: Double) {
     appearance = NSAppearance(
       named: lightness < Self.darkBackdropLightness ? .darkAqua : .aqua)
   }
@@ -329,12 +330,12 @@ final class PromptBubbleModel {
   }
 
   /// The circle it opens from, which the icon stays in at its leading end.
-  static let diameter: CGFloat = 56
+  nonisolated static let diameter: CGFloat = 56
   static let rimWidth: CGFloat = 5
   /// A bubble up to twice this tall is a capsule; a taller one keeps these
   /// corners, and its icon and buttons stay in the first and last rows of
   /// that height.
-  static let maxCornerRadius: CGFloat = 36
+  nonisolated static let maxCornerRadius: CGFloat = 36
   /// Kept clear between the bubble and the page's sides.
   static let margin: CGFloat = 24
   /// The bubble is in the middle of a page up to `centeredHeight` tall, and
@@ -355,7 +356,6 @@ final class PromptBubbleModel {
   var stage = Stage.hidden
   /// Its content as laid out in full, which the bubble opens to.
   var contentSize = CGSize.zero
-  var buttonsHeight: CGFloat = 0
   var pageSize = CGSize.zero
   /// Whether its confirm buttons can be pressed yet.
   var isArmed = false
@@ -494,11 +494,7 @@ final class PromptBubbleModel {
 /// Draws a PromptBubble: the glass, and its content laid out whole and cut to
 /// it, so the glass uncovers it as it opens.
 struct PromptBubbleView: View {
-  private static let textMaxWidth: CGFloat = 300
-  private static let textSpacing: CGFloat = 18
-  private static let textInset: CGFloat = 12
   private static let sectionSpacing: CGFloat = 10
-  private static let buttonSpacing: CGFloat = 8
   /// Between the last button and the bubble's end.
   private static let endInset: CGFloat = 16
   private static let iconSize: CGFloat = 24
@@ -554,18 +550,24 @@ struct PromptBubbleView: View {
         )
         .padding(
           .top, max((model.rowHeight - PromptBubbleModel.diameter) / 2, 0))
-      HStack(alignment: .bottom, spacing: 0) {
-        CappedWidth(maxWidth: Self.textMaxWidth) { details }
-          .frame(minHeight: PromptBubbleModel.diameter)
-          .padding(.trailing, Self.textSpacing)
-        buttonsRow
-          .fixedSize()
-          .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-            model.buttonsHeight = $0
+      PromptBodyLayout(fieldCount: model.fields.count) {
+        details
+          .layoutValue(key: PromptPart.self, value: .text)
+        if !model.fields.isEmpty {
+          VStack(spacing: PromptBodyLayout.fieldSpacing) {
+            ForEach(model.fields.indices, id: \.self) { index in
+              field(at: index)
+            }
           }
-          .padding(
-            .bottom, max((model.rowHeight - model.buttonsHeight) / 2, 0))
+          .layoutValue(key: PromptPart.self, value: .fields)
+        }
+        ForEach(model.buttons, id: \.buttonID) { button in
+          bubbleButton(button)
+            .disabled(button.role == .confirm && !model.isArmed)
+            .layoutValue(key: PromptPart.self, value: .button)
+        }
       }
+      .controlSize(.large)
       .mask {
         GeometryReader { proxy in
           BubbleWave(
@@ -615,19 +617,11 @@ struct PromptBubbleView: View {
         }
         .toggleStyle(.checkbox)
       }
-      if !model.fields.isEmpty {
-        VStack(spacing: 6) {
-          ForEach(model.fields.indices, id: \.self) { index in
-            field(at: index)
-          }
-        }
-      }
       if let accessory = model.accessory {
         accessory
       }
     }
     .fixedSize(horizontal: false, vertical: true)
-    .padding(.vertical, Self.textInset)
   }
 
   private var list: some View {
@@ -652,18 +646,8 @@ struct PromptBubbleView: View {
       onCancel: { model.pressEscape() }
     )
     .padding(.horizontal, 10)
-    .frame(height: 28)
+    .frame(height: PromptBodyLayout.fieldHeight)
     .background(.primary.opacity(0.08), in: .capsule)
-  }
-
-  private var buttonsRow: some View {
-    HStack(spacing: Self.buttonSpacing) {
-      ForEach(model.buttons, id: \.buttonID) { button in
-        bubbleButton(button)
-          .disabled(button.role == .confirm && !model.isArmed)
-      }
-    }
-    .controlSize(.large)
   }
 
   @ViewBuilder
@@ -687,6 +671,8 @@ struct PromptBubbleView: View {
             .transition(.opacity)
         }
       }
+      // As wide as the others when they're stacked.
+      .frame(maxWidth: .infinity)
     }
     if button.buttonID == model.prominentButtonID {
       label.buttonStyle(.glassProminent)
@@ -883,26 +869,183 @@ private struct BubbleWave: View, Animatable {
   }
 }
 
-/// Its content as wide as it needs to be, up to `maxWidth`, rather than as
-/// wide as it's offered.
-private struct CappedWidth: Layout {
-  let maxWidth: CGFloat
+/// What a view in a PromptBodyLayout is.
+private enum PromptPart: LayoutValueKey {
+  case text, fields, button
+
+  static let defaultValue = PromptPart.text
+}
+
+/// A prompt's text, fields and buttons: the buttons at the end while the text
+/// fits in a row of the bubble's, under it once it's taller, and beside the
+/// fields, one to a field if there are as many, else in a row by the last.
+private struct PromptBodyLayout: Layout {
+  static let fieldHeight: CGFloat = 28
+  static let fieldSpacing: CGFloat = 6
+  /// The text is as wide as it needs to be, up to this, unless the buttons
+  /// under it are wider.
+  private static let textMaxWidth: CGFloat = 300
+  /// Narrower than this beside the buttons, the text has them under it.
+  private static let besideMinWidth: CGFloat = 160
+  /// Taller than this, the text has its buttons under it: a few lines.
+  private static let besideMaxTextHeight: CGFloat = 54
+  private static let buttonSpacing: CGFloat = 8
+  /// Between the text or fields and the buttons beside them.
+  private static let besideSpacing: CGFloat = 18
+  /// Between the text and what's under it.
+  private static let fieldsSpacing: CGFloat = 10
+  private static let belowSpacing: CGFloat = 14
+  /// Over and under the text, while the buttons are beside it. A taller
+  /// bubble has as much over its text as under its last row.
+  private static let inset: CGFloat = 12
+  /// The last row's height, the buttons in its middle, as the icon is in the
+  /// first's: the bubble's height while it's a capsule.
+  private static let rowHeight = 2 * PromptBubbleModel.maxCornerRadius
+
+  let fieldCount: Int
 
   func sizeThatFits(
     proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
   ) -> CGSize {
-    subviews.first?.sizeThatFits(
-      ProposedViewSize(
-        width: min(proposal.width ?? maxWidth, maxWidth),
-        height: proposal.height)) ?? .zero
+    arrange(subviews, width: proposal.width).size
   }
 
   func placeSubviews(
     in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews,
     cache: inout ()
   ) {
-    subviews.first?.place(
-      at: bounds.origin,
-      proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    let frames = arrange(subviews, width: proposal.width ?? bounds.width).frames
+    for (subview, frame) in zip(subviews, frames) {
+      subview.place(
+        at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+        proposal: ProposedViewSize(frame.size))
+    }
+  }
+
+  /// Its size, and its subviews' frames, in order, at `width` or less.
+  private func arrange(_ subviews: Subviews, width: CGFloat?)
+    -> (size: CGSize, frames: [CGRect])
+  {
+    let available = width ?? .infinity
+    var frames = Array(repeating: CGRect.zero, count: subviews.count)
+    let text = subviews.indices.first { subviews[$0][PromptPart.self] == .text }
+    let fields = subviews.indices.first {
+      subviews[$0][PromptPart.self] == .fields
+    }
+    let buttons = subviews.indices.filter {
+      subviews[$0][PromptPart.self] == .button
+    }
+    let buttonSizes = buttons.map { subviews[$0].sizeThatFits(.unspecified) }
+    let buttonHeight = buttonSizes.map(\.height).max() ?? 0
+    let rowWidth =
+      buttonSizes.map(\.width).reduce(0, +)
+      + Self.buttonSpacing * CGFloat(max(buttons.count - 1, 0))
+    let spacing = buttons.isEmpty ? 0 : Self.besideSpacing
+
+    func measure(_ index: Int?, width: CGFloat) -> CGSize {
+      guard let index else {
+        return .zero
+      }
+      return subviews[index].sizeThatFits(
+        ProposedViewSize(width: max(width, 0), height: nil))
+    }
+
+    /// A row of the buttons, its top `y`, ending at `maxX`.
+    func placeRow(maxX: CGFloat, y: CGFloat) {
+      var x = maxX - rowWidth
+      for (index, size) in zip(buttons, buttonSizes) {
+        frames[index] = CGRect(origin: CGPoint(x: x, y: y), size: size)
+        x += size.width + Self.buttonSpacing
+      }
+    }
+
+    /// Under a last row of `height`, in the middle of the bubble's.
+    func lastRowInset(_ height: CGFloat) -> CGFloat {
+      (Self.rowHeight - height) / 2
+    }
+
+    /// The buttons in a row under what ends at `y`, at the end.
+    func placeBelow(width: CGFloat, y: CGFloat) -> CGSize {
+      let width = max(width, rowWidth)
+      let rowY = y + Self.belowSpacing
+      placeRow(maxX: width, y: rowY)
+      return CGSize(
+        width: width, height: rowY + buttonHeight + lastRowInset(buttonHeight))
+    }
+
+    if let fields {
+      let isStacked = fieldCount > 1 && buttons.count == fieldCount
+      let columnWidth = buttonSizes.map(\.width).max() ?? 0
+      let buttonsWidth = isStacked ? columnWidth : rowWidth
+      let besideWidth = min(
+        Self.textMaxWidth, available - buttonsWidth - spacing)
+      let isBeside = besideWidth >= Self.besideMinWidth
+      let width = isBeside ? besideWidth : min(Self.textMaxWidth, available)
+      let textSize = measure(text, width: width)
+      let textY = lastRowInset(isBeside ? Self.fieldHeight : buttonHeight)
+      if let text {
+        frames[text] = CGRect(origin: CGPoint(x: 0, y: textY), size: textSize)
+      }
+      let fieldsY = textY + textSize.height + Self.fieldsSpacing
+      let fieldsHeight =
+        CGFloat(fieldCount) * Self.fieldHeight
+        + CGFloat(max(fieldCount - 1, 0)) * Self.fieldSpacing
+      frames[fields] = CGRect(
+        x: 0, y: fieldsY, width: width, height: fieldsHeight)
+      guard isBeside else {
+        return (placeBelow(width: width, y: fieldsY + fieldsHeight), frames)
+      }
+      let buttonsX = width + spacing
+      // The middle of field `row`.
+      func rowMidY(_ row: Int) -> CGFloat {
+        fieldsY + CGFloat(row) * (Self.fieldHeight + Self.fieldSpacing)
+          + Self.fieldHeight / 2
+      }
+      if isStacked {
+        for (row, (index, size)) in zip(buttons, buttonSizes).enumerated() {
+          frames[index] = CGRect(
+            x: buttonsX, y: rowMidY(row) - size.height / 2,
+            width: columnWidth, height: size.height)
+        }
+      } else {
+        placeRow(
+          maxX: buttonsX + rowWidth,
+          y: rowMidY(fieldCount - 1) - buttonHeight / 2)
+      }
+      return (
+        CGSize(
+          width: buttonsX + buttonsWidth,
+          height: fieldsY + fieldsHeight + lastRowInset(Self.fieldHeight)),
+        frames
+      )
+    }
+
+    let besideWidth = min(Self.textMaxWidth, available - rowWidth - spacing)
+    let besideSize = measure(text, width: besideWidth)
+    if besideWidth >= Self.besideMinWidth,
+      besideSize.height <= Self.besideMaxTextHeight
+    {
+      let height = max(
+        besideSize.height + 2 * Self.inset, PromptBubbleModel.diameter)
+      if let text {
+        frames[text] = CGRect(
+          origin: CGPoint(x: 0, y: (height - besideSize.height) / 2),
+          size: besideSize)
+      }
+      let width = besideSize.width + spacing + rowWidth
+      placeRow(maxX: width, y: (height - buttonHeight) / 2)
+      return (CGSize(width: width, height: height), frames)
+    }
+
+    // Under buttons wider than the text, the text can be as wide.
+    let textSize = measure(
+      text, width: min(max(Self.textMaxWidth, rowWidth), available))
+    let textY = lastRowInset(buttonHeight)
+    if let text {
+      frames[text] = CGRect(origin: CGPoint(x: 0, y: textY), size: textSize)
+    }
+    return (
+      placeBelow(width: textSize.width, y: textY + textSize.height), frames
+    )
   }
 }

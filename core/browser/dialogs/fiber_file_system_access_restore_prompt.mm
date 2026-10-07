@@ -16,6 +16,7 @@
 #include "components/permissions/permission_uma_constants.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
+#include "fiber/browser/dialogs/prompt_site.h"
 #include "fiber/browser/dialogs/tab_prompt.h"
 #include "fiber/browser/hooks/file_system_access_prompt.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -54,10 +55,9 @@ FiberPromptContent* ContentForPrompt(const RequestData& request,
              topic:FiberPromptTopicFiles
            eyebrow:l10n_util::GetNSStringF(
                        IDS_PERMISSIONS_BUBBLE_PROMPT,
-                       file_system_access_ui_helper::GetUrlIdentityName(
-                           Profile::FromBrowserContext(
-                               web_contents->GetBrowserContext()),
-                           request.origin.GetURL()))
+                       SiteForPrompt(Profile::FromBrowserContext(
+                                         web_contents->GetBrowserContext()),
+                                     request.origin.GetURL()))
              title:l10n_util::GetNSString(
                        IDS_FILE_SYSTEM_ACCESS_RESTORE_PERMISSION_DESCRIPTION)
            message:@""

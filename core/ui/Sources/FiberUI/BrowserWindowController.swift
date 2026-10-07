@@ -937,8 +937,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
   // MARK: Veil
 
   private static let fadeDuration: TimeInterval = 0.2
-  /// How long a prompt bubble waits to see the page behind it.
-  private static let backdropTimeout: TimeInterval = 0.2
+  /// How long a prompt bubble waits to see the page behind it, and how
+  /// often it looks again while the page hasn't drawn.
+  private static let backdropTimeout: TimeInterval = 0.3
+  private static let backdropRetryInterval: TimeInterval = 0.05
 
   /// Draws the veil to `amount` (see Veil); it stays fully drawn while
   /// something's over it.
@@ -1026,6 +1028,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     bubble.frame = controlsView.bounds
     bubble.autoresizingMask = [.width, .height]
     controlsView.addSubview(bubble, positioned: .below, relativeTo: tabPicker)
+    // Sized to the page now, for where it opens (see measureBackdrop).
+    bubble.layoutSubtreeIfNeeded()
     if tabID == nil {
       tabPicker.close()
       openedTabNotice.dismiss()
@@ -1106,26 +1110,57 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   /// Sets `bubble`'s glass for how light the page behind it is, then calls
-  /// `ready`, or calls it anyway if the page doesn't come back in time.
+  /// `ready`, or calls it anyway if the page hasn't drawn in time.
   private func measureBackdrop(
     behind bubble: PromptBubble, then ready: @escaping () -> Void
   ) {
+    // Until the page is seen: light glass reads over anything.
+    bubble.setBackdropLightness(100)
     let once = Once(ready)
+    captureBackdrop(
+      of: bubble, until: Date(timeIntervalSinceNow: Self.backdropTimeout),
+      then: once)
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.backdropTimeout) {
+      MainActor.assumeIsolated { once.run() }
+    }
+  }
+
+  /// Captures the page for `bubble`'s glass, again a moment later while it
+  /// hasn't drawn (as it commits, say), until `deadline`.
+  private func captureBackdrop(
+    of bubble: PromptBubble, until deadline: Date, then once: Once
+  ) {
     let contentsView = contentsView
     actions?.capturePageThumbnail { [weak self, weak bubble] thumbnail in
       MainActor.assumeIsolated {
-        if let self, let bubble, let thumbnail,
+        guard let self, let bubble, !once.hasRun,
           self.contentsView === contentsView
+        else {
+          return
+        }
+        guard let thumbnail else {
+          guard Date() < deadline else {
+            return
+          }
+          DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.backdropRetryInterval
+          ) { [weak self, weak bubble] in
+            MainActor.assumeIsolated {
+              guard let bubble else {
+                return
+              }
+              self?.captureBackdrop(of: bubble, until: deadline, then: once)
+            }
+          }
+          return
+        }
+        if let lightness = Dimming.lightness(
+          of: thumbnail, in: bubble.openRegion)
         {
-          bubble.setBackdrop(thumbnail)
+          bubble.setBackdropLightness(lightness)
         }
         once.run()
       }
-    }
-    DispatchQueue.main.asyncAfter(
-      deadline: .now() + Self.backdropTimeout
-    ) {
-      MainActor.assumeIsolated { once.run() }
     }
   }
 
@@ -1535,6 +1570,7 @@ private final class PassthroughView: NSView {
 @MainActor
 private final class Once {
   private var call: (() -> Void)?
+  private(set) var hasRun = false
 
   init(_ call: @escaping () -> Void) {
     self.call = call
@@ -1543,6 +1579,7 @@ private final class Once {
   func run() {
     let call = call
     self.call = nil
+    hasRun = true
     call?()
   }
 }

@@ -50,7 +50,8 @@ FiberPromptContent* ContentForDialog(
           : l10n_util::GetNSStringF(
                 IDS_EXTERNAL_PROTOCOL_MESSAGE_WITH_INITIATING_ORIGIN,
                 url_formatter::FormatOriginForSecurityDisplay(
-                    *initiating_origin));
+                    *initiating_origin,
+                    url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS));
 
   // Offered for a trustworthy origin, unless policy says otherwise.
   NSString* checkbox_title = @"";
@@ -63,7 +64,7 @@ FiberPromptContent* ContentForDialog(
         IDS_EXTERNAL_PROTOCOL_CHECKBOX_PER_ORIGIN_TEXT,
         url_formatter::FormatOriginForSecurityDisplay(
             *initiating_origin,
-            url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC));
+            url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS));
   }
 
   // Opening waits on a click, and on the prompt having been up a moment, so
