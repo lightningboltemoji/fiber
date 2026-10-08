@@ -601,6 +601,21 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
+  /// While open, the tab overlay keeps the keyboard from the rest of the
+  /// window (Chrome focuses a page it switches to), but not from a popover
+  /// over it, whose content shares the window's keyboard until it closes.
+  fileprivate func tabOverlayKeepsKeyboard(from responder: NSResponder?)
+    -> Bool
+  {
+    guard tabOverlay.isOpen else {
+      return false
+    }
+    guard let view = responder as? NSView else {
+      return responder == nil || responder === window
+    }
+    return view.window === window && !view.isDescendant(of: tabOverlay)
+  }
+
   /// For what opens in its place, which it gets out of the way of at once,
   /// even partway through closing.
   private func replaceTabOverlay() {
@@ -1531,6 +1546,9 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
   // Focus moving into or out of an extension window's page changes which
   // browser is active.
   override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+    if controller?.tabOverlayKeepsKeyboard(from: responder) == true {
+      return false
+    }
     let changed = super.makeFirstResponder(responder)
     controller?.updateActiveBrowser()
     controller?.firstResponderDidChange()
