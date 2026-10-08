@@ -67,6 +67,9 @@ Run the dev build on a throwaway profile:
       --use-mock-keychain [--incognito] [url]
 
 - GUI launches need the Bash sandbox off.
+- Started from a shell, it borrows the terminal's macOS permissions (Local
+  Network, camera…). To get its own, as from the Dock, start it with
+  `open -n -a <app> --args …`.
 - Find its window by `kCGWindowOwnerPID`, since the installed Fiber has the
   same name, and kill only that PID. Take its largest window: Chrome also owns
   a hidden 500×500 one and several 39pt-high ones.

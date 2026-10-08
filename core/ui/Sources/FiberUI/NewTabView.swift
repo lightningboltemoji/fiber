@@ -4,7 +4,7 @@ import AppKit
 /// empty and the same color. The omnibar opens over it; clicking the page
 /// opens it again. An Incognito window's says what Incognito keeps.
 final class NewTabView: NSView {
-  private static let markWidth: CGFloat = 132
+  private static let markWidth: CGFloat = 112
   private static let incognitoTextWidth: CGFloat = 340
 
   var onClick: () -> Void = {}

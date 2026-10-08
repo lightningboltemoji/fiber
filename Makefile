@@ -68,13 +68,15 @@ BUNDLE   := $(DIST)/$(APP_NAME).app
 RELEASE  := $(SRC)/out/Release
 
 # Chromium's build assembles the bundle; `ditto` copies it with the framework's symlinks intact.
-# The linker's ad-hoc signatures are enough to run locally.
+# Signed ad hoc as a whole: with only the linker's signatures (no bundle ID), macOS's Local Network
+# privacy blocks the app from the local network even after the user allows it.
 # TODO: sign for distribution (Developer ID, chrome/installer/mac/sign_chrome.py).
 app:
 	scripts/build_chromium.sh Release
 	rm -rf $(BUNDLE)
 	mkdir -p $(DIST)
 	ditto $(RELEASE)/$(APP_NAME).app $(BUNDLE)
+	codesign --force --deep --sign - $(BUNDLE)
 	@echo "built $(BUNDLE), version $$($(BUNDLE_VERSION))"
 
 # `ditto`, not `zip`: a bundle carries symlinks and xattrs that plain zip mangles. CI's tip build
