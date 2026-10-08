@@ -1,17 +1,17 @@
 <p align="center">
-<img width="190" height="190" alt="App icon" src="https://github.com/user-attachments/assets/1d479a69-8c0d-4123-881a-16edaa53835b" />
+<img width="190" height="190" alt="App icon" src="https://github.com/user-attachments/assets/522284cd-db0b-4b8c-9fd4-674fecde116a" />
 </p>
 
 # Fiber
 
-a Chromium-based browser for macOS
+a Chromium-based browser for macOS that optimizes for content area and playful animations
 
 ## Development
 
 ```sh
 make sync       # fetch Chromium at CHROMIUM_VERSION (~31GB), apply patches
-make build      # configure out/Default and build (first build: hours)
-make run        # launch with a dev profile in chromium/dev-profile (URL=… to open a page)
+make build      # configure out/Default and build
+make run        # launch with a dev profile in chromium/dev-profile
 make size       # what Chrome's code costs by directory, what the linker strips, what moved
 make harness    # just the UI, against a mock browser, without Chromium
 make patches    # regenerate patches/chromium/ from edits in chromium/src
