@@ -110,7 +110,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let sadTabView = SadTabView()
   /// Over the page, under the tab picker.
   private let extensionBubbles = ExtensionBubbles()
-  /// Over the tab overlay.
+  /// Over the tab overlay and the traffic lights, so over the omnibar,
+  /// command palette and what the veil's up for too, which close its popup as
+  /// they open.
   private let extensionPopups = ExtensionPopupLayer()
   /// Over the page while the active tab has key passthrough.
   private let keyPassthroughBubble = KeyPassthroughBubble()
@@ -339,9 +341,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
     controlsView.addSubview(tabPicker)
 
     configureTabOverlay()
-    extensionPopups.frame = content.bounds
     extensionPopups.autoresizingMask = [.width, .height]
-    content.addSubview(extensionPopups)
+    extensionPopups.keepClear = { [weak self] in
+      self?.extensionPopupsKeepClear() ?? []
+    }
+    placeExtensionPopups()
     configureWindowControls()
     updateWindowControls(animated: false)
 
@@ -373,6 +377,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.tabPicker.close()
       self?.openedTabNotice.dismiss()
       self?.commandPalette?.close()
+      self?.extensionsController.closePopup()
       self?.replaceTabOverlay()
     }
     omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
@@ -445,6 +450,29 @@ final class BrowserWindowController: NSObject, FiberWindow {
       rects.append(KeyPassthroughBubble.capsuleFrame(in: container.bounds))
     }
     return rects.map { extensionBubbles.convert($0, from: container) }
+  }
+
+  /// In the frame view, over the title bar, which AppKit keeps over the
+  /// content view and puts back on top as the window leaves fullscreen.
+  private func placeExtensionPopups() {
+    guard let frameView = window.contentView?.superview,
+      frameView.subviews.last !== extensionPopups
+    else {
+      return
+    }
+    extensionPopups.frame = frameView.bounds
+    frameView.addSubview(extensionPopups, positioned: .above, relativeTo: nil)
+  }
+
+  private func extensionPopupsKeepClear() -> [NSRect] {
+    guard showsWindowControlsBackground else {
+      return []
+    }
+    return [
+      extensionPopups.convert(
+        windowControlsBackground.frame,
+        from: windowControlsBackground.superview)
+    ]
   }
 
   /// In the top-right corner, below the find bar while it's open.
@@ -664,9 +692,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// the window is fullscreen, AppKit shows the traffic lights with the menu
   /// bar, without the capsule.
   private func updateWindowControls(animated: Bool) {
-    let isFullScreen = window.styleMask.contains(.fullScreen)
-    let showsButtons = tabOverlay.isOpen || isFullScreen
-    let showsBackground = tabOverlay.isOpen && !isFullScreen
+    let showsButtons =
+      tabOverlay.isOpen || window.styleMask.contains(.fullScreen)
+    let showsBackground = showsWindowControlsBackground
     // Faded out, they'd still take clicks meant for the page; they're hidden
     // once the fade ends.
     let views = windowControlButtons + [windowControlsBackground]
@@ -686,6 +714,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
         }
       }
     }
+  }
+
+  private var showsWindowControlsBackground: Bool {
+    tabOverlay.isOpen && !window.styleMask.contains(.fullScreen)
   }
 
   // MARK: FiberWindow
@@ -999,6 +1031,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
       replaced.removeFromSuperview()
       replaced.onRemoved?()
     }
+    // Closed first, so it's what had the keyboard before the popup that gets
+    // it back once the veil's down.
+    extensionsController.closePopup()
     if self.veilContent == nil {
       responderBeforeVeilContent = window.firstResponder
     }
@@ -1326,6 +1361,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.tabPicker.close()
       self?.openedTabNotice.dismiss()
       self?.madeOmnibar?.close()
+      self?.extensionsController.closePopup()
       self?.replaceTabOverlay()
     }
     palette.onDismiss = { [weak self] in self?.closeCommandPalette() }
@@ -1503,6 +1539,7 @@ extension BrowserWindowController: NSWindowDelegate {
   }
 
   func windowDidExitFullScreen(_ notification: Notification) {
+    placeExtensionPopups()
     updateWindowControls(animated: true)
     actions?.windowDidChangeFullScreen()
   }

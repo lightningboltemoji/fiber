@@ -146,6 +146,12 @@ final class ExtensionsController: NSObject, FiberExtensions {
     closeMenu()
   }
 
+  /// For what opens that the popup would cover (see
+  /// ExtensionPopup.closeForReplacement()).
+  func closePopup() {
+    popup?.closeForReplacement()
+  }
+
   // MARK: Private
 
   private func openMenu() {
@@ -441,8 +447,8 @@ final class ExtensionBadge: NSView {
 /// popover's window never becomes key, which a page needs to have focus.
 @MainActor
 final class ExtensionPopup: NSObject, FiberExtensionPopup {
-  /// Called when the user closes the popup, by clicking elsewhere in its
-  /// window.
+  /// Called when the user closes the popup: by clicking elsewhere in its
+  /// window, or opening what it would cover.
   var onUserClose: () -> Void = {}
 
   private let panel = ExtensionPanel()
@@ -450,12 +456,13 @@ final class ExtensionPopup: NSObject, FiberExtensionPopup {
   private weak var layer: ExtensionPopupLayer?
   private let anchor: () -> (NSView, NSRect)?
   /// Gives the keyboard to the window's tab, when what had it before the
-  /// popup can't take it back.
+  /// popup can't take it back and nothing replaced the popup.
   private let restoreFocus: () -> Void
   private var contentSize = NSSize.zero
   private weak var previousResponder: NSResponder?
   private var clickMonitor: Any?
   private var isClosed = false
+  private var isReplaced = false
 
   init(
     contentsView: NSView, actions: any FiberExtensionPopupActions,
@@ -511,10 +518,20 @@ final class ExtensionPopup: NSObject, FiberExtensionPopup {
     dismiss()
   }
 
-  /// Above the button it opened from, or below it if there's no room,
+  /// For what opens that it would cover (the omnibar, say), which takes the
+  /// keyboard.
+  func closeForReplacement() {
+    isReplaced = true
+    userDidClose()
+  }
+
+  /// Above the button it opened from, or below it if there's no room or
+  /// above would cover what the layer keeps clear and below wouldn't,
   /// centered on it and within the window.
   fileprivate func layout() {
-    guard let layer = panel.superview, let (view, rect) = anchor() else {
+    guard let layer = panel.superview as? ExtensionPopupLayer,
+      let (view, rect) = anchor()
+    else {
       return
     }
     let button = layer.convert(rect, from: view)
@@ -523,13 +540,22 @@ final class ExtensionPopup: NSObject, FiberExtensionPopup {
     let size = panel.frameSize(forPage: contentSize)
     let width = min(size.width, bounds.width)
     let height = min(size.height, bounds.height)
+    let x = ExtensionBubbleLayout.clamp(
+      button.midX - width / 2, bounds.minX, bounds.maxX - width)
+    let obstacles = layer.keepClear().map {
+      $0.insetBy(dx: -GlassCapsule.spacing, dy: -GlassCapsule.spacing)
+    }
+    func fitsClear(_ y: CGFloat) -> Bool {
+      let frame = NSRect(x: x, y: y, width: width, height: height)
+      return frame.minY >= bounds.minY && frame.maxY <= bounds.maxY
+        && !obstacles.contains { $0.intersects(frame) }
+    }
     let above = button.minY - GlassCapsule.spacing - height
     let below = button.maxY + GlassCapsule.spacing
-    panel.frame = NSRect(
-      x: ExtensionBubbleLayout.clamp(
-        button.midX - width / 2, bounds.minX, bounds.maxX - width),
-      y: above >= bounds.minY ? above : min(below, bounds.maxY - height),
-      width: width, height: height)
+    let y =
+      fitsClear(above) || (above >= bounds.minY && !fitsClear(below))
+      ? above : min(below, bounds.maxY - height)
+    panel.frame = NSRect(x: x, y: y, width: width, height: height)
   }
 
   /// As in Chrome, it stays open while another window has the focus (a save
@@ -592,14 +618,21 @@ final class ExtensionPopup: NSObject, FiberExtensionPopup {
     {
       return
     }
-    restoreFocus()
+    if !isReplaced {
+      restoreFocus()
+    }
   }
 }
 
-/// Over the tab overlay, whose extensions' buttons popups open from: the
-/// window's extension popup. Clicks anywhere else go through.
+/// Over the tab overlay, whose extensions' buttons popups open from, and the
+/// traffic lights: the window's extension popup. Clicks anywhere else go
+/// through.
 @MainActor
 final class ExtensionPopupLayer: NSView {
+  /// What a popup opens below its button rather than cover, if it can (in
+  /// this view).
+  var keepClear: () -> [NSRect] = { [] }
+
   fileprivate weak var popup: ExtensionPopup?
 
   override var isFlipped: Bool { true }
