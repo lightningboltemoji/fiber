@@ -12,12 +12,11 @@ from shapely.ops import unary_union
 
 from common import SIZE, geom_to_d, grad, group, layer, svg, tapered, write_icon
 
-HOUSING = "#3DEBDA"
-BOOT = "#2CD3C6"
-INK = "#0C173A"
-TONGUE = "#FF6F91"
-GROUND = grad("#2F6BFF", "#1747D9")
-GROUND_DARK = grad("#14204A", "#070B1C")
+HOUSING = "#FFF3E7"
+BOOT = "#FCDBBC"
+INK = "#112000"
+TONGUE = "#FE6C93"
+GROUND = grad("#6C9A26", "#497C00")
 
 CX = 512
 HEAD = (226, 326, 798, 716)                 # x0, y0, x1, y1 of the housing
@@ -25,6 +24,7 @@ HEAD_RADIUS = 136
 BOOT_FOOT = HEAD[3] + 140                   # where the boot ends and the cord begins
 RIBS = (766, 810)                           # tops of the gaps across the boot
 RIB_GAP = 18
+SEAM = 10                                   # clearance where parts meet, so their glass rims don't touch
 CORD_WIDTH = 92
 CORD_INSET = 24                             # how far up into the boot the cord starts
 CORD_DRIFT = 60                             # how far right the cord wanders by the tile's edge
@@ -140,16 +140,19 @@ def mark():
 def build(path):
     lips, tongue = mouth()
     housing = lean(head())
-    sleeve = lean(boot()).difference(housing.buffer(2))
+    sleeve = lean(boot()).difference(housing.buffer(SEAM))
+    line = cord().difference(sleeve.buffer(SEAM))
     # The face is painted on the housing: as glass of its own, each stroke
     # gets a specular rim, which is all that shows of it in Clear.
     assets = {
         "housing.svg": svg([(geom_to_d(housing), f'fill="{HOUSING}"'), (geom_to_d(lean(eyes())), f'fill="{INK}"'),
                             (geom_to_d(lean(lips)), f'fill="{INK}"'), (geom_to_d(lean(tongue)), f'fill="{TONGUE}"')]),
-        "cord.svg": svg([(geom_to_d(cord()), f'fill="{HOUSING}"'), (geom_to_d(sleeve), f'fill="{BOOT}"')]),
+        "cord.svg": svg([(geom_to_d(line), f'fill="{HOUSING}"'), (geom_to_d(sleeve), f'fill="{BOOT}"')]),
     }
     groups = [
         group([layer("housing", "housing.svg")], shadow_opacity=0.5, translucency=0.1),
         group([layer("cord", "cord.svg")], shadow_opacity=0.4, translucency=0.15),
     ]
-    return write_icon(path, assets, groups, fill=GROUND, fill_dark=GROUND_DARK)
+    # One tile for every appearance. Leaving out the dark fill doesn't do that:
+    # Icon Composer substitutes a near-black one.
+    return write_icon(path, assets, groups, fill=GROUND, fill_dark=GROUND)
