@@ -11,3 +11,9 @@ __pycache__
 # SwiftPM build products for core/ui (see core/ui/Package.swift)
 /core/ui/.build/
 /core/ui/.swiftpm/
+
+# The demo video's takes, tools and renders (see .agents/DEMO.md)
+/demo/takes/
+/demo/director/.build/
+/demo/studio/node_modules/
+/demo/studio/out/

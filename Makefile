@@ -5,7 +5,8 @@ APP_NAME := $(shell sed -n 's/^PRODUCT_FULLNAME=//p' core/branding/BRANDING)
 OUT      ?= Default
 SRC      := chromium/src
 
-.PHONY: sync patches build run size ui harness icon app zip dist install uninstall clean print-version
+.PHONY: sync patches build run size ui harness icon app zip dist install uninstall clean print-version \
+        demo demo-take demo-render demo-studio
 
 # --- Chromium and the dev build ------------------------------------------------------------------
 # `build` is the component build in out/$(OUT): hundreds of small dylibs, so an incremental build
@@ -44,6 +45,28 @@ harness:
 # dependencies from its inline script metadata.
 icon:
 	uv run core/branding/icon/build.py
+
+# --- The demo video ------------------------------------------------------------------------------
+# The director plays demo/tapes/$(TAPE).tape on out/Release's app (APP=… for another) and records
+# the take into demo/takes/$(TAPE); the studio cuts takes into demo/studio/out/$(CUT).mp4. A take
+# takes over the mouse and keyboard while it records. See .agents/DEMO.md.
+TAPE     ?= readme
+CUT      ?= $(TAPE)
+DIRECTOR := demo/director/.build/release/director
+
+demo: demo-take demo-render
+
+demo-take:
+	swift build -c release --package-path demo/director
+	$(DIRECTOR) demo/tapes/$(TAPE).tape $(if $(APP),--app $(APP))
+
+demo-render:
+	cd demo/studio && npm ci --silent && \
+		npx remotion render src/index.ts $(CUT) out/$(CUT).mp4 $(if $(CRF),--crf=$(CRF))
+
+# Previews and scrubs the cuts in a browser, to tune the camera.
+demo-studio:
+	cd demo/studio && npm ci --silent && npx remotion studio src/index.ts
 
 # --- Version -------------------------------------------------------------------------------------
 # Fiber's version is core/branding/VERSION; tag its release v<VERSION>. The app shows it with the

@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started – Caldera Docs</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0a0a0c;--side:#0c0c0f;--panel:#111115;--panel2:#16161b;--raise:#1c1c22;
+  --line:rgba(255,255,255,.065);--line2:rgba(255,255,255,.1);--line3:rgba(255,255,255,.16);
+  --text:#f2f2f3;--text2:#b6b6be;--muted:#8b8b95;--faint:#5f5f69;
+  --ember:#ff6a2b;--ember2:#ff8d4d;--gold:#ffb547;--ok:#4fd18b;--info:#7fa8ff;
+  --mono:Menlo,monospace;
+  --hd:60px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg);color-scheme:dark;scroll-padding-top:88px}
+body{font:15px/1.7 system-ui,-apple-system,"Helvetica Neue",sans-serif;color:var(--text2);-webkit-font-smoothing:antialiased;background:var(--bg)}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block}
+::selection{background:rgba(255,106,43,.35);color:#fff}
+
+.top{position:sticky;top:0;z-index:20;height:var(--hd);display:flex;align-items:center;gap:18px;padding:0 48px 0 28px;background:rgba(10,10,12,.82);backdrop-filter:saturate(160%) blur(14px);-webkit-backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;color:var(--text);font-weight:650;font-size:16.5px;letter-spacing:-.01em}
+.brand .slash{color:var(--faint);font-weight:300;font-size:20px;margin:0 -2px}
+.brand .sub{color:var(--text2);font-weight:500}
+.ver{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 10px;border:1px solid var(--line2);border-radius:7px;font:500 12px/1 var(--mono);color:var(--text2);background:rgba(255,255,255,.025);margin-left:6px}
+.ver svg{opacity:.6}
+.top nav{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:14px}
+.top nav a{padding:6px 11px;border-radius:7px;color:var(--text2)}
+.top nav a:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.top nav a.on{color:var(--text)}
+.top .sep{width:1px;height:20px;background:var(--line2);margin:0 10px}
+.btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:8px;font-size:13.5px;font-weight:550}
+.btn.pri{background:linear-gradient(180deg,#ff7a3a,#f2541f);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 0 0 1px rgba(255,106,43,.5),0 6px 18px -6px rgba(255,90,30,.55)}
+.btn.ghost{color:var(--text2)}
+
+.layout{display:grid;grid-template-columns:284px minmax(0,1fr) 276px}
+.side{position:sticky;top:var(--hd);height:calc(100vh - var(--hd));overflow:auto;border-right:1px solid var(--line);background:var(--side);padding:22px 18px 28px 22px;scrollbar-width:none}
+.search{display:flex;align-items:center;gap:9px;height:38px;padding:0 8px 0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--panel);color:var(--muted);font-size:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.search .ph{flex:1}
+.kbd{display:inline-flex;gap:2px;align-items:center;font:500 11.5px/1 system-ui;color:var(--muted);border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:3px 6px;background:rgba(255,255,255,.03)}
+.group{margin-top:26px}
+.group h4{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--text);margin:0 0 6px 10px;letter-spacing:.005em}
+.group h4 svg{color:var(--muted)}
+.group ul{list-style:none}
+.group a{display:flex;align-items:center;justify-content:space-between;padding:5px 10px 5px 10px;margin-left:16px;border-left:1px solid var(--line2);font-size:14px;color:var(--muted);line-height:1.55}
+.group a:hover{color:var(--text)}
+.group a.on{color:var(--ember2);border-left-color:var(--ember);font-weight:550;background:linear-gradient(90deg,rgba(255,106,43,.1),rgba(255,106,43,0) 85%)}
+.group a code{font:12.5px var(--mono);color:inherit;background:none;border:0;padding:0}
+.tag{font:600 10px/1 system-ui;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);border:1px solid rgba(255,181,71,.3);background:rgba(255,181,71,.08);padding:3px 5px;border-radius:4px}
+.status{display:flex;align-items:center;gap:9px;margin:30px 0 0 10px;font-size:12.5px;color:var(--muted)}
+.status i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(79,209,139,.15)}
+
+.main{min-width:0;background:radial-gradient(820px 360px at 38% -90px,rgba(255,106,43,.12),transparent 70%)}
+article{max-width:768px;margin:0 auto;padding:44px 56px 40px}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.crumbs svg{opacity:.5}
+.crumbs b{font-weight:500;color:var(--ember2)}
+h1{margin:18px 0 14px;font-size:44px;line-height:1.08;font-weight:700;letter-spacing:-.032em;color:#fafafa}
+.lead{font-size:18.5px;line-height:1.6;color:#c3c3ca;max-width:680px;letter-spacing:-.003em}
+.meta{display:flex;align-items:center;gap:18px;margin:22px 0 0;padding:0 0 30px;border-bottom:1px solid var(--line);font-size:13px;color:var(--muted)}
+.meta span{display:flex;align-items:center;gap:7px}
+.meta .copy-page{margin-left:auto;display:flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--line2);border-radius:8px;color:var(--text2);font-size:13px;background:rgba(255,255,255,.02)}
+
+h2{font-size:23px;line-height:1.3;font-weight:650;letter-spacing:-.02em;color:var(--text);margin:52px 0 12px}
+h3{font-size:16.5px;font-weight:620;color:var(--text);margin:28px 0 8px;letter-spacing:-.01em}
+p{margin:0 0 16px}
+p strong,li strong{color:var(--text);font-weight:600}
+article a.lnk code{color:var(--ember2)}
+article a.lnk{color:var(--ember2);text-decoration:underline;text-decoration-color:rgba(255,141,77,.35);text-underline-offset:3px}
+:not(pre)>code{font:.86em var(--mono);color:#f3e2d8;background:rgba(255,255,255,.055);border:1px solid var(--line);border-radius:6px;padding:1.5px 6px}
+
+.checks{list-style:none;margin:6px 0 8px;display:grid;gap:10px}
+.checks li{display:flex;gap:12px;align-items:flex-start}
+.checks li svg{flex:none;margin-top:4px;color:var(--ember)}
+
+.steps{list-style:none;counter-reset:s;margin-top:36px}
+.steps>li{position:relative;padding:0 0 40px 54px;counter-increment:s}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:1px;width:30px;height:30px;border-radius:50%;background:linear-gradient(180deg,#22222a,#17171c);border:1px solid var(--line3);color:var(--text);font:600 13px/28px system-ui;text-align:center;box-shadow:0 0 0 5px var(--bg)}
+.steps>li::after{content:"";position:absolute;left:15px;top:40px;bottom:2px;width:1px;background:linear-gradient(var(--line3),var(--line) 70%,transparent)}
+.steps>li:last-child{padding-bottom:4px}
+.steps>li:last-child::after{display:none}
+.steps h2{margin:0 0 10px;font-size:21px;line-height:1.5}
+
+.code{margin:18px 0 22px;border:1px solid var(--line2);border-radius:12px;background:#0e0e12;overflow:hidden;box-shadow:0 1px 0 rgba(255,255,255,.03) inset,0 12px 30px -18px rgba(0,0,0,.7)}
+.code-hd{display:flex;align-items:center;height:40px;padding:0 8px 0 4px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#141419,#111115)}
+.code-hd .file{display:flex;align-items:center;gap:8px;padding:0 10px;font:12.5px var(--mono);color:var(--text2)}
+.code-hd .file svg{color:var(--muted)}
+.code-hd .lang{margin-left:auto;font:11.5px var(--mono);color:var(--faint);margin-right:8px}
+.tabs{display:flex;height:100%}
+.tab{position:relative;padding:0 12px;font-size:13px;font-weight:500;color:var(--muted);height:100%}
+.tab.on{color:var(--text)}
+.tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--ember)}
+.cbtn{margin-left:auto;width:30px;height:30px;display:grid;place-items:center;border-radius:7px;color:var(--muted)}
+.cbtn:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.code-hd .lang+.cbtn{margin-left:0}
+pre{display:none;margin:0;padding:16px 20px 17px;font:13px/1.75 var(--mono);color:#e4e4e8;overflow:auto;tab-size:2}
+pre.on{display:block}
+.term pre{background:radial-gradient(500px 120px at 0 0,rgba(255,106,43,.035),transparent)}
+.dots{display:flex;gap:7px;padding:0 10px 0 8px}
+.dots i{width:11px;height:11px;border-radius:50%;background:#2a2a31;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.t-c{color:#5e616f;font-style:italic}
+.t-k{color:#ff8f5e}
+.t-s{color:#b4db98}
+.t-n{color:#f5c26b}
+.t-p{color:#8cc4ff}
+.t-f{color:#ffd9ad}
+.t-o{color:#7d7d89}
+.t-pr{color:#ff6a2b;user-select:none}
+.t-ok{color:#4fd18b}
+.t-d{color:#6c6c78}
+.t-u{color:#f2f2f3;text-decoration:underline;text-decoration-color:rgba(255,255,255,.25);text-underline-offset:3px}
+.t-q{color:#ffb547}
+.ln{display:inline-block;width:20px;margin-right:16px;text-align:right;color:#3d3d46;user-select:none}
+
+.callout{display:flex;gap:14px;margin:20px 0 22px;padding:15px 18px 15px 16px;border-radius:12px;border:1px solid;font-size:14.5px;line-height:1.65}
+.callout svg{flex:none;margin-top:2px}
+.callout p{margin:0}
+.callout b{display:block;color:var(--text);font-weight:600;margin-bottom:2px}
+.note{background:linear-gradient(180deg,rgba(127,168,255,.075),rgba(127,168,255,.04));border-color:rgba(127,168,255,.2);color:#c2c9dc}
+.note svg{color:var(--info)}
+.warn{background:linear-gradient(180deg,rgba(255,181,71,.08),rgba(255,181,71,.035));border-color:rgba(255,181,71,.22);color:#d8cbb6}
+.warn svg{color:var(--gold)}
+
+.rel{margin:22px 0 22px;border:1px solid var(--line2);border-radius:14px;background:linear-gradient(180deg,#131318,#0f0f13);overflow:hidden;box-shadow:0 20px 40px -24px rgba(0,0,0,.8)}
+.rel-hd{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.rel-hd .t{color:var(--text);font-weight:600;font-size:14px}
+.rel-hd .pill{font:12px var(--mono);color:var(--muted);padding:3px 8px;border:1px solid var(--line2);border-radius:999px}
+.rel-hd .seg{margin-left:auto;display:flex;gap:2px;padding:3px;border-radius:9px;background:rgba(255,255,255,.04);font-size:12px}
+.rel-hd .seg span{padding:3px 10px;border-radius:6px;color:var(--muted)}
+.rel-hd .seg span.on{background:var(--raise);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.4)}
+.row{display:grid;grid-template-columns:22px minmax(0,1fr) 104px 64px 92px;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:13.5px}
+.row:last-child{border-bottom:0}
+.row .dot{width:9px;height:9px;border-radius:50%;background:#3a3a43;margin-left:4px}
+.row.live .dot{background:var(--ok);box-shadow:0 0 0 4px rgba(79,209,139,.14),0 0 12px rgba(79,209,139,.6)}
+.row .what{min-width:0;display:flex;flex-direction:column;gap:1px}
+.row .msg{color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sub{display:flex;align-items:center;gap:7px;font:12px var(--mono);color:var(--faint)}
+.row .sub b{font-weight:400;color:var(--muted)}
+.row .sub svg{opacity:.8}
+.badge{justify-self:start;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:6px;letter-spacing:.01em}
+.badge.prod{color:#7ee2a8;background:rgba(79,209,139,.1);box-shadow:inset 0 0 0 1px rgba(79,209,139,.25)}
+.badge.ready{color:var(--muted);background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line2)}
+.row .dur{font:12px var(--mono);color:var(--muted);text-align:right}
+.row .when{display:flex;align-items:center;justify-content:flex-end;gap:8px;color:var(--faint);font-size:12.5px;white-space:nowrap}
+.av{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font:600 9px/1 system-ui;color:#fff}
+.row.hl{background:linear-gradient(90deg,rgba(255,106,43,.075),rgba(255,106,43,0) 70%)}
+.rb{justify-self:end;font-size:12px;font-weight:600;color:var(--ember2);border:1px solid rgba(255,106,43,.38);background:rgba(255,106,43,.1);padding:4px 10px;border-radius:7px;white-space:nowrap}
+
+.tbl{margin:18px 0 18px;border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:#111115;padding:11px 16px;border-bottom:1px solid var(--line2)}
+td{padding:12px 16px;border-bottom:1px solid var(--line);vertical-align:baseline;color:var(--text2);line-height:1.55}
+tr:last-child td{border-bottom:0}
+td:first-child code{color:var(--ember2);background:rgba(255,106,43,.07);border-color:rgba(255,106,43,.16);white-space:nowrap}
+td.ty{font:12.5px var(--mono);color:#8cc4ff;white-space:nowrap}
+td.df{font:12.5px var(--mono);color:var(--muted);white-space:nowrap}
+
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0 8px}
+.card{position:relative;padding:18px 18px 18px;border:1px solid var(--line2);border-radius:13px;background:linear-gradient(180deg,#131318,#0f0f13);transition:border-color .2s}
+.card:hover{border-color:rgba(255,106,43,.4)}
+.card .ic{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:linear-gradient(180deg,rgba(255,106,43,.18),rgba(255,106,43,.06));box-shadow:inset 0 0 0 1px rgba(255,106,43,.28);color:var(--ember2);margin-bottom:14px}
+.card h5{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+.card p{font-size:13.5px;line-height:1.55;color:var(--muted);margin:0}
+
+.feedback{display:flex;align-items:center;gap:10px;margin-top:56px;padding-top:22px;border-top:1px solid var(--line);font-size:14px;color:var(--text2)}
+.feedback .fb{display:flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--line2);border-radius:8px;font-size:13px;color:var(--text2)}
+.feedback .edit{margin-left:auto;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13.5px}
+.pager{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px}
+.pager a{display:block;padding:16px 20px;border:1px solid var(--line2);border-radius:13px;transition:border-color .2s}
+.pager a:hover{border-color:rgba(255,106,43,.4)}
+.pager small{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.pager strong{display:block;margin-top:3px;font-size:16px;font-weight:600;color:var(--text)}
+.pager .nx{text-align:right}
+.pager .nx small{justify-content:flex-end}
+.foot{display:flex;align-items:center;gap:20px;margin-top:52px;padding:26px 0 8px;border-top:1px solid var(--line);font-size:13px;color:var(--faint)}
+.foot .r{margin-left:auto;display:flex;gap:20px}
+
+.toc{position:sticky;top:var(--hd);align-self:start;padding:46px 48px 24px 8px}
+.toc h6{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px}
+.toc ul{list-style:none;border-left:1px solid var(--line2)}
+.toc ul a{display:block;margin-left:-1px;padding:4px 0 4px 14px;font-size:13.5px;line-height:1.5;color:var(--muted);border-left:1px solid transparent}
+.toc ul a:hover{color:var(--text)}
+.toc ul a.sub{padding-left:26px;font-size:13px}
+.toc ul a.on{color:var(--ember2);border-left-color:var(--ember);font-weight:550}
+.promo{margin-top:30px;padding:16px 16px 15px;border-radius:13px;background:linear-gradient(160deg,rgba(255,106,43,.16),rgba(255,106,43,.03) 55%),#111115;border:1px solid rgba(255,106,43,.22);position:relative;overflow:hidden}
+.promo::after{content:"";position:absolute;right:-30px;top:-40px;width:120px;height:120px;border-radius:50%;background:radial-gradient(closest-side,rgba(255,141,77,.35),transparent);filter:blur(6px)}
+.promo .k{font:600 10.5px/1 system-ui;letter-spacing:.08em;text-transform:uppercase;color:var(--ember2)}
+.promo p{margin:8px 0 10px;font-size:13.5px;line-height:1.5;color:var(--text)}
+.promo a{font-size:13px;font-weight:550;color:var(--ember2)}
+.toc .tools{margin-top:22px;display:grid;gap:9px;font-size:13px;color:var(--muted)}
+.toc .tools a{display:flex;align-items:center;gap:9px;padding:0;border:0;margin:0}
+
+@media (max-width:1400px){
+  .layout{grid-template-columns:256px minmax(0,1fr) 236px}
+  article{padding:40px 44px 36px}
+  .toc{padding-right:36px}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="/">
+    <svg width="26" height="26" viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9446"/><stop offset="1" stop-color="#e5391a"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#lg)"/><path d="M7 51 23.5 18H28l4 9 4-9h4.5L57 51Z" fill="#fff"/></svg>
+    Caldera <span class="slash">/</span> <span class="sub">Docs</span>
+  </a>
+  <span class="ver">v3.2 <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m2.5 4 2.5 2.5L7.5 4"/></svg></span>
+  <nav>
+    <a class="on" href="/docs/getting-started/">Guides</a>
+    <a href="#">CLI</a>
+    <a href="#">API reference</a>
+    <a href="#">Changelog</a>
+    <span class="sep"></span>
+    <a class="btn ghost" href="#">Log in</a>
+    <a class="btn pri" href="/">Dashboard <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 6h7M6.5 3 9.5 6l-3 3"/></svg></a>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside class="side">
+    <div class="search">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.8"/><path d="m10.6 10.6 3.4 3.4"/></svg>
+      <span class="ph">Search docs…</span>
+      <span class="kbd">⌘K</span>
+    </div>
+
+    <div class="group">
+      <h4><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8 13.5 5v6L8 14.2 2.5 11V5z"/><path d="M2.5 5 8 8.2 13.5 5M8 8.2v6"/></svg>Get started</h4>
+      <ul>
+        <li><a href="#">Introduction</a></li>
+        <li><a class="on" href="/docs/getting-started/">Getting started</a></li>
+        <li><a href="#">Core concepts</a></li>
+        <li><a href="#">Project structure</a></li>
+      </ul>
+    </div>
+    <div class="group">
+      <h4><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c1.8 1.7 2.6 3.7 2.6 6S9.8 12.3 8 14M8 2C6.2 3.7 5.4 5.7 5.4 8s.8 4.3 2.6 6"/></svg>Deploying</h4>
+      <ul>
+        <li><a href="#">Edges &amp; regions</a></li>
+        <li><a href="#">Preview environments</a></li>
+        <li><a href="#">Rollbacks</a></li>
+        <li><a href="#">Custom domains</a></li>
+        <li><a href="#">Environment variables</a></li>
+        <li><a href="#">Canary releases <span class="tag">Beta</span></a></li>
+      </ul>
+    </div>
+    <div class="group">
+      <h4><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2.5h6.5L13 6v7.5H3z"/><path d="M9.5 2.5V6H13M5.5 9h5M5.5 11.5h3.5"/></svg>Configuration</h4>
+      <ul>
+        <li><a href="#"><code>caldera.toml</code></a></li>
+        <li><a href="#">Build settings</a></li>
+        <li><a href="#">Health checks</a></li>
+        <li><a href="#">Secrets</a></li>
+      </ul>
+    </div>
+    <div class="group">
+      <h4><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="m4.5 6.5 2 1.6-2 1.6M8.5 10h3"/></svg>CLI reference</h4>
+      <ul>
+        <li><a href="#"><code>caldera init</code></a></li>
+        <li><a href="#"><code>caldera deploy</code></a></li>
+        <li><a href="#"><code>caldera logs</code></a></li>
+        <li><a href="#"><code>caldera rollback</code></a></li>
+      </ul>
+    </div>
+    <div class="status"><i></i>All edges operational</div>
+  </aside>
+
+  <main class="main">
+    <article>
+      <div class="crumbs">Docs <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4.5 2.5 3.5 3.5-3.5 3.5"/></svg> Get started <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4.5 2.5 3.5 3.5-3.5 3.5"/></svg> <b>Getting started</b></div>
+      <h1>Getting started</h1>
+      <p class="lead">Ship your first release to Caldera’s global edge in under five minutes. This guide walks you through installing the CLI, linking a project and deploying to production — with preview environments and instant rollbacks included.</p>
+      <div class="meta">
+        <span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.6"/></svg>6 min read</span>
+        <span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.2" y="3.2" width="11.6" height="10.6" rx="2"/><path d="M2.2 6.6h11.6M5.5 1.8v2.6M10.5 1.8v2.6"/></svg>Updated Sep 30, 2026</span>
+        <button class="copy-page"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg>Copy as Markdown</button>
+      </div>
+
+      <h2 id="before">Before you begin</h2>
+      <p>You’ll need three things. If you already deploy somewhere else, you probably have them.</p>
+      <ul class="checks">
+        <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3.5 8.4 3 3 6-6.6"/></svg><span>A <strong>Caldera account</strong>. The Hobby plan is free and includes three projects and unlimited previews.</span></li>
+        <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3.5 8.4 3 3 6-6.6"/></svg><span><strong>Node.js 20 or later</strong>, if you install the CLI with npm. The Homebrew and curl installers have no dependencies.</span></li>
+        <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3.5 8.4 3 3 6-6.6"/></svg><span>A project with a <strong>build step</strong> that outputs static files or a server bundle. Caldera detects most frameworks on its own.</span></li>
+      </ul>
+
+      <ol class="steps">
+        <li>
+          <h2 id="install">Install the CLI</h2>
+          <p>The <code>caldera</code> CLI is a single binary for macOS, Linux and Windows. Install it with whichever package manager you already use:</p>
+          <div class="code">
+            <div class="code-hd">
+              <div class="tabs">
+                <button class="tab on" data-t="npm">npm</button>
+                <button class="tab" data-t="brew">Homebrew</button>
+                <button class="tab" data-t="curl">curl</button>
+              </div>
+              <button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button>
+            </div>
+<pre class="on" data-p="npm"><span class="t-pr">$ </span><span class="t-f">npm</span> install <span class="t-o">-g</span> <span class="t-s">@caldera/cli</span></pre>
+<pre data-p="brew"><span class="t-pr">$ </span><span class="t-f">brew</span> install <span class="t-s">caldera-dev/tap/caldera</span></pre>
+<pre data-p="curl"><span class="t-pr">$ </span><span class="t-f">curl</span> <span class="t-o">-fsSL</span> <span class="t-s">https://caldera.dev/install.sh</span> <span class="t-o">|</span> <span class="t-f">sh</span></pre>
+          </div>
+          <p>Then confirm it’s on your <code>PATH</code>:</p>
+          <div class="code term">
+            <div class="code-hd"><div class="dots"><i></i><i></i><i></i></div><span class="lang">zsh</span><button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button></div>
+<pre class="on"><span class="t-pr">$ </span><span class="t-f">caldera</span> <span class="t-o">--version</span>
+<span class="t-d">caldera</span> 3.2.0 <span class="t-d">(darwin-arm64, built 2026-09-24)</span></pre>
+          </div>
+        </li>
+
+        <li>
+          <h2 id="login">Log in</h2>
+          <p>Authenticate once per machine. <code>caldera login</code> opens your browser, asks you to confirm a one-time code, and stores a scoped token in the system keychain.</p>
+          <div class="code term">
+            <div class="code-hd"><div class="dots"><i></i><i></i><i></i></div><span class="lang">zsh</span><button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button></div>
+<pre class="on"><span class="t-pr">$ </span><span class="t-f">caldera</span> login
+<span class="t-d">  Opening</span> <span class="t-u">https://caldera.dev/device</span> <span class="t-d">in your browser…</span>
+<span class="t-d">  Your one-time code is</span> <span class="t-q">KMRX-4Q7D</span>
+
+  <span class="t-ok">✓</span> Logged in as <span class="t-f">tess@harborlabs.dev</span> <span class="t-d">(team: harbor-labs)</span></pre>
+          </div>
+          <div class="callout note">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7.5"/><path d="M10 9v4.5M10 6.4v.1"/></svg>
+            <p><b>Deploying from CI?</b>Skip <code>caldera login</code> and set <code>CALDERA_TOKEN</code> instead. Create a deploy-only token under <strong>Team settings → Tokens</strong>; it can ship releases but can’t read secrets or change billing.</p>
+          </div>
+        </li>
+
+        <li>
+          <h2 id="init">Initialize your project</h2>
+          <p>From your project’s root, run <code>caldera init</code>. It detects your framework and build command, picks the edges nearest your users, and writes a <code>caldera.toml</code>.</p>
+          <div class="code term">
+            <div class="code-hd"><div class="dots"><i></i><i></i><i></i></div><span class="lang">~/code/ember-shop</span><button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button></div>
+<pre class="on"><span class="t-pr">$ </span><span class="t-f">caldera</span> init
+  <span class="t-q">?</span> Project name   <span class="t-p">ember-shop</span>
+  <span class="t-q">?</span> Build command  <span class="t-p">npm run build</span>  <span class="t-d">(detected from package.json)</span>
+  <span class="t-q">?</span> Output folder  <span class="t-p">dist</span>
+  <span class="t-q">?</span> Regions        <span class="t-p">auto</span>  <span class="t-d">→ lis1, fra1, iad1, sfo1, nrt1, syd1</span>
+
+  <span class="t-ok">✓</span> Wrote caldera.toml
+  <span class="t-ok">✓</span> Linked to <span class="t-f">harbor-labs/ember-shop</span></pre>
+          </div>
+          <p>The generated file is short and readable. Commit it alongside your code — it’s the single source of truth for how your app builds and where it runs.</p>
+          <div class="code">
+            <div class="code-hd"><span class="file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2.5h6.5L13 6v7.5H3z"/><path d="M9.5 2.5V6H13"/></svg>caldera.toml</span><span class="lang">toml</span><button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button></div>
+<pre class="on"><span class="ln">1</span><span class="t-p">name</span>    <span class="t-o">=</span> <span class="t-s">"ember-shop"</span>
+<span class="ln">2</span><span class="t-p">regions</span> <span class="t-o">=</span> <span class="t-o">[</span><span class="t-s">"lis1"</span><span class="t-o">,</span> <span class="t-s">"fra1"</span><span class="t-o">,</span> <span class="t-s">"iad1"</span><span class="t-o">,</span> <span class="t-s">"sfo1"</span><span class="t-o">,</span> <span class="t-s">"nrt1"</span><span class="t-o">,</span> <span class="t-s">"syd1"</span><span class="t-o">]</span>
+<span class="ln">3</span>
+<span class="ln">4</span><span class="t-k">[build]</span>
+<span class="ln">5</span><span class="t-p">command</span> <span class="t-o">=</span> <span class="t-s">"npm run build"</span>
+<span class="ln">6</span><span class="t-p">output</span>  <span class="t-o">=</span> <span class="t-s">"dist"</span>
+<span class="ln">7</span>
+<span class="ln">8</span><span class="t-k">[previews]</span>
+<span class="ln">9</span><span class="t-p">enabled</span> <span class="t-o">=</span> <span class="t-n">true</span>
+<span class="ln">10</span><span class="t-p">ttl</span>     <span class="t-o">=</span> <span class="t-s">"7d"</span>        <span class="t-c"># tear down previews idle for a week</span>
+<span class="ln">11</span>
+<span class="ln">12</span><span class="t-k">[health]</span>
+<span class="ln">13</span><span class="t-p">path</span>     <span class="t-o">=</span> <span class="t-s">"/healthz"</span>
+<span class="ln">14</span><span class="t-p">interval</span> <span class="t-o">=</span> <span class="t-n">10</span>          <span class="t-c"># seconds between checks, per edge</span></pre>
+          </div>
+        </li>
+
+        <li>
+          <h2 id="deploy">Deploy to the edge</h2>
+          <p>Ship a production release with <code>--prod</code>. Caldera builds in an isolated runner, uploads immutable assets, then promotes the release on every edge at once. Traffic switches atomically, so no one ever sees a half-deployed app.</p>
+          <div class="code term">
+            <div class="code-hd"><div class="dots"><i></i><i></i><i></i></div><span class="lang">~/code/ember-shop</span><button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button></div>
+<pre class="on"><span class="t-pr">$ </span><span class="t-f">caldera</span> deploy <span class="t-o">--prod</span>
+
+  <span class="t-k">◆ Caldera</span> <span class="t-d">3.2.0 · harbor-labs/ember-shop · main@3f9c2a1</span>
+
+  <span class="t-d">Build  </span>  <span class="t-ok">✓</span> Compiled 14 routes in 4.2s     <span class="t-d">312 kB</span>
+  <span class="t-d">Upload </span>  <span class="t-ok">✓</span> 38 files, 1.8 MB              <span class="t-d">0.9s</span>
+  <span class="t-d">Edges  </span>  <span class="t-ok">✓</span> lis1  <span class="t-ok">✓</span> fra1  <span class="t-ok">✓</span> iad1  <span class="t-ok">✓</span> sfo1  <span class="t-ok">✓</span> nrt1  <span class="t-ok">✓</span> syd1
+  <span class="t-d">Health </span>  <span class="t-ok">✓</span> /healthz 200 on 6 of 6 edges
+
+  <span class="t-ok">✓ Production</span>  <span class="t-u">https://ember-shop.caldera.app</span>  <span class="t-d">[11.6s]</span>
+  <span class="t-d">  Release</span>     rel_7Hq2xK</pre>
+          </div>
+          <p>Your app is now live on six edges. Run <code>caldera open</code> to see it, or stream requests from every region as they arrive with <code>caldera logs -f</code>.</p>
+        </li>
+
+        <li>
+          <h2 id="previews">Open a preview</h2>
+          <p>Leave off <code>--prod</code> and you get a <strong>preview environment for every branch</strong>: an isolated copy of your app with its own URL, secrets scope and logs. Previews never receive production traffic, and they go to sleep when nobody is looking.</p>
+          <div class="code term">
+            <div class="code-hd"><div class="dots"><i></i><i></i><i></i></div><span class="lang">~/code/ember-shop</span><button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button></div>
+<pre class="on"><span class="t-pr">$ </span><span class="t-f">git</span> switch <span class="t-o">-c</span> checkout-redesign
+<span class="t-pr">$ </span><span class="t-f">caldera</span> deploy
+
+  <span class="t-ok">✓ Preview</span>  <span class="t-u">https://ember-shop-checkout-redesign.caldera.app</span>  <span class="t-d">[9.8s]</span>
+  <span class="t-d">  Sleeps after 30 min idle · expires in 7 days</span></pre>
+          </div>
+        </li>
+      </ol>
+
+      <h2 id="rollback">Roll back a release</h2>
+      <p>Every deploy creates an immutable release. Caldera keeps your last 20 releases warm on every edge, so rolling back is a pointer swap: it completes worldwide in under a second, with no rebuild.</p>
+
+      <div class="rel">
+        <div class="rel-hd">
+          <span class="t">Releases</span>
+          <span class="pill">ember-shop</span>
+          <div class="seg"><span class="on">Production</span><span>Previews</span><span>All</span></div>
+        </div>
+        <div class="row live">
+          <i class="dot"></i>
+          <div class="what"><span class="msg">Add express checkout to cart drawer</span><span class="sub"><b>rel_7Hq2xK</b><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="4.5" cy="3.5" r="1.7"/><circle cx="4.5" cy="12.5" r="1.7"/><circle cx="11.5" cy="5.5" r="1.7"/><path d="M4.5 5.2v5.6M11.5 7.2c0 2.6-2.4 3-5.4 4"/></svg>main · 3f9c2a1</span></div>
+          <span class="badge prod">Production</span><span class="dur">11.6s</span><span class="when"><i class="av" style="background:linear-gradient(135deg,#ff8d4d,#d9452a)">TB</i>2m ago</span>
+        </div>
+        <div class="row hl">
+          <i class="dot"></i>
+          <div class="what"><span class="msg">Fix rounding on multi-currency totals</span><span class="sub"><b>rel_5Mn8pW</b><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="4.5" cy="3.5" r="1.7"/><circle cx="4.5" cy="12.5" r="1.7"/><circle cx="11.5" cy="5.5" r="1.7"/><path d="M4.5 5.2v5.6M11.5 7.2c0 2.6-2.4 3-5.4 4"/></svg>main · a81d0e4</span></div>
+          <span class="badge ready">Ready</span><span class="dur">10.9s</span><span class="rb">Roll back</span>
+        </div>
+        <div class="row">
+          <i class="dot"></i>
+          <div class="what"><span class="msg">Serve product images as AVIF by default</span><span class="sub"><b>rel_2Lt4bR</b><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="4.5" cy="3.5" r="1.7"/><circle cx="4.5" cy="12.5" r="1.7"/><circle cx="11.5" cy="5.5" r="1.7"/><path d="M4.5 5.2v5.6M11.5 7.2c0 2.6-2.4 3-5.4 4"/></svg>main · 77be91c</span></div>
+          <span class="badge ready">Ready</span><span class="dur">12.3s</span><span class="when"><i class="av" style="background:linear-gradient(135deg,#7fa8ff,#5167d8)">JO</i>Yesterday</span>
+        </div>
+        <div class="row">
+          <i class="dot"></i>
+          <div class="what"><span class="msg">Move product search to the edge</span><span class="sub"><b>rel_9Vc1aE</b><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="4.5" cy="3.5" r="1.7"/><circle cx="4.5" cy="12.5" r="1.7"/><circle cx="11.5" cy="5.5" r="1.7"/><path d="M4.5 5.2v5.6M11.5 7.2c0 2.6-2.4 3-5.4 4"/></svg>main · c04f7d2</span></div>
+          <span class="badge ready">Ready</span><span class="dur">14.0s</span><span class="when"><i class="av" style="background:linear-gradient(135deg,#4fd18b,#1f9a68)">MK</i>Oct 4</span>
+        </div>
+      </div>
+
+      <p>Roll back from the dashboard, or from your terminal with the release ID:</p>
+      <div class="code term">
+        <div class="code-hd"><div class="dots"><i></i><i></i><i></i></div><span class="lang">zsh</span><button class="cbtn" aria-label="Copy"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></button></div>
+<pre class="on"><span class="t-pr">$ </span><span class="t-f">caldera</span> rollback rel_5Mn8pW
+
+  <span class="t-ok">✓</span> Production now serving <span class="t-f">rel_5Mn8pW</span> on 6 edges  <span class="t-d">[0.4s]</span>
+  <span class="t-d">  Undo with:</span> caldera rollback <span class="t-o">--undo</span></pre>
+      </div>
+      <div class="callout warn">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 2.8 18 16.5H2z" stroke-linejoin="round"/><path d="M10 8v4M10 14.3v.1"/></svg>
+        <p><b>Rollbacks restore code and config, not data.</b>If a release ran a database migration, make sure the previous release still works against the new schema before you roll back. Expand-then-contract migrations keep this safe.</p>
+      </div>
+
+      <h2 id="config">Configuration reference</h2>
+      <p>The keys you’ll reach for first. Every key is optional except <code>name</code>; anything you leave out falls back to what Caldera detects.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>name</code></td><td class="ty">string</td><td class="df">—</td><td>Project slug, unique within your team. Used in every URL.</td></tr>
+            <tr><td><code>regions</code></td><td class="ty">string[]</td><td class="df">["auto"]</td><td>Edges to deploy to. <code>auto</code> picks the six nearest your traffic.</td></tr>
+            <tr><td><code>build.command</code></td><td class="ty">string</td><td class="df">detected</td><td>Shell command that produces your output folder.</td></tr>
+            <tr><td><code>build.output</code></td><td class="ty">string</td><td class="df">"dist"</td><td>Folder uploaded as the release’s immutable assets.</td></tr>
+            <tr><td><code>previews.ttl</code></td><td class="ty">duration</td><td class="df">"7d"</td><td>How long an idle preview environment lives.</td></tr>
+            <tr><td><code>health.path</code></td><td class="ty">string</td><td class="df">"/healthz"</td><td>Must return 200 on every edge before a release is promoted.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>See the <a class="lnk" href="#"><code>caldera.toml</code> reference</a> for all 40-odd keys, including canary weights and per-edge overrides.</p>
+
+      <h2 id="next">Next steps</h2>
+      <p>You’ve shipped a release, opened a preview and rolled back. From here, most teams wire up a domain and move their secrets over.</p>
+      <div class="cards">
+        <a class="card" href="#">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c1.8 1.7 2.6 3.7 2.6 6S9.8 12.3 8 14M8 2C6.2 3.7 5.4 5.7 5.4 8s.8 4.3 2.6 6"/></svg></div>
+          <h5>Custom domains</h5><p>Point your apex domain at Caldera with automatic certificates.</p>
+        </a>
+        <a class="card" href="#">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="10" height="7" rx="1.6"/><path d="M5.3 7V5a2.7 2.7 0 0 1 5.4 0v2"/></svg></div>
+          <h5>Secrets</h5><p>Encrypted variables, scoped per environment and per branch.</p>
+        </a>
+        <a class="card" href="#">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 8.5h3l1.8-4 3.4 8 1.8-4h3"/></svg></div>
+          <h5>Health checks</h5><p>Gate promotions on real traffic and get paged before users do.</p>
+        </a>
+      </div>
+
+      <div class="feedback">
+        Was this page helpful?
+        <button class="fb"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 7v7H2.5V7zM5 7l2.6-5c1.2 0 2 .9 1.8 2L9 6.5h3.7a1.3 1.3 0 0 1 1.3 1.6l-1.2 4.8a1.5 1.5 0 0 1-1.5 1.1H5"/></svg>Yes</button>
+        <button class="fb"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="transform:rotate(180deg)"><path d="M5 7v7H2.5V7zM5 7l2.6-5c1.2 0 2 .9 1.8 2L9 6.5h3.7a1.3 1.3 0 0 1 1.3 1.6l-1.2 4.8a1.5 1.5 0 0 1-1.5 1.1H5"/></svg>No</button>
+        <a class="edit" href="#"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5V10.5z"/></svg>Edit this page</a>
+      </div>
+      <div class="pager">
+        <a href="#"><small><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9.5 6h-7M5.5 3 2.5 6l3 3"/></svg>Previous</small><strong>Introduction</strong></a>
+        <a class="nx" href="#"><small>Next<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 6h7M6.5 3 9.5 6l-3 3"/></svg></small><strong>Core concepts</strong></a>
+      </div>
+      <div class="foot">© 2026 Caldera Systems, Inc.<div class="r"><a href="#">Status</a><a href="#">Privacy</a><a href="#">Terms</a></div></div>
+    </article>
+  </main>
+
+  <aside class="toc">
+    <h6><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>On this page</h6>
+    <ul>
+      <li><a href="#before">Before you begin</a></li>
+      <li><a class="on" href="#install">Install the CLI</a></li>
+      <li><a href="#login">Log in</a></li>
+      <li><a href="#init">Initialize your project</a></li>
+      <li><a href="#deploy">Deploy to the edge</a></li>
+      <li><a href="#previews">Open a preview</a></li>
+      <li><a href="#rollback">Roll back a release</a></li>
+      <li><a href="#config">Configuration reference</a></li>
+      <li><a href="#next">Next steps</a></li>
+    </ul>
+    <div class="promo">
+      <div class="k">New in 3.2</div>
+      <p>Preview environments now cold-start in under two seconds.</p>
+      <a href="#">Read the changelog →</a>
+    </div>
+    <div class="tools">
+      <a href="#"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5V10.5z"/></svg>Edit this page</a>
+      <a href="#"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M6.2 6.2a1.9 1.9 0 1 1 2.5 1.8c-.5.2-.7.6-.7 1.1v.4M8 11.6v.1"/></svg>Ask the community</a>
+    </div>
+  </aside>
+</div>
+
+<script>
+document.querySelectorAll('.code').forEach(function (b) {
+  b.querySelectorAll('.tab').forEach(function (t) {
+    t.onclick = function () {
+      b.querySelectorAll('.tab').forEach(function (e) { e.classList.toggle('on', e === t); });
+      b.querySelectorAll('pre').forEach(function (e) { e.classList.toggle('on', e.dataset.p === t.dataset.t); });
+    };
+  });
+});
+(function () {
+  var links = [].slice.call(document.querySelectorAll('.toc ul a'));
+  var heads = links.map(function (a) { return document.querySelector(a.getAttribute('href')); });
+  function spy() {
+    var i = 0;
+    heads.forEach(function (h, j) { if (h.getBoundingClientRect().top < 140) i = j; });
+    if (window.scrollY < 40) i = 1;
+    links.forEach(function (a, j) { a.classList.toggle('on', j === i); });
+  }
+  addEventListener('scroll', spy, { passive: true });
+})();
+</script>
+</body>
+</html>

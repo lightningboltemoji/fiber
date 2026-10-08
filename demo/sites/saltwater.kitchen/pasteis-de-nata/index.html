@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pastéis de Nata – Saltwater Kitchen</title>
+<meta name="description" content="Lisbon custard tarts at home: a spiral-laminated pastry, a lemon and cinnamon custard, and a very hot oven.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#F6EFE3;
+  --paper:#FCF8F1;
+  --ink:#2A1D14;
+  --ink2:#574233;
+  --muted:#8D7662;
+  --line:#E4D6C0;
+  --line2:#EFE4D2;
+  --caramel:#B25E27;
+  --caramel2:#8A4216;
+  --blue:#1F4B99;
+  --blue2:#163A7C;
+  --gold:#E3A43A;
+  --display:"Hoefler Text","Baskerville",Georgia,serif;
+  --serif:"Iowan Old Style","Charter",Georgia,serif;
+  --sans:"Avenir Next","Helvetica Neue",system-ui,sans-serif;
+  --btile:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23F3EEE3'/%3E%3Cg fill='%231D4391'%3E%3Cpath d='M0 0h6L0 6zM40 0h-6l6 6zM0 40h6l-6-6zM40 40h-6l6-6z'/%3E%3C/g%3E%3Ccircle cx='20' cy='20' r='12.5' fill='%23A9BCE2' stroke='%231D4391' stroke-width='1.6'/%3E%3Cg fill='%231D4391'%3E%3Cpath d='M20 8.5c3 4 3 7.5 0 11.5-3-4-3-7.5 0-11.5zM20 31.5c3-4 3-7.5 0-11.5-3 4-3 7.5 0 11.5zM8.5 20c4-3 7.5-3 11.5 0-4 3-7.5 3-11.5 0zM31.5 20c-4-3-7.5-3-11.5 0 4 3 7.5 3 11.5 0z'/%3E%3C/g%3E%3Ccircle cx='20' cy='20' r='2.6' fill='%23D9962F'/%3E%3Cpath d='M0 .4H40M.4 0V40' stroke='%23CDC3B0' stroke-width='.8'/%3E%3C/svg%3E");
+  --tile:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23F3EEE3'/%3E%3Cg fill='%238EA6D8'%3E%3Ccircle r='15'/%3E%3Ccircle cx='64' r='15'/%3E%3Ccircle cy='64' r='15'/%3E%3Ccircle cx='64' cy='64' r='15'/%3E%3C/g%3E%3Cg fill='%231D4391'%3E%3Ccircle r='8'/%3E%3Ccircle cx='64' r='8'/%3E%3Ccircle cy='64' r='8'/%3E%3Ccircle cx='64' cy='64' r='8'/%3E%3Cpath d='M32 13c4 7 4 12 0 19-4-7-4-12 0-19zM32 51c4-7 4-12 0-19-4 7-4 12 0 19zM13 32c7-4 12-4 19 0-7 4-12 4-19 0zM51 32c-7-4-12-4-19 0 7 4 12 4 19 0z'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='3.5' fill='%23D9962F'/%3E%3Cpath d='M0 .5H64M.5 0V64' stroke='%23CDC3B0'/%3E%3C/svg%3E");
+}
+*{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:19px;line-height:1.62}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1480px;margin:0 auto;padding:0 64px}
+.sans{font-family:var(--sans)}
+
+/* header */
+.top{border-bottom:1px solid var(--line);background:rgba(246,239,227,.92)}
+.top .wrap{display:flex;align-items:center;height:78px;gap:44px}
+.brand{display:flex;align-items:center;gap:12px;font-family:var(--display);font-size:25px;letter-spacing:-.005em;white-space:nowrap}
+.brand em{font-style:italic;color:var(--caramel2)}
+.brand svg{width:36px;height:36px;flex:none}
+.nav{display:flex;gap:30px;font-family:var(--sans);font-size:14.5px;font-weight:500;color:var(--ink2)}
+.nav a.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--caramel);padding-bottom:4px}
+.tools{margin-left:auto;display:flex;align-items:center;gap:14px;font-family:var(--sans);font-size:14px;font-weight:500}
+.search{display:flex;align-items:center;gap:9px;height:40px;width:250px;padding:0 16px;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--muted)}
+.search svg{width:16px;height:16px}
+.btn{display:inline-flex;align-items:center;gap:9px;height:44px;padding:0 20px;border-radius:999px;border:1px solid transparent;font-family:var(--sans);font-size:14.5px;font-weight:600;letter-spacing:.005em;white-space:nowrap}
+.btn svg{width:17px;height:17px}
+.btn.dark{background:var(--ink);color:#FBF3E6}
+.btn.line{border-color:#D6C5AA;background:transparent}
+.btn.car{background:var(--caramel);color:#FFF7EC}
+.btn.sm{height:40px;padding:0 17px;font-size:14px}
+
+/* hero */
+.hero .split{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:64px;align-items:center;padding-top:44px;padding-bottom:48px}
+.crumbs{font-family:var(--sans);font-size:13px;font-weight:500;color:var(--muted);display:flex;gap:9px;align-items:center}
+.crumbs i{font-style:normal;opacity:.5}
+.kicker{display:inline-flex;align-items:center;gap:10px;margin-top:30px;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}
+.kicker b{width:22px;height:22px;border-radius:5px;background:var(--tile);background-size:22px;box-shadow:inset 0 0 0 1px rgba(29,67,145,.25)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(76px,6.6vw,108px);line-height:.92;letter-spacing:-.025em;margin:18px 0 0}
+h1 em{font-style:italic;color:var(--caramel)}
+.sub{font-family:var(--display);font-style:italic;font-size:26px;color:var(--muted);margin:14px 0 0}
+.dek{font-size:21px;line-height:1.55;color:var(--ink2);margin:24px 0 0;max-width:30em}
+.by{display:flex;align-items:center;gap:14px;margin-top:30px;font-family:var(--sans);font-size:14px;color:var(--ink2)}
+.av{width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#E9B98A,#B5683A 70%);display:grid;place-items:center;color:#FFF5E8;font-weight:600;font-size:15px;box-shadow:0 0 0 3px var(--bg),0 0 0 4px #DCC7A8}
+.by strong{color:var(--ink);font-weight:600}
+.by .dot{opacity:.4}
+.rate{display:flex;align-items:center;gap:12px;margin-top:22px;font-family:var(--sans);font-size:14px;color:var(--ink2)}
+.stars{display:flex;gap:2px;color:var(--gold)}
+.stars svg{width:18px;height:18px}
+.rate b{font-size:16px;color:var(--ink)}
+.cta{display:flex;gap:12px;margin-top:32px}
+.art{position:relative;margin:0}
+.art .frame{border-radius:28px;overflow:hidden;box-shadow:0 40px 70px -30px rgba(70,40,15,.45),0 12px 24px -12px rgba(70,40,15,.25),0 0 0 1px rgba(60,40,20,.06);aspect-ratio:960/740;background:#EAE2D3}
+.art img{display:block;width:100%;height:100%}
+.art figcaption{margin-top:14px;font-family:var(--sans);font-size:12.5px;color:var(--muted);display:flex;justify-content:space-between}
+.seal{position:absolute;left:-46px;bottom:34px;width:128px;height:128px;transform:rotate(-12deg);filter:drop-shadow(0 10px 18px rgba(90,40,10,.3))}
+
+/* meta strip */
+.meta{display:grid;grid-template-columns:repeat(6,1fr);background:var(--paper);border:1px solid var(--line);border-radius:22px;overflow:hidden}
+.meta div{padding:22px 26px;border-left:1px solid var(--line2);display:flex;gap:14px;align-items:center}
+.meta div:first-child{border-left:0}
+.meta svg{width:30px;height:30px;color:var(--caramel);flex:none}
+.meta small{display:block;font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.meta span{display:block;font-family:var(--display);font-size:23px;line-height:1.2;white-space:nowrap}
+
+/* story */
+.story .wrap{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:96px;padding-top:88px;padding-bottom:40px}
+.prose{max-width:700px;margin-left:clamp(0px,6vw,110px)}
+.prose p{margin:0 0 1.05em}
+.prose .lede::first-letter{font-family:var(--display);float:left;font-size:92px;line-height:.8;padding:8px 12px 0 0;color:var(--caramel)}
+.quote{margin:46px 0 40px -40px;padding:6px 0 0 40px;border-left:3px solid var(--caramel);font-family:var(--display);font-style:italic;font-size:36px;line-height:1.22;color:var(--ink);letter-spacing:-.01em}
+.quote cite{display:block;margin-top:14px;font-family:var(--sans);font-style:normal;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.side{display:flex;flex-direction:column;gap:22px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:26px 28px}
+.card h4{margin:0 0 14px;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--caramel2)}
+.card ul{list-style:none;margin:0;padding:0;font-size:17px;line-height:1.45}
+.card li{padding:10px 0;border-top:1px dashed var(--line);display:flex;gap:12px}
+.card li:first-child{border-top:0;padding-top:0}
+.card li svg{width:18px;height:18px;flex:none;margin-top:3px;color:var(--blue)}
+.card.blue{background:linear-gradient(160deg,#21509F,#163A7C);border:0;color:#EEF2FA;position:relative;overflow:hidden}
+.card.blue h4{color:#B9C9EA}
+.card.blue p{margin:0;font-family:var(--display);font-size:24px;line-height:1.3}
+.card.blue .t{position:absolute;right:-30px;bottom:-30px;width:130px;height:130px;background:var(--tile);background-size:64px;opacity:.16;border-radius:18px;transform:rotate(12deg)}
+.card.blue a{display:inline-flex;margin-top:16px;font-family:var(--sans);font-size:14px;font-weight:600;color:#fff;border-bottom:1px solid rgba(255,255,255,.4)}
+
+/* recipe */
+.recipe{background:var(--paper);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:56px}
+.recipe .wrap{padding-top:84px;padding-bottom:96px}
+.rhead{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:48px}
+.eyebrow{font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--caramel)}
+h2{font-family:var(--display);font-weight:400;font-size:56px;line-height:1;letter-spacing:-.02em;margin:10px 0 0}
+h2 em{font-style:italic}
+.rhead .actions{display:flex;gap:10px}
+.grid{display:grid;grid-template-columns:420px minmax(0,1fr);gap:80px;align-items:start}
+.ing{position:sticky;top:24px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:30px 32px 26px;box-shadow:0 24px 50px -36px rgba(80,45,15,.35)}
+.ing-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.ing-top h3{margin:0;font-family:var(--display);font-weight:400;font-size:30px}
+.yield{display:flex;align-items:center;gap:4px;font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink2);background:var(--bg);border-radius:999px;padding:4px}
+.yield button{width:30px;height:30px;border-radius:50%;border:0;background:#fff;box-shadow:0 1px 2px rgba(60,30,10,.18);font-size:17px;line-height:1;display:grid;place-items:center}
+.yield output{min-width:74px;text-align:center}
+.group{margin-top:22px}
+.group h5{margin:0 0 6px;font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--blue)}
+.chk{display:flex;align-items:flex-start;gap:14px;padding:10px 0;border-top:1px solid var(--line2);font-size:17px;line-height:1.4;cursor:pointer}
+.chk:first-of-type{border-top:0}
+.chk input{position:absolute;opacity:0;pointer-events:none}
+.chk .box{flex:none;width:21px;height:21px;margin-top:1px;border-radius:7px;border:1.5px solid #CDB89A;background:#fff;transition:.15s}
+.chk input:checked+.box{background:var(--caramel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat;border-color:var(--caramel)}
+.chk input:checked~.txt{color:#B3A08C;text-decoration:line-through;text-decoration-color:rgba(178,94,39,.55)}
+.chk input:focus-visible+.box{outline:2px solid var(--blue);outline-offset:2px}
+.q{font-family:var(--sans);font-weight:600;font-size:15px;color:var(--ink);margin-right:4px;font-variant-numeric:tabular-nums}
+.txt small{color:var(--muted);font-size:15px}
+.ing-foot{display:flex;gap:10px;margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+.ing-foot .btn{flex:1;justify-content:center}
+
+.steps{list-style:none;margin:0;padding:0;counter-reset:s}
+.step{display:grid;grid-template-columns:76px minmax(0,1fr);gap:8px;padding:0 0 44px;margin-bottom:44px;border-bottom:1px solid var(--line2)}
+.step:last-child{border-bottom:0;margin-bottom:0}
+.num{font-family:var(--display);font-size:56px;line-height:.9;color:var(--caramel);font-feature-settings:"lnum"}
+.step h3{display:flex;align-items:center;gap:14px;margin:4px 0 12px;font-family:var(--display);font-weight:400;font-size:29px;line-height:1.15;letter-spacing:-.01em}
+.time{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;background:#F4EADB;font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--caramel2);letter-spacing:.01em;white-space:nowrap}
+.time svg{width:14px;height:14px}
+.time.hot{background:#FBE3D3;color:#A23A12}
+.step p{margin:0 0 .8em;color:#3A2B20}
+.tip{display:flex;gap:14px;margin-top:16px;padding:16px 20px;border-radius:16px;background:#EEF2F9;color:#24365E;font-size:16.5px;line-height:1.5}
+.tip b{font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);padding-top:3px;white-space:nowrap}
+.fig{margin:22px 0 4px;border-radius:20px;overflow:hidden;background:#F4EBDD;border:1px solid var(--line2)}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{padding:12px 20px 14px;font-family:var(--sans);font-size:13px;color:var(--muted);border-top:1px solid var(--line2);background:#FAF4EA}
+.fig figcaption b{color:var(--ink2);font-weight:600}
+
+/* notes */
+.notes{padding:96px 0 0}
+.tileframe{padding:40px;border-radius:22px;background:var(--btile) 0 0/40px 40px round;box-shadow:0 30px 60px -40px rgba(20,40,90,.55),inset 0 0 0 1px rgba(29,67,145,.18)}
+.tileinner{background:var(--paper);border-radius:6px;box-shadow:0 0 0 1px rgba(29,67,145,.2),0 2px 10px rgba(29,67,145,.12);padding:56px 64px 60px;display:grid;grid-template-columns:330px minmax(0,1fr);gap:64px}
+.tileinner h2{font-size:52px}
+.tileinner .lead{font-size:18px;color:var(--ink2);margin:18px 0 0}
+.nlist{display:grid;grid-template-columns:1fr 1fr;gap:34px 48px}
+.nlist div{position:relative;padding-top:18px;border-top:2px solid var(--ink)}
+.nlist h4{margin:0 0 8px;font-family:var(--display);font-weight:400;font-size:24px;line-height:1.2}
+.nlist h4 i{font-style:italic;color:var(--caramel);margin-right:8px}
+.nlist p{margin:0;font-size:17px;line-height:1.55;color:var(--ink2)}
+
+/* nutrition + actions */
+.nut{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:40px;align-items:center;margin-top:56px;padding:30px 36px;border:1px solid var(--line);border-radius:24px;background:var(--paper)}
+.nut h4{margin:0 0 14px;font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.nut h4 span{font-weight:500;letter-spacing:0;text-transform:none;margin-left:6px}
+.nums{display:flex;gap:0}
+.nums div{padding:0 32px;border-left:1px solid var(--line)}
+.nums div:first-child{padding-left:0;border-left:0}
+.nums b{display:block;font-family:var(--display);font-weight:400;font-size:34px;line-height:1}
+.nums small{font-family:var(--sans);font-size:13px;color:var(--muted)}
+.acts{display:flex;gap:10px}
+
+/* reviews */
+.reviews{padding:104px 0 0}
+.sechead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:34px}
+.sechead a{font-family:var(--sans);font-size:14.5px;font-weight:600;color:var(--caramel2);border-bottom:1px solid currentColor;padding-bottom:2px}
+.rgrid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:24px}
+.rev{background:var(--paper);border:1px solid var(--line);border-radius:22px;padding:28px 30px;display:flex;flex-direction:column;gap:16px}
+.rev p{margin:0;font-size:18px;line-height:1.55}
+.rev.big{background:var(--ink);color:#F5EAD8;border:0}
+.rev.big p{font-family:var(--display);font-style:italic;font-size:27px;line-height:1.32}
+.who{display:flex;align-items:center;gap:12px;margin-top:auto;font-family:var(--sans);font-size:13.5px}
+.who .av,.rev.big .who .av{width:36px;height:36px;font-size:13px;box-shadow:none;color:#fff}
+.who b{display:block;font-weight:600}
+.who span{color:var(--muted)}
+.rev.big .who span{color:#B9A68E}
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--sans);font-size:12px;font-weight:600;color:#5E7A3A;background:#EAF0DC;border-radius:999px;padding:3px 10px;align-self:flex-start}
+.rev.big .badge{background:rgba(255,255,255,.1);color:#E9D9BE}
+
+/* more */
+.more{padding:104px 0 112px}
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+.m{display:block}
+.m .pic{aspect-ratio:4/3.2;border-radius:20px;overflow:hidden;position:relative}
+.m .pic svg{position:absolute;inset:0;width:100%;height:100%}
+.m small{display:block;margin-top:16px;font-family:var(--sans);font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--caramel)}
+.m h3{margin:6px 0 4px;font-family:var(--display);font-weight:400;font-size:26px;line-height:1.15}
+.m p{margin:0;font-family:var(--sans);font-size:13.5px;color:var(--muted)}
+
+/* letter + footer */
+.letter{background:var(--blue2);color:#EEF2FA;position:relative;overflow:hidden}
+.letter::before{content:"";position:absolute;inset:0;background:var(--tile);background-size:64px;opacity:.09}
+.letter .wrap{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 520px;gap:64px;align-items:center;padding-top:72px;padding-bottom:72px}
+.letter h2{font-size:54px}
+.letter h2 em{color:#F2C46B}
+.letter p{margin:16px 0 0;font-size:19px;color:#C5D2EC;max-width:34em}
+.form{display:flex;gap:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);padding:7px;border-radius:999px}
+.form input{flex:1;background:transparent;border:0;outline:0;color:#fff;font-family:var(--sans);font-size:15.5px;padding:0 18px}
+.form input::placeholder{color:#9FB0D6}
+.form .btn{background:#F2C46B;color:#1E2A48;height:48px;padding:0 24px}
+.fine{margin-top:12px;font-family:var(--sans);font-size:12.5px;color:#91A3CC;padding-left:20px}
+footer{background:#EFE5D3;border-top:1px solid var(--line)}
+footer .wrap{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:40px;padding-top:64px;padding-bottom:40px;font-family:var(--sans);font-size:14px;color:var(--ink2)}
+footer h6{margin:0 0 14px;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+footer ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+footer .brand{font-size:23px;color:var(--ink)}
+footer .about{margin:14px 0 0;font-family:var(--serif);font-size:16px;line-height:1.5;max-width:22em}
+.legal{grid-column:1/-1;display:flex;justify-content:space-between;border-top:1px solid #DCCDB4;padding-top:22px;margin-top:20px;font-size:13px;color:var(--muted)}
+
+@media (max-width:1400px){
+  .wrap{padding:0 52px}
+  .top .wrap{gap:34px}
+  .nav{gap:24px}
+  .search{width:200px}
+  .hero .split{gap:52px;padding-top:34px;padding-bottom:40px}
+  .dek{font-size:19.5px;margin-top:18px}
+  .sub{font-size:23px}
+  .by{margin-top:22px}
+  .rate{margin-top:16px}
+  .cta{margin-top:24px}
+  .meta div{padding:18px 18px;gap:11px}
+  .meta svg{width:26px;height:26px}
+  .meta span{font-size:20px}
+  .story .wrap{grid-template-columns:minmax(0,1fr) 340px;gap:64px}
+  .grid{grid-template-columns:380px minmax(0,1fr);gap:56px}
+  .tileinner{grid-template-columns:280px minmax(0,1fr);gap:48px;padding:48px 48px 52px}
+  .seal{left:-36px;width:112px;height:112px}
+}
+@media (max-width:1180px){
+  .nav a:nth-child(n+4){display:none}
+  .search{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#1F4B99"/><circle cx="32" cy="32" r="22.5" fill="#8C4A1C"/><circle cx="32" cy="32" r="20.5" fill="#EDBB6E"/><circle cx="32" cy="32" r="15" fill="#F8CB58"/><path d="M28.6 25.4c3.2-3.6 9.4-2.7 10.6 1.4 1.1 3.7-2.2 6.9-5.7 6.3-1.9-.3-2.6 1.6-4.6 1.2-2.6-.5-3.4-3.3-2.4-5.3.5-1.1 1.2-2.6 2.1-3.6z" fill="#B66A26"/><path d="M30.2 26.8c2.3-2.4 6.6-1.8 7.4 1 .7 2.5-1.6 4.6-4 4.1-1.2-.3-2 .9-3.3.6-1.8-.4-2.2-2.3-1.5-3.6.3-.8.8-1.5 1.4-2.1z" fill="#4E200A"/><circle cx="25" cy="37.5" r="2.1" fill="#7A3512"/></svg>
+      <span>Saltwater <em>Kitchen</em></span>
+    </a>
+    <nav class="nav">
+      <a href="/">Recipes</a>
+      <a href="/" class="on">Baking</a>
+      <a href="/">Weeknights</a>
+      <a href="/">The Lisbon Issue</a>
+      <a href="/">Journal</a>
+    </nav>
+    <div class="tools">
+      <div class="search"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="6"/><path d="M13.5 13.5L17 17" stroke-linecap="round"/></svg>Search 2,400 recipes</div>
+      <a href="/">Sign in</a>
+      <a class="btn car sm" href="#letter">Subscribe</a>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap split">
+    <div>
+      <div class="crumbs"><a href="/">Recipes</a><i>/</i><a href="/">Baking</a><i>/</i><a href="/">Portuguese</a></div>
+      <div class="kicker"><b></b>The Lisbon Issue · No. 07</div>
+      <h1>Pastéis <em>de</em> Nata</h1>
+      <p class="sub">Portuguese custard tarts, at home</p>
+      <p class="dek">Shatter-crisp spirals of pastry, a barely set lemon-and-cinnamon custard, and the blistered, burnt-sugar tops that make Lisbon’s custard tart worth an afternoon of your time.</p>
+      <div class="by">
+        <span class="av">MS</span>
+        <span>By <strong>Marta Sobral</strong> <span class="dot">·</span> Illustrated by Joana Pires<br><span style="color:var(--muted)">Updated 2 October 2026 · 9 min read</span></span>
+      </div>
+      <div class="rate">
+        <span class="stars"><svg viewBox="0 0 20 20"><path fill="currentColor" d="M10 1.6l2.5 5.4 5.9.6-4.4 4 1.2 5.8L10 14.5l-5.2 2.9L6 11.6l-4.4-4 5.9-.6z"/></svg><svg viewBox="0 0 20 20"><path fill="currentColor" d="M10 1.6l2.5 5.4 5.9.6-4.4 4 1.2 5.8L10 14.5l-5.2 2.9L6 11.6l-4.4-4 5.9-.6z"/></svg><svg viewBox="0 0 20 20"><path fill="currentColor" d="M10 1.6l2.5 5.4 5.9.6-4.4 4 1.2 5.8L10 14.5l-5.2 2.9L6 11.6l-4.4-4 5.9-.6z"/></svg><svg viewBox="0 0 20 20"><path fill="currentColor" d="M10 1.6l2.5 5.4 5.9.6-4.4 4 1.2 5.8L10 14.5l-5.2 2.9L6 11.6l-4.4-4 5.9-.6z"/></svg><svg viewBox="0 0 20 20"><path fill="currentColor" d="M10 1.6l2.5 5.4 5.9.6-4.4 4 1.2 5.8L10 14.5l-5.2 2.9L6 11.6l-4.4-4 5.9-.6z"/></svg></span>
+        <span><b>4.9</b> · 1,284 ratings · 312 cooks made this</span>
+      </div>
+      <div class="cta">
+        <a class="btn dark" href="#recipe">Jump to recipe <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12M5 11l5 5 5-5"/></svg></a>
+        <button class="btn line" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 2.8h10v14.4l-5-3.6-5 3.6z"/></svg>Save</button>
+        <button class="btn line" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5.5 7V2.8h9V7M5.5 14.5H3.2V7h13.6v7.5h-2.3"/><path d="M5.5 11.5h9v5.7h-9z"/></svg>Print</button>
+      </div>
+    </div>
+    <figure class="art">
+      <div class="frame"><img src="tarts.svg" alt="Eight custard tarts with blistered tops on parchment over blue-and-white azulejo tiles, with a bica, cinnamon sticks and a bowl of cinnamon"></div>
+      <svg class="seal" viewBox="0 0 120 120" aria-hidden="true">
+        <defs><path id="sealp" d="M60 60m-43 0a43 43 0 1 1 86 0a43 43 0 1 1-86 0"/></defs>
+        <circle cx="60" cy="60" r="58" fill="#B25E27"/>
+        <circle cx="60" cy="60" r="53" fill="none" stroke="#F6D7AE" stroke-width="1" stroke-dasharray="2 3"/>
+        <text font-family="Avenir Next, Helvetica Neue, sans-serif" font-size="9.6" font-weight="700" fill="#FFF3E2"><textPath href="#sealp" textLength="266" lengthAdjust="spacing">READER FAVOURITE · TESTED 40 TIMES ·</textPath></text>
+        <circle cx="60" cy="60" r="28" fill="#FFF3E2"/>
+        <text x="60" y="58" text-anchor="middle" font-family="Hoefler Text, Georgia, serif" font-size="22" fill="#8A4216">4.9</text>
+        <path d="M60 64.5l1.9 4 4.4.4-3.3 3 .9 4.3-3.9-2.2-3.9 2.2.9-4.3-3.3-3 4.4-.4z" fill="#E3A43A"/>
+      </svg>
+      <figcaption><span>Illustration: Joana Pires for Saltwater Kitchen</span><span>Belém, a Tuesday, 8:40 a.m.</span></figcaption>
+    </figure>
+  </div>
+  <div class="wrap">
+    <div class="meta">
+      <div><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 21h20M8 21c0-5 3.6-9 8-9s8 4 8 9"/><path d="M16 12V9M13 9h6"/><path d="M5 25h22"/></svg><span><small>Prep</small>1 hr</span></div>
+      <div><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M16 4v24M6 10l20 12M26 10L6 22"/><path d="M13 6l3 2 3-2M13 26l3-2 3 2"/></svg><span><small>Chill</small>2 hr +</span></div>
+      <div><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="6" width="22" height="21" rx="3"/><path d="M5 12h22M9 9h.01M13 9h.01"/><rect x="9" y="16" width="14" height="7" rx="1.5"/></svg><span><small>Bake</small>15 min</span></div>
+      <div><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="16" cy="17" r="10"/><path d="M16 11v6l4 3M13 4h6"/></svg><span><small>Total</small>3 hr 15 min</span></div>
+      <div><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="16" cy="16" r="10"/><circle cx="16" cy="16" r="6"/><path d="M14 14.5c1-1 2.5-.8 2.6.3M17.5 18.5c.8-.5 1.6 0 1.4.7" stroke-linecap="round"/></svg><span><small>Makes</small>12 tarts</span></div>
+      <div><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M7 25V19M13 25V14M19 25V9"/><path d="M25 25V5" opacity=".35"/></svg><span><small>Level</small>Intermediate</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="story">
+  <div class="wrap">
+    <div class="prose">
+      <p class="lede">Every morning in Belém the queue starts before the shutters go up. It moves quickly, because nobody orders just one, and it ends in a paper bag gone translucent at the corners, a shaker of cinnamon on the counter, and the particular silence of people eating something slightly too hot to eat.</p>
+      <p>The pastel de nata is a simple thing made of difficult parts. There is a laminated pastry, rolled into a tight log so that every slice becomes a spiral, then thumbed thin into a tin. There is a custard thickened just enough to hold, scented with lemon peel and a cinnamon stick. And there is an oven so hot that the top blisters and scorches in the time it takes the pastry to shatter.</p>
+      <blockquote class="quote">“Your oven is the recipe. Turn it up as far as it will go, then give it another ten minutes.”<cite>Marta Sobral</cite></blockquote>
+      <p>This is the version we have baked most weekends since our first trip to Lisbon: tested in four home ovens, two of which we are no longer allowed to use. It takes an afternoon, mostly of waiting, and the pastry is happiest made the night before. The custard comes together in ten minutes while the oven heats.</p>
+      <p>You don’t need special tins. A standard 12-hole muffin tin works; the tarts will be a little wider and shallower than the ones in Rua de Belém, and nobody at your table will mind.</p>
+    </div>
+    <aside class="side">
+      <div class="card">
+        <h4>You’ll need</h4>
+        <ul>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10.5l4 4L16 6"/></svg>12-hole muffin tin, or twelve 7&nbsp;cm pastel tins</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10.5l4 4L16 6"/></svg>Stand mixer with a dough hook (or strong arms)</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10.5l4 4L16 6"/></svg>Offset spatula and a bench scraper</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10.5l4 4L16 6"/></svg>Sugar thermometer</li>
+          <li><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 10.5l4 4L16 6"/></svg>A heavy baking tray or pizza steel</li>
+        </ul>
+      </div>
+      <div class="card blue">
+        <span class="t"></span>
+        <h4>Make ahead</h4>
+        <p>The pastry log keeps three days in the fridge and a month in the freezer. Slice from frozen.</p>
+        <a href="#notes">Read the baker’s notes</a>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="recipe" id="recipe">
+  <div class="wrap">
+    <div class="rhead">
+      <div>
+        <div class="eyebrow">The recipe</div>
+        <h2>Pastéis de nata <em>for twelve</em></h2>
+      </div>
+      <div class="actions">
+        <button class="btn line sm" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10" cy="11" r="6.5"/><path d="M10 8v3.2l2 1.6M8 2.5h4"/></svg>Cook mode</button>
+        <button class="btn line sm" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5.5 7V2.8h9V7M5.5 14.5H3.2V7h13.6v7.5h-2.3"/><path d="M5.5 11.5h9v5.7h-9z"/></svg>Print recipe</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <aside class="ing" aria-label="Ingredients">
+        <div class="ing-top">
+          <h3>Ingredients</h3>
+          <div class="yield"><button type="button" data-d="-1" aria-label="Fewer">−</button><output id="n">12 tarts</output><button type="button" data-d="1" aria-label="More">+</button></div>
+        </div>
+
+        <div class="group">
+          <h5>Spiral pastry</h5>
+          <label class="chk"><input type="checkbox" checked><span class="box"></span><span class="txt"><span class="q" data-v="250" data-u="g">250 g</span> plain flour <small>plus extra for dusting</small></span></label>
+          <label class="chk"><input type="checkbox" checked><span class="box"></span><span class="txt"><span class="q" data-v="0.5" data-u="tsp">½ tsp</span> fine sea salt</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="180" data-u="ml">180 ml</span> cold water</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="225" data-u="g">225 g</span> unsalted butter <small>very soft, spreadable</small></span></label>
+        </div>
+        <div class="group">
+          <h5>Lemon &amp; cinnamon custard</h5>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="30" data-u="g">30 g</span> plain flour</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="300" data-u="ml">300 ml</span> whole milk <small>divided</small></span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="260" data-u="g">260 g</span> caster sugar</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="160" data-u="ml">160 ml</span> water</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="1" data-u="">1</span> cinnamon stick</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="2" data-u="">2</span> wide strips lemon peel</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="0.5" data-u="tsp">½ tsp</span> vanilla extract</span></label>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt"><span class="q" data-v="6" data-u="">6</span> large egg yolks</span></label>
+        </div>
+        <div class="group">
+          <h5>To finish</h5>
+          <label class="chk"><input type="checkbox"><span class="box"></span><span class="txt">Ground cinnamon and icing sugar <small>for the table</small></span></label>
+        </div>
+        <div class="ing-foot">
+          <button class="btn dark sm" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l1.6 8.5h8.6L17 6.5H6"/><circle cx="8" cy="16" r="1.2"/><circle cx="14" cy="16" r="1.2"/></svg>Add to shopping list</button>
+        </div>
+      </aside>
+
+      <ol class="steps">
+        <li class="step">
+          <div class="num">1</div>
+          <div>
+            <h3>Make the dough <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>10 min</span></h3>
+            <p>In a stand mixer fitted with the dough hook, mix the flour, salt and cold water on low for about 30 seconds, until a soft, shaggy dough forms. It should be stickier than bread dough. Scrape it onto a well-floured surface, pat it into a square and let it rest under a tea towel for 15 minutes.</p>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">2</div>
+          <div>
+            <h3>Laminate with butter <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>20 min</span></h3>
+            <p>Roll the dough into a 45&nbsp;cm square. Dot a third of the butter over the left two-thirds and spread it thin with an offset spatula, leaving a 2&nbsp;cm border. Fold the bare third over the middle, then the buttered left third over that, like a letter. Turn 90°, roll out again into a long rectangle and repeat with the second third of butter.</p>
+            <div class="tip"><b>Tip</b><span>If the butter starts to break through, flour the tear generously and keep going. Rough-looking pastry still bakes into clean, crisp layers.</span></div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">3</div>
+          <div>
+            <h3>Roll the spiral log <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>10 min + 2 hr chill</span></h3>
+            <p>Roll the dough out once more to about 45 × 50&nbsp;cm and trim the edges straight. Spread the last of the butter over the whole surface, then roll it up tightly from the short end into a log about 5&nbsp;cm across. Wrap and chill for at least 2 hours, or overnight.</p>
+            <figure class="fig">
+              <svg viewBox="0 0 760 250" aria-hidden="true">
+                <defs>
+                  <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F7E6C2"/><stop offset=".55" stop-color="#EED3A0"/><stop offset="1" stop-color="#D2AE72"/></linearGradient>
+                  <radialGradient id="face" cx=".45" cy=".42" r=".6"><stop offset="0" stop-color="#FBEFD3"/><stop offset="1" stop-color="#EBD09B"/></radialGradient>
+                  <filter id="fs" x="-20%" y="-20%" width="140%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
+                </defs>
+                <rect width="760" height="250" fill="#F4EBDD"/>
+                <ellipse cx="230" cy="196" rx="190" ry="14" fill="#7A5530" opacity=".18" filter="url(#fs)"/>
+                <rect x="60" y="92" width="330" height="96" rx="48" fill="url(#lg)"/>
+                <path d="M110 96c18 30 18 60 0 90M170 94c18 30 18 64 0 94M230 94c18 30 18 64 0 94M290 94c18 30 18 64 0 94" fill="none" stroke="#C99C5E" stroke-width="1.5" opacity=".55"/>
+                <ellipse cx="390" cy="140" rx="22" ry="48" fill="url(#face)" stroke="#D7B57A" stroke-width="1.5"/>
+                <g transform="translate(390 140) scale(.55 1.18)"><path d="M0.6 0.4 0.6 0.7 0.6 1.1 0.3 1.5 -0.1 1.8 -0.6 2.0 -1.2 2.1 -1.9 1.9 -2.6 1.5 -3.1 0.9 -3.6 0.1 -3.8 -0.8 -3.7 -1.8 -3.4 -2.9 -2.7 -3.9 -1.8 -4.7 -0.6 -5.3 0.8 -5.5 2.2 -5.4 3.7 -4.9 5.0 -4.1 6.1 -2.8 6.9 -1.3 7.3 0.5 7.2 2.4 6.6 4.2 5.6 6.0 4.1 7.4 2.2 8.5 0.0 9.0 -2.3 9.0 -4.6 8.4 -6.7 7.3 -8.5 5.5 -9.9 3.3 -10.7 0.8 -10.9 -1.9 -10.3 -4.7 -9.1 -7.3 -7.2 -9.5 -4.7 -11.2 -1.8 -12.3 1.3 -12.7 4.5 -12.2 7.6 -11.0 10.3 -8.9 12.4 -6.3 13.9 -3.0 14.5 0.5 14.2 4.1 13.0 7.7 10.9 10.8 8.0 13.4 4.5 15.3 0.6 16.2 -3.5 16.1 -7.5 15.0 -11.2 12.9 -14.3 9.9 -16.5 6.2 -17.8 1.9 -18.0 -2.6 -17.1 -7.1 -15.1 -11.3 -12.0 -14.9 -8.1 -17.6 -3.5 -19.4 1.4 -19.9 6.4 -19.2 11.1 -17.3 15.2 -14.2 18.5 -10.1 20.7 -5.3 21.7 0.0 21.3 5.4 19.5 10.7 16.5 15.4 12.3 19.2 7.3 21.9 1.6 23.3 -4.2 23.3 -10.0 21.8 -15.3 18.9 -19.7 14.7 -23.0 9.5 -24.9 3.5 -25.3 -2.8 -24.1 -9.0 -21.3 -14.9 -17.2 -19.9 -11.8 -23.8 -5.6 -26.3 1.0 -27.1 7.8 -26.3 14.2 -23.8 19.9 -19.7 24.4 -14.4 27.4 -8.0 28.8 -0.9 28.5 6.3 26.3 13.3 22.4 19.5 17.0 24.7 10.5 28.4" fill="none" stroke="#C08A45" stroke-width="2.6"/></g>
+                <path d="M446 76v128" stroke="#8D7662" stroke-width="1.5" stroke-dasharray="4 5"/>
+                <path d="M442 66l8 0-4 8z" fill="#8D7662"/>
+                <g transform="translate(512 150)">
+                  <ellipse cx="4" cy="44" rx="44" ry="8" fill="#7A5530" opacity=".2" filter="url(#fs)"/>
+                  <path d="M-44 6v18c0 13 20 22 44 22s44-9 44-22V6" fill="#E3C28A"/>
+                  <ellipse rx="44" ry="26" cy="6" fill="url(#face)" stroke="#D7B57A" stroke-width="1.5"/>
+                  <g transform="translate(0 6) scale(1.5 .9)"><path d="M0.6 0.4 0.6 0.7 0.6 1.1 0.3 1.5 -0.1 1.8 -0.6 2.0 -1.2 2.1 -1.9 1.9 -2.6 1.5 -3.1 0.9 -3.6 0.1 -3.8 -0.8 -3.7 -1.8 -3.4 -2.9 -2.7 -3.9 -1.8 -4.7 -0.6 -5.3 0.8 -5.5 2.2 -5.4 3.7 -4.9 5.0 -4.1 6.1 -2.8 6.9 -1.3 7.3 0.5 7.2 2.4 6.6 4.2 5.6 6.0 4.1 7.4 2.2 8.5 0.0 9.0 -2.3 9.0 -4.6 8.4 -6.7 7.3 -8.5 5.5 -9.9 3.3 -10.7 0.8 -10.9 -1.9 -10.3 -4.7 -9.1 -7.3 -7.2 -9.5 -4.7 -11.2 -1.8 -12.3 1.3 -12.7 4.5 -12.2 7.6 -11.0 10.3 -8.9 12.4 -6.3 13.9 -3.0 14.5 0.5 14.2 4.1 13.0 7.7 10.9 10.8 8.0 13.4 4.5 15.3 0.6 16.2 -3.5 16.1 -7.5 15.0 -11.2 12.9 -14.3 9.9 -16.5 6.2 -17.8 1.9 -18.0 -2.6 -17.1 -7.1 -15.1 -11.3 -12.0 -14.9 -8.1 -17.6 -3.5 -19.4 1.4 -19.9 6.4 -19.2 11.1 -17.3 15.2 -14.2 18.5 -10.1 20.7 -5.3 21.7 0.0 21.3 5.4 19.5 10.7 16.5 15.4 12.3 19.2 7.3 21.9 1.6 23.3 -4.2 23.3 -10.0 21.8 -15.3 18.9 -19.7 14.7 -23.0 9.5 -24.9 3.5 -25.3 -2.8 -24.1 -9.0 -21.3 -14.9 -17.2 -19.9 -11.8 -23.8 -5.6 -26.3 1.0 -27.1" fill="none" stroke="#C08A45" stroke-width="1.7"/></g>
+                </g>
+                <g transform="translate(632 122)">
+                  <path d="M-44 6v18c0 13 20 22 44 22s44-9 44-22V6" fill="#E3C28A"/>
+                  <ellipse rx="44" ry="26" cy="6" fill="url(#face)" stroke="#D7B57A" stroke-width="1.5"/>
+                  <g transform="translate(0 6) scale(1.5 .9) rotate(120)"><path d="M0.6 0.4 0.6 0.7 0.6 1.1 0.3 1.5 -0.1 1.8 -0.6 2.0 -1.2 2.1 -1.9 1.9 -2.6 1.5 -3.1 0.9 -3.6 0.1 -3.8 -0.8 -3.7 -1.8 -3.4 -2.9 -2.7 -3.9 -1.8 -4.7 -0.6 -5.3 0.8 -5.5 2.2 -5.4 3.7 -4.9 5.0 -4.1 6.1 -2.8 6.9 -1.3 7.3 0.5 7.2 2.4 6.6 4.2 5.6 6.0 4.1 7.4 2.2 8.5 0.0 9.0 -2.3 9.0 -4.6 8.4 -6.7 7.3 -8.5 5.5 -9.9 3.3 -10.7 0.8 -10.9 -1.9 -10.3 -4.7 -9.1 -7.3 -7.2 -9.5 -4.7 -11.2 -1.8 -12.3 1.3 -12.7 4.5 -12.2 7.6 -11.0 10.3 -8.9 12.4 -6.3 13.9 -3.0 14.5 0.5 14.2 4.1 13.0 7.7 10.9 10.8 8.0 13.4 4.5 15.3 0.6 16.2 -3.5 16.1 -7.5 15.0 -11.2 12.9 -14.3 9.9 -16.5 6.2 -17.8 1.9 -18.0 -2.6 -17.1 -7.1 -15.1 -11.3 -12.0 -14.9 -8.1 -17.6 -3.5 -19.4 1.4 -19.9 6.4 -19.2 11.1 -17.3 15.2 -14.2 18.5 -10.1 20.7 -5.3 21.7 0.0 21.3 5.4 19.5 10.7 16.5 15.4 12.3 19.2 7.3 21.9 1.6 23.3 -4.2 23.3 -10.0 21.8 -15.3 18.9 -19.7 14.7 -23.0 9.5 -24.9 3.5 -25.3 -2.8 -24.1 -9.0 -21.3 -14.9 -17.2 -19.9 -11.8 -23.8 -5.6 -26.3 1.0 -27.1" fill="none" stroke="#C08A45" stroke-width="1.7"/></g>
+                </g>
+                <g font-family="Hoefler Text, Georgia, serif" font-style="italic" font-size="19" fill="#6B5240">
+                  <text x="62" y="58">a tight log, 5 cm across</text>
+                  <text x="470" y="58">slice 2 cm thick</text>
+                </g>
+                <path d="M150 64c10 6 16 14 18 26" fill="none" stroke="#6B5240" stroke-width="1.3"/>
+                <path d="M590 64c8 10 10 22 2 36" fill="none" stroke="#6B5240" stroke-width="1.3"/>
+              </svg>
+              <figcaption><b>The spiral.</b> Every layer you roll here becomes a ring of shattering pastry in the finished tart.</figcaption>
+            </figure>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">4</div>
+          <div>
+            <h3>Make the syrup <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>5 min</span></h3>
+            <p>Put the sugar, water, cinnamon stick and lemon peel in a small pan. Bring to the boil without stirring and cook until it reads 100°C on a sugar thermometer, about 3 minutes. Take it off the heat and leave the aromatics in.</p>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">5</div>
+          <div>
+            <h3>Cook the custard base <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>8 min</span></h3>
+            <p>Whisk the flour with 60&nbsp;ml of the milk until smooth. Scald the remaining milk in a saucepan, then whisk it into the flour mixture and return everything to the pan. Cook, whisking constantly, for 2 minutes until it coats the back of a spoon.</p>
+            <p>Remove the cinnamon and lemon from the syrup and pour it into the milk in a thin stream, whisking all the while. Stir in the vanilla and let it cool until just warm to the touch.</p>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">6</div>
+          <div>
+            <h3>Add the yolks and strain <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>3 min</span></h3>
+            <p>Whisk the egg yolks into the warm custard base, then strain through a fine sieve into a jug. You’ll have about 600&nbsp;ml: just enough for twelve generous tarts. The custard keeps, covered, for a day in the fridge.</p>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">7</div>
+          <div>
+            <h3>Shape the shells <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>15 min</span></h3>
+            <p>Put a heavy tray on the top shelf and heat the oven to its highest setting, ideally 290°C (550°F). Cut the cold log into twelve 2&nbsp;cm discs and drop each one, cut side up, into a cup of the tin.</p>
+            <p>Dip your thumbs in cold water and press into the center of each spiral, then work the pastry out and up the sides until it sits just proud of the rim. The base should be thinner than you think.</p>
+            <figure class="fig">
+              <svg viewBox="0 0 760 250" aria-hidden="true">
+                <defs>
+                  <linearGradient id="tin" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#9AA3AD"/><stop offset=".5" stop-color="#E7EBEF"/><stop offset="1" stop-color="#8F98A2"/></linearGradient>
+                  <linearGradient id="cus" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F9D777"/><stop offset="1" stop-color="#EDB64C"/></linearGradient>
+                </defs>
+                <rect width="760" height="250" fill="#F4EBDD"/>
+                <g transform="translate(130 150)">
+                  <path d="M-80 -42h160l-18 92H-62z" fill="url(#tin)"/>
+                  <path d="M-74 -42h148l-16 84H-58z" fill="#D5DADF"/>
+                  <path d="M-34 20c0-14 15-20 34-20s34 6 34 20v10H-34z" fill="#E9CC93" stroke="#C99C5E" stroke-width="1.4"/>
+                  <path d="M-24 18c10-6 38-6 48 0M-18 10c8-4 28-4 36 0" fill="none" stroke="#C99C5E" stroke-width="1.2"/>
+                  <ellipse cx="0" cy="-42" rx="80" ry="0.1" stroke="#7E8791" stroke-width="2"/>
+                </g>
+                <path d="M238 128h46" stroke="#8D7662" stroke-width="1.6"/><path d="M284 122l10 6-10 6z" fill="#8D7662"/>
+                <g transform="translate(380 150)">
+                  <path d="M-80 -42h160l-18 92H-62z" fill="url(#tin)"/>
+                  <path d="M-74 -52c-2 0 0 6 3 10l15 76c1 6 4 8 10 8h92c6 0 9-2 10-8l15-76c3-4 5-10 3-10" fill="none" stroke="#E2BE80" stroke-width="9" stroke-linejoin="round"/>
+                  <path d="M-74 -52c-2 0 0 6 3 10l15 76c1 6 4 8 10 8h92c6 0 9-2 10-8l15-76c3-4 5-10 3-10" fill="none" stroke="#C99C5E" stroke-width="1" stroke-dasharray="10 4 3 4"/>
+                  <path d="M-36 -78v34M36 -78v34" stroke="#B25E27" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M-36 -44l-6-10M-36 -44l6-10M36 -44l-6-10M36 -44l6-10" stroke="#B25E27" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M-46 24c-10-10-14-26-14-40M46 24c10-10 14-26 14-40" fill="none" stroke="#1F4B99" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"/>
+                </g>
+                <path d="M488 128h46" stroke="#8D7662" stroke-width="1.6"/><path d="M534 122l10 6-10 6z" fill="#8D7662"/>
+                <g transform="translate(632 150)">
+                  <path d="M-80 -42h160l-18 92H-62z" fill="url(#tin)"/>
+                  <path d="M-64 -28l12 62c1 6 4 8 10 8h84c6 0 9-2 10-8l12-62z" fill="url(#cus)"/>
+                  <path d="M-64 -28h128" stroke="#D99A35" stroke-width="2"/>
+                  <path d="M-74 -52c-2 0 0 6 3 10l15 76c1 6 4 8 10 8h92c6 0 9-2 10-8l15-76c3-4 5-10 3-10" fill="none" stroke="#E2BE80" stroke-width="9" stroke-linejoin="round"/>
+                  <path d="M96 -52v24" stroke="#1F4B99" stroke-width="1.5"/><path d="M90 -52h12M90 -28h12" stroke="#1F4B99" stroke-width="1.5"/>
+                </g>
+                <g font-family="Hoefler Text, Georgia, serif" font-style="italic" font-size="19" fill="#6B5240">
+                  <text x="74" y="46">cut side up</text>
+                  <text x="300" y="40">wet thumbs, press out &amp; up</text>
+                  <text x="560" y="46">fill ¾ full</text>
+                </g>
+              </svg>
+              <figcaption><b>Thumbing the shells.</b> Push from the center outward so the spiral fans up the sides; a lip just above the rim keeps the custard in.</figcaption>
+            </figure>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">8</div>
+          <div>
+            <h3>Fill and bake hot <span class="time hot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 1.8c2.6 2.6 4.6 5 4.6 7.7A4.6 4.6 0 0 1 3.4 9.5c0-1.6.7-2.9 1.8-4 .2 1.4.9 2.3 1.8 2.6C6.6 5.7 7 3.5 8 1.8z"/></svg>290°C · 12–15 min</span></h3>
+            <p>Fill each shell three-quarters full with custard. Set the tin directly on the hot tray and bake for 12 to 15 minutes, until the pastry is deep golden and crisp and the tops have puffed and blistered with dark, almost burnt spots.</p>
+            <div class="tip"><b>Tip</b><span>Don’t pull them early. The blistering only starts in the last few minutes, and those scorched spots are the whole point. If your oven tops out at 250°C, switch to the top grill for the final 2 minutes.</span></div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="num">9</div>
+          <div>
+            <h3>Rest, dust and eat warm <span class="time"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8.5" r="5.8"/><path d="M8 5.5v3l2 1.4"/></svg>5 min</span></h3>
+            <p>Leave the tarts in the tin for 5 minutes, then lift them onto a rack. The custard will sink a little as it sets. Serve warm with cinnamon and icing sugar on the table, ideally with a bica and nowhere else to be.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="notes" id="notes">
+  <div class="wrap">
+    <div class="tileframe">
+      <div class="tileinner">
+        <div>
+          <div class="eyebrow">Before you start</div>
+          <h2>Baker’s <em>notes</em></h2>
+          <p class="lead">Four things we learned the hard way, so you don’t have to.</p>
+        </div>
+        <div class="nlist">
+          <div><h4><i>i.</i>Your oven is the recipe</h4><p>Home ovens rarely pass 260°C. Preheat a heavy tray or pizza steel on the top shelf for a full 30 minutes and bake directly on it.</p></div>
+          <div><h4><i>ii.</i>Soft butter, cold dough</h4><p>The butter should spread like mayonnaise; the dough should stay cool. If either fights you, both go back in the fridge for 15 minutes.</p></div>
+          <div><h4><i>iii.</i>Thin bases, tall sides</h4><p>A thick base turns soggy. Aim for pastry you can almost see through at the bottom and a lip that stands just above the tin.</p></div>
+          <div><h4><i>iv.</i>Best within the hour</h4><p>Pastéis de nata are at their best the day they are baked. Re-crisp leftovers in a 200°C oven for 4 minutes; never the microwave.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nut">
+      <div>
+        <h4>Nutrition per tart <span>· estimated</span></h4>
+        <div class="nums">
+          <div><b>262</b><small>calories</small></div>
+          <div><b>14 g</b><small>fat</small></div>
+          <div><b>31 g</b><small>carbohydrate</small></div>
+          <div><b>19 g</b><small>sugars</small></div>
+          <div><b>3.8 g</b><small>protein</small></div>
+        </div>
+      </div>
+      <div class="acts">
+        <button class="btn line" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5.5 7V2.8h9V7M5.5 14.5H3.2V7h13.6v7.5h-2.3"/><path d="M5.5 11.5h9v5.7h-9z"/></svg>Print</button>
+        <button class="btn line" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v10M6 7l4-4 4 4M4 12v4.5h12V12"/></svg>Share</button>
+        <button class="btn car" type="button"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 2.8h10v14.4l-5-3.6-5 3.6z"/></svg>Save to recipe box</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="reviews">
+  <div class="wrap">
+    <div class="sechead">
+      <div><div class="eyebrow">312 cooks made this</div><h2>From the <em>kitchen table</em></h2></div>
+      <a href="/">Read all 312 notes</a>
+    </div>
+    <div class="rgrid">
+      <article class="rev big">
+        <span class="badge">★★★★★ · Made it</span>
+        <p>“The ‘hot as it will go, then ten minutes more’ line changed everything. First batch with proper leopard spots. My Lisbon-born mother-in-law asked for the recipe, which has never happened before.”</p>
+        <div class="who"><span class="av" style="background:radial-gradient(circle at 35% 30%,#9FB6E3,#3D62AE 70%)">MR</span><div><b>Marta R.</b><span>Toronto · baked 3 times</span></div></div>
+      </article>
+      <article class="rev">
+        <span class="badge">★★★★★ · Made it</span>
+        <p>Made the log on Friday night, baked on Sunday morning. The spiral diagram is what finally made lamination click for me.</p>
+        <div class="who"><span class="av" style="background:radial-gradient(circle at 35% 30%,#C9D9A5,#6C8A3C 70%)">JO</span><div><b>James O.</b><span>Bristol</span></div></div>
+      </article>
+      <article class="rev">
+        <span class="badge">★★★★☆ · Made it</span>
+        <p>Muffin tin worked fine. I used the grill for the last two minutes as suggested; the tops blistered beautifully but watch them like a hawk.</p>
+        <div class="who"><span class="av">AK</span><div><b>Aiko K.</b><span>Osaka</span></div></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="more">
+  <div class="wrap">
+    <div class="sechead">
+      <div><div class="eyebrow">More from the Lisbon Issue</div><h2>Keep cooking <em>Portuguese</em></h2></div>
+      <a href="/">All 24 recipes</a>
+    </div>
+    <div class="mgrid">
+      <a class="m" href="/">
+        <div class="pic"><svg viewBox="0 0 320 256" preserveAspectRatio="xMidYMid slice"><rect width="320" height="256" fill="#DCE5F3"/><circle cx="160" cy="132" r="96" fill="#1F4B99" opacity=".12"/><circle cx="166" cy="140" r="84" fill="#3D2A1A" opacity=".15"/><circle cx="160" cy="132" r="84" fill="#FDFBF6"/><circle cx="160" cy="132" r="78" fill="none" stroke="#1F4B99" stroke-width="2"/><circle cx="160" cy="132" r="62" fill="#F3E3BF"/><g stroke="#8A4216" stroke-width="3.2" stroke-linecap="round" opacity=".85"><path d="M118 104l84 56M118 124l64 42M128 92l78 52M110 148l42 28M146 92l64 42"/><path d="M118 160l84-56M118 140l64-42M128 172l78-52M110 116l42-28M146 172l64-42"/></g><circle cx="160" cy="132" r="62" fill="none" stroke="#E6CF9E" stroke-width="3"/></svg></div>
+        <small>Dessert</small><h3>Arroz doce with a cinnamon lattice</h3><p>45 min · Easy</p>
+      </a>
+      <a class="m" href="/">
+        <div class="pic"><svg viewBox="0 0 320 256" preserveAspectRatio="xMidYMid slice"><defs><radialGradient id="cv" cx=".45" cy=".4" r=".6"><stop offset="0" stop-color="#C9CB8C"/><stop offset="1" stop-color="#9DA663"/></radialGradient></defs><rect width="320" height="256" fill="#E4E9D3"/><circle cx="168" cy="142" r="88" fill="#3D2A1A" opacity=".16"/><circle cx="160" cy="132" r="88" fill="#C2643A"/><circle cx="160" cy="132" r="80" fill="#A9532C"/><circle cx="160" cy="132" r="72" fill="url(#cv)"/><g fill="none" stroke="#4C6A24" stroke-width="2.6" stroke-linecap="round"><path d="M112 112c8-6 16-2 24-8"/><path d="M128 96c10 2 16-4 26-2"/><path d="M168 98c8 4 18 0 24 8"/><path d="M196 122c-2 8 4 14 0 22"/><path d="M116 140c6 6 14 4 20 10"/><path d="M140 168c8-4 18 2 26-4"/><path d="M178 160c6-6 14-4 18-12"/><path d="M146 124c6-4 14 0 20-4"/><path d="M124 156c-4-6 0-12-4-18"/><path d="M170 120c4 6 12 6 14 14"/><path d="M152 144c6 2 10-2 16 2"/><path d="M188 176c-6-2-12 2-16-2"/></g><g stroke="#35501A" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".8"><path d="M120 126c6-2 10 2 16 0"/><path d="M160 108c6 4 12 2 16 6"/><path d="M134 178c4-4 10-2 14-6"/></g><g fill="#A8341F" stroke="#7E2414" stroke-width="1.5"><circle cx="140" cy="116" r="10"/><circle cx="184" cy="134" r="10"/><circle cx="156" cy="160" r="10"/><circle cx="174" cy="102" r="8.5"/></g><g fill="#E9A07F"><circle cx="137" cy="114" r="2.2"/><circle cx="143" cy="119" r="1.6"/><circle cx="181" cy="132" r="2.2"/><circle cx="187" cy="137" r="1.5"/><circle cx="153" cy="158" r="2.2"/><circle cx="172" cy="100" r="1.8"/></g><g fill="#E8D35C" opacity=".8"><ellipse cx="128" cy="138" rx="5" ry="3.4"/><ellipse cx="196" cy="156" rx="4" ry="2.8"/><ellipse cx="166" cy="124" rx="3" ry="2.2"/><ellipse cx="120" cy="104" rx="2.6" ry="1.8"/></g><path d="M100 92a80 80 0 0 1 60-38" fill="none" stroke="#F3B08C" stroke-width="3" stroke-linecap="round" opacity=".6"/></svg></div>
+        <small>Soup</small><h3>Caldo verde, the late-night soup</h3><p>40 min · Easy</p>
+      </a>
+      <a class="m" href="/">
+        <div class="pic"><svg viewBox="0 0 320 256" preserveAspectRatio="xMidYMid slice"><rect width="320" height="256" fill="#F2E1CC"/><g transform="rotate(-14 160 128)"><rect x="56" y="70" width="210" height="120" rx="22" fill="#3D2A1A" opacity=".15" transform="translate(6 10)"/><rect x="56" y="70" width="210" height="120" rx="22" fill="#CF9A5B"/><rect x="62" y="76" width="198" height="108" rx="18" fill="#E7C08A"/><g id="sard"><path d="M84 102c40-18 100-18 140 0c-40 14-100 14-140 0z" fill="#8E9AA8"/><path d="M84 102c40-10 100-10 140 0" stroke="#D8DEE5" stroke-width="3" fill="none"/><path d="M224 102l20-12v24z" fill="#7B8796"/><circle cx="96" cy="100" r="2.4" fill="#2A2F36"/><g stroke="#3E4652" stroke-width="2.6" stroke-linecap="round" opacity=".7"><path d="M120 92l10 18M146 90l10 20M172 90l10 20M198 92l8 16"/></g></g><use href="#sard" y="30"/><use href="#sard" y="58" x="6"/></g><g fill="#5E7A3A"><circle cx="252" cy="62" r="6"/><circle cx="262" cy="74" r="5"/></g><path d="M70 214c10-6 20-6 28 0" stroke="#E4B53C" stroke-width="6" stroke-linecap="round" fill="none"/></svg></div>
+        <small>Grill</small><h3>Sardinhas on charred bread</h3><p>25 min · Easy</p>
+      </a>
+      <a class="m" href="/">
+        <div class="pic"><svg viewBox="0 0 320 256" preserveAspectRatio="xMidYMid slice"><defs><radialGradient id="qg" cx=".42" cy=".38" r=".62"><stop offset="0" stop-color="#F7D58A"/><stop offset=".65" stop-color="#E4A350"/><stop offset="1" stop-color="#B9692B"/></radialGradient><g id="qj"><circle r="58" fill="#3D2A1A" opacity=".16" transform="translate(6 9)"/><circle r="58" fill="#FBF6EC"/><circle r="53" fill="none" stroke="#E8DAC0" stroke-width="7" stroke-dasharray="3.4 3"/><circle r="43" fill="#B8692C"/><circle r="39" fill="url(#qg)"/></g></defs><rect width="320" height="256" fill="#F6E5B8"/><g transform="translate(108 136) rotate(-10)"><use href="#qj"/><g fill="#8E4517" opacity=".6"><path d="M-16-10c4-7 13-6 14 1s-7 9-11 7-6-4-3-8z"/><path d="M9 9c3-5 10-4 10 1s-5 7-8 6-4-4-2-7z"/><path d="M-6 18c2-3 6-2 6 1s-3 4-5 3-2-2-1-4z"/><path d="M14-18c2-3 6-2 6 1s-3 4-5 3-2-2-1-4z"/></g><g fill="#fff" opacity=".9"><circle cx="-20" cy="6" r="1.4"/><circle cx="-8" cy="-22" r="1.2"/><circle cx="18" cy="-4" r="1.3"/><circle cx="2" cy="26" r="1.1"/><circle cx="-26" cy="-12" r="1"/></g></g><g transform="translate(220 116) rotate(24)"><use href="#qj"/><g fill="#8E4517" opacity=".6"><path d="M-4-14c5-6 14-4 14 2s-8 8-12 6-5-4-2-8z"/><path d="M-20 8c3-4 9-3 9 1s-5 6-8 5-3-3-1-6z"/><path d="M12 16c2-3 6-2 6 1s-3 4-5 3-2-2-1-4z"/></g><g fill="#fff" opacity=".9"><circle cx="-14" cy="-6" r="1.3"/><circle cx="20" cy="2" r="1.2"/><circle cx="-2" cy="22" r="1.4"/><circle cx="8" cy="-26" r="1"/></g></g><g fill="#fff"><circle cx="176" cy="212" r="2.2"/><circle cx="188" cy="220" r="1.5"/><circle cx="60" cy="56" r="1.8"/></g></svg></div>
+        <small>Baking</small><h3>Queijadas from a Sintra bakery</h3><p>1 hr 10 min · Moderate</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="letter" id="letter">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow" style="color:#F2C46B">The Sunday Letter</div>
+      <h2>One recipe, one story, <em>every Sunday.</em></h2>
+      <p>84,000 cooks read it with their first coffee. No ads, no algorithm, and an easy way out.</p>
+    </div>
+    <div>
+      <form class="form" onsubmit="return false"><input type="email" placeholder="you@example.com" aria-label="Email address"><button class="btn" type="submit">Subscribe</button></form>
+      <div class="fine">Free. Unsubscribe in one click.</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <a class="brand" href="/"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#1F4B99"/><circle cx="32" cy="32" r="22.5" fill="#8C4A1C"/><circle cx="32" cy="32" r="20.5" fill="#EDBB6E"/><circle cx="32" cy="32" r="15" fill="#F8CB58"/><path d="M28.6 25.4c3.2-3.6 9.4-2.7 10.6 1.4 1.1 3.7-2.2 6.9-5.7 6.3-1.9-.3-2.6 1.6-4.6 1.2-2.6-.5-3.4-3.3-2.4-5.3.5-1.1 1.2-2.6 2.1-3.6z" fill="#B66A26"/><path d="M30.2 26.8c2.3-2.4 6.6-1.8 7.4 1 .7 2.5-1.6 4.6-4 4.1-1.2-.3-2 .9-3.3.6-1.8-.4-2.2-2.3-1.5-3.6.3-.8.8-1.5 1.4-2.1z" fill="#4E200A"/><circle cx="25" cy="37.5" r="2.1" fill="#7A3512"/></svg><span>Saltwater <em>Kitchen</em></span></a>
+      <p class="about">Recipes from a small kitchen by the sea, tested until they work in yours.</p>
+    </div>
+    <div><h6>Cook</h6><ul><li>Weeknights</li><li>Baking</li><li>Seasonal</li><li>Vegetarian</li></ul></div>
+    <div><h6>Read</h6><ul><li>The Lisbon Issue</li><li>Journal</li><li>Techniques</li><li>Glossary</li></ul></div>
+    <div><h6>Saltwater</h6><ul><li>About us</li><li>Our test kitchen</li><li>Cookbooks</li><li>Contact</li></ul></div>
+    <div><h6>Follow</h6><ul><li>The Sunday Letter</li><li>Recipe box</li><li>RSS</li></ul></div>
+    <div class="legal"><span>© 2026 Saltwater Kitchen. Cooked and written in Porto.</span><span>Privacy · Terms · Accessibility</span></div>
+  </div>
+</footer>
+
+<script>
+(()=>{
+  let n=12;const out=document.getElementById('n');
+  const fr={0.25:'¼',0.5:'½',0.75:'¾'};
+  const fmt=(v,u)=>{
+    if(u==='tsp'){const q=Math.max(.25,Math.round(v*4)/4),w=Math.floor(q),f=q-w;return (w?w:'')+(fr[f]||'')+' tsp';}
+    if(u==='')return String(Math.max(1,Math.round(v)));
+    return (v>=20?Math.round(v/5)*5:Math.round(v))+' '+u;
+  };
+  document.querySelectorAll('.yield button').forEach(b=>b.onclick=()=>{
+    n=Math.min(48,Math.max(6,n+(+b.dataset.d)*6));
+    out.textContent=n+' tarts';
+    document.querySelectorAll('.q[data-v]').forEach(e=>e.textContent=fmt(e.dataset.v*n/12,e.dataset.u));
+  });
+})();
+</script>
+</body>
+</html>

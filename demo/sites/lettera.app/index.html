@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox – Lettera</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root {
+  --bg: #fff;
+  --side: #f4f5f8;
+  --line: #e7e9ee;
+  --line-2: #eff1f4;
+  --text: #171a21;
+  --text-2: #545b69;
+  --text-3: #8a91a0;
+  --accent: #2f5bea;
+  --accent-2: #1f46cc;
+  --accent-soft: #ecf1ff;
+  --sel: #e9efff;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font: 13px/1.4 system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: default; }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+.app { display: grid; grid-template-columns: 248px 400px 1fr; height: 100vh; }
+
+.side { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px 16px; min-height: 0; }
+.brand { display: flex; align-items: center; gap: 9px; padding: 2px 6px 18px; }
+.brand img { width: 26px; height: 26px; }
+.brand b { font: italic 600 21px/1 "Iowan Old Style", "Hoefler Text", Georgia, serif; letter-spacing: -0.01em; }
+.compose { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 38px; border-radius: 10px; color: #fff; font-weight: 600; font-size: 13.5px;
+  background: linear-gradient(#3b66f2, #2b54e2); box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 1px 2px rgba(31,70,204,.3), 0 4px 12px rgba(47,91,234,.22); }
+.compose kbd { font: 500 11px system-ui; opacity: .7; margin-left: 4px; border: 1px solid rgba(255,255,255,.4); border-radius: 4px; padding: 0 4px; }
+.nav { margin-top: 18px; display: flex; flex-direction: column; gap: 1px; }
+.nav a { display: flex; align-items: center; gap: 11px; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--text-2); text-decoration: none; font-weight: 500; }
+.nav a svg { color: #7a8291; }
+.nav a .n { margin-left: auto; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.nav a.on { background: #e3e8f4; color: var(--text); }
+.nav a.on svg { color: var(--accent); }
+.nav a.on .n { color: var(--accent); font-weight: 600; }
+.sec { margin: 22px 10px 6px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); display: flex; justify-content: space-between; }
+.sec + .nav { margin-top: 0; }
+.dot { width: 9px; height: 9px; border-radius: 3px; flex: none; margin: 0 4px 0 4px; }
+.space { flex: 1; }
+.storage { padding: 12px 10px 4px; border-top: 1px solid var(--line); margin-top: 12px; }
+.storage .bar { height: 5px; border-radius: 3px; background: #e2e5ec; overflow: hidden; margin: 8px 0 6px; }
+.storage .bar i { display: block; width: 28%; height: 100%; background: linear-gradient(90deg, #5a86ff, #2f5bea); border-radius: 3px; }
+.storage small { color: var(--text-3); font-size: 11.5px; }
+.me { display: flex; align-items: center; gap: 10px; padding: 12px 6px 0; }
+.me .t { line-height: 1.25; min-width: 0; }
+.me .t b { display: block; font-weight: 600; }
+.me .t span { color: var(--text-3); font-size: 12px; }
+
+.av { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 600; font-size: 13px; letter-spacing: .01em;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); text-shadow: 0 1px 1px rgba(0,0,0,.12); }
+.av.sm { width: 30px; height: 30px; font-size: 11.5px; }
+.av.lg { width: 42px; height: 42px; font-size: 15px; }
+.g1 { background: linear-gradient(135deg, #ff9a6b, #e6456b); }
+.g2 { background: linear-gradient(135deg, #34c3c9, #1f7ea8); }
+.g3 { background: linear-gradient(135deg, #8b7cff, #5a3fd6); }
+.g4 { background: linear-gradient(135deg, #ffcf5c, #f08a24); }
+.g5 { background: linear-gradient(135deg, #5fd68e, #23955f); }
+.g6 { background: linear-gradient(135deg, #f78fb3, #c2417a); }
+.g7 { background: linear-gradient(135deg, #7aa6ff, #2f5bea); }
+.g8 { background: linear-gradient(135deg, #a3abbb, #626b7c); }
+.logo-av { background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
+.logo-av svg { width: 20px; height: 20px; }
+
+.list { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: #fff; }
+.list-h { padding: 20px 18px 10px; }
+.list-h .row { display: flex; align-items: baseline; gap: 10px; }
+.list-h h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.list-h .sub { color: var(--text-3); font-size: 12.5px; }
+.list-h .tools { margin-left: auto; display: flex; gap: 2px; color: var(--text-3); align-self: center; }
+.ib { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 7px; color: var(--text-2); }
+.search { margin-top: 14px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border-radius: 9px; background: #f2f3f6; color: var(--text-3); }
+.search svg { width: 16px; height: 16px; }
+.search kbd { margin-left: auto; font: 500 11px system-ui; color: var(--text-3); background: #fff; border-radius: 5px; padding: 1px 6px; box-shadow: 0 0 0 1px var(--line); }
+.tabs { display: flex; gap: 18px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+.tabs a { position: relative; padding: 10px 0 11px; color: var(--text-3); font-weight: 500; text-decoration: none; display: flex; gap: 6px; align-items: center; }
+.tabs a.on { color: var(--text); }
+.tabs a.on::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 2px; background: var(--text); }
+.tabs .pill { font-size: 10.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 9px; padding: 0 6px; line-height: 17px; }
+.msgs { flex: 1; overflow-y: auto; scrollbar-width: none; padding: 6px 8px; }
+.m { position: relative; display: flex; gap: 12px; padding: 12px 12px 13px 14px; border-radius: 11px; }
+.m + .m::before { content: ""; position: absolute; left: 62px; right: 12px; top: 0; height: 1px; background: var(--line-2); }
+.m.on::before, .m.on + .m::before { display: none; }
+.m.on { background: var(--sel); }
+.m .c { flex: 1; min-width: 0; }
+.m .l1 { display: flex; align-items: baseline; gap: 8px; }
+.m .from { font-weight: 500; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+.m .time { margin-left: auto; font-size: 12px; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.m .subj { margin-top: 1px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m .snip { margin-top: 2px; color: var(--text-3); font-size: 12.5px; line-height: 1.42; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.m.u .from { color: var(--text); font-weight: 650; }
+.m.u .subj { color: var(--text); font-weight: 550; }
+.m.u .time { color: var(--accent); font-weight: 500; }
+.m.u::after { content: ""; position: absolute; left: 5px; top: 26px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.m .meta { display: flex; gap: 6px; align-items: center; margin-top: 7px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11.5px; font-weight: 500; }
+.chip .dot { width: 7px; height: 7px; border-radius: 2px; margin: 0; }
+.att { color: var(--text-3); display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; }
+.att svg { width: 13px; height: 13px; }
+.l-lis { background: #fff1e6; color: #b5541a; } .l-lis .dot { background: #f08a3c; }
+.l-work { background: #eef0ff; color: #4a4fc7; } .l-work .dot { background: #6d70ef; }
+.l-fin { background: #e8f7ef; color: #1f7a4c; } .l-fin .dot { background: #2fa36b; }
+.l-fam { background: #fdeef4; color: #b23a6e; } .l-fam .dot { background: #e2558f; }
+.star-on { color: #f2a91c; }
+.star-on svg { fill: #f6b73c; stroke: #f2a91c; }
+
+.read { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fff; }
+.read-t { display: flex; align-items: center; gap: 2px; height: 58px; padding: 0 36px 0 20px; border-bottom: 1px solid var(--line-2); }
+.read-t .sep { width: 1px; height: 18px; background: var(--line); margin: 0 8px; }
+.read-t .pos { margin-left: auto; color: var(--text-3); font-size: 12px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.read-b { flex: 1; overflow-y: auto; scrollbar-width: none; padding: 28px 56px 0 48px; }
+.read-in { max-width: 720px; }
+.subject { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.subject h2 { font-size: 24px; line-height: 1.25; font-weight: 700; letter-spacing: -0.022em; }
+.thread-n { margin-top: 6px; color: var(--text-3); font-size: 12.5px; }
+.collapsed { margin-top: 22px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fafbfc; }
+.collapsed .t { min-width: 0; flex: 1; }
+.collapsed .t b { font-weight: 600; margin-right: 8px; }
+.collapsed .t span { color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin-top: 1px; }
+.collapsed time { color: var(--text-3); font-size: 12px; align-self: flex-start; }
+.sender { margin-top: 26px; display: flex; align-items: center; gap: 13px; }
+.sender .who { flex: 1; min-width: 0; line-height: 1.3; }
+.sender .who b { font-size: 14.5px; font-weight: 650; }
+.sender .who .addr { color: var(--text-3); margin-left: 6px; }
+.sender .who .to { color: var(--text-3); font-size: 12.5px; display: flex; align-items: center; gap: 3px; }
+.sender .who .to svg { width: 13px; height: 13px; }
+.sender time { color: var(--text-3); font-size: 12.5px; }
+.sender .acts { display: flex; gap: 2px; margin-left: 10px; }
+.body { margin: 22px 0 0 55px; font-size: 15px; line-height: 1.62; color: #252a33; max-width: 600px; }
+.body p + p, .body ol + p, .body p + ol { margin-top: 13px; }
+.body ol { padding-left: 0; list-style: none; counter-reset: n; display: flex; flex-direction: column; gap: 9px; }
+.body ol li { counter-increment: n; position: relative; padding-left: 30px; }
+.body ol li::before { content: counter(n); position: absolute; left: 0; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff1e6; color: #c25c1d; font: 600 11.5px/20px system-ui; text-align: center; }
+.body b { font-weight: 650; color: var(--text); }
+.body a { color: var(--accent); text-decoration: none; }
+.sig { color: var(--text-2); }
+.files { margin: 24px 0 0 55px; display: flex; gap: 12px; flex-wrap: wrap; }
+.file { width: 176px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #fff; box-shadow: 0 1px 2px rgba(20,24,35,.04); }
+.file .pv { height: 104px; position: relative; overflow: hidden; }
+.file .pv svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.file .cap { padding: 8px 10px 9px; line-height: 1.3; }
+.file .cap b { display: block; font-weight: 550; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file .cap span { color: var(--text-3); font-size: 11.5px; }
+.pdf { background: linear-gradient(#f7f3ec, #efe8dc); display: grid; place-items: center; }
+.pdf .pg { width: 64px; height: 84px; margin-top: 30px; background: #fff; border-radius: 4px; box-shadow: 0 2px 8px rgba(60,40,10,.14); padding: 9px 8px; display: flex; flex-direction: column; gap: 4px; }
+.pdf .pg i { display: block; height: 3px; border-radius: 2px; background: #e6e1d8; }
+.pdf .pg i:first-child { width: 70%; height: 5px; background: #c9643a; }
+.pdf .tag { position: absolute; top: 10px; left: 10px; font: 700 9.5px system-ui; letter-spacing: .04em; color: #fff; background: #d6452f; border-radius: 4px; padding: 2px 5px; }
+.reply { margin: 28px 0 28px 55px; max-width: 600px; border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 12px 16px; display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 14px; box-shadow: 0 1px 3px rgba(20,24,35,.04), 0 6px 20px rgba(20,24,35,.04); }
+.reply .send { margin-left: auto; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 9px; background: var(--accent); color: #fff; font-weight: 600; font-size: 13px; }
+.reply .send svg { width: 15px; height: 15px; }
+.reply .tools { display: flex; gap: 0; color: var(--text-3); }
+
+button, .nav a, .m, .file, .tabs a { cursor: pointer; }
+.nav a:not(.on):hover { background: #eceef3; color: var(--text); }
+.m:not(.on):hover { background: #f6f7fa; }
+.m:not(.on):hover::before, .m:not(.on):hover + .m::before { opacity: 0; }
+.ib:hover { background: #f1f2f5; color: var(--text); }
+.compose:hover, .reply .send:hover { filter: brightness(1.06); }
+.file { transition: box-shadow .15s, transform .15s; }
+.file:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(20,24,35,.06), 0 10px 24px rgba(20,24,35,.08); }
+.tabs a:not(.on):hover { color: var(--text-2); }
+
+@media (max-width: 1440px) {
+  .app { grid-template-columns: 224px 360px 1fr; }
+  .read-b { padding: 24px 44px 0 36px; }
+  .body, .files, .reply { margin-left: 0; }
+}
+@media (max-height: 860px) {
+  .collapsed { display: none; }
+  .sender { margin-top: 20px; }
+  .body { margin-top: 16px; font-size: 14.5px; line-height: 1.5; }
+  .body p + p, .body ol + p, .body p + ol { margin-top: 10px; }
+  .body ol { gap: 6px; }
+  .files { margin-top: 18px; }
+  .file { width: 164px; }
+  .file .pv { height: 76px; }
+  .pdf .pg { margin-top: 26px; width: 54px; }
+  .reply { margin-top: 18px; padding-top: 8px; padding-bottom: 8px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M3 13h5l1.5 3h5l1.5-3h5"/><path d="M5.6 5h12.8L21 13v5.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5V13z"/></symbol>
+  <symbol id="star" viewBox="0 0 24 24"><path d="M12 3.6l2.55 5.2 5.75.83-4.16 4.05.98 5.72L12 16.7l-5.12 2.7.98-5.72L3.7 9.63l5.75-.83z"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="send" viewBox="0 0 24 24"><path d="M20.5 3.5L10 14"/><path d="M20.5 3.5L14 20.5l-4-6.5-6.5-4z"/></symbol>
+  <symbol id="draft" viewBox="0 0 24 24"><path d="M14 3.5H7.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V8z"/><path d="M14 3.5V8h4.5M9 13h6M9 16.5h4"/></symbol>
+  <symbol id="archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.3"/><path d="M5 9v9.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/></symbol>
+  <symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.2 7l.9 12.1a1.5 1.5 0 0 0 1.5 1.4h6.8a1.5 1.5 0 0 0 1.5-1.4L17.8 7"/></symbol>
+  <symbol id="pen" viewBox="0 0 24 24"><path d="M4 20h4.2L19.4 8.8a2.1 2.1 0 0 0 0-3l-1.2-1.2a2.1 2.1 0 0 0-3 0L4 15.8z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="reply" viewBox="0 0 24 24"><path d="M9.5 7.5L5 12l4.5 4.5"/><path d="M5 12h9.5a4.5 4.5 0 0 1 4.5 4.5V18"/></symbol>
+  <symbol id="fwd" viewBox="0 0 24 24"><path d="M14.5 7.5L19 12l-4.5 4.5"/><path d="M19 12H9.5A4.5 4.5 0 0 0 5 16.5V18"/></symbol>
+  <symbol id="more" viewBox="0 0 24 24"><circle cx="6" cy="12" r=".9"/><circle cx="12" cy="12" r=".9"/><circle cx="18" cy="12" r=".9"/></symbol>
+  <symbol id="clip" viewBox="0 0 24 24"><path d="M19.5 11.5l-7.7 7.7a4.8 4.8 0 0 1-6.8-6.8l8.1-8.1a3.2 3.2 0 0 1 4.5 4.5l-8.1 8.1a1.6 1.6 0 0 1-2.3-2.3l7.4-7.4"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
+  <symbol id="up" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
+  <symbol id="filter" viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"/></symbol>
+  <symbol id="spam" viewBox="0 0 24 24"><path d="M8.3 3.5h7.4l4.8 4.8v7.4l-4.8 4.8H8.3l-4.8-4.8V8.3z"/><path d="M12 8v4.5M12 16v.01"/></symbol>
+  <symbol id="smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14a4 4 0 0 0 7 0M9.5 9.5v.01M14.5 9.5v.01"/></symbol>
+  <symbol id="img" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 15.5l-5-5-9 9"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand"><img src="favicon.svg" alt=""><b>Lettera</b></div>
+    <button class="compose" id="compose"><svg class="i"><use href="#pen"/></svg>Compose<kbd>C</kbd></button>
+    <nav class="nav">
+      <a class="on" href="#"><svg class="i"><use href="#inbox"/></svg>Inbox<span class="n">8</span></a>
+      <a href="#"><svg class="i"><use href="#star"/></svg>Starred</a>
+      <a href="#"><svg class="i"><use href="#clock"/></svg>Snoozed<span class="n">3</span></a>
+      <a href="#"><svg class="i"><use href="#send"/></svg>Sent</a>
+      <a href="#"><svg class="i"><use href="#draft"/></svg>Drafts<span class="n">2</span></a>
+      <a href="#"><svg class="i"><use href="#archive"/></svg>Archive</a>
+      <a href="#"><svg class="i"><use href="#spam"/></svg>Junk</a>
+      <a href="#"><svg class="i"><use href="#trash"/></svg>Trash</a>
+    </nav>
+    <div class="sec"><span>Labels</span></div>
+    <nav class="nav">
+      <a href="#"><span class="dot" style="background:#f08a3c"></span>Lisbon trip<span class="n">4</span></a>
+      <a href="#"><span class="dot" style="background:#6d70ef"></span>Studio</a>
+      <a href="#"><span class="dot" style="background:#2fa36b"></span>Finance</a>
+      <a href="#"><span class="dot" style="background:#e2558f"></span>Family</a>
+      <a href="#"><span class="dot" style="background:#b6bcc8"></span>Receipts</a>
+    </nav>
+    <div class="space"></div>
+    <div class="storage">
+      <small>4.2 GB of 15 GB used</small>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="me">
+      <div class="av sm g7">LM</div>
+      <div class="t"><b>Leo Marsh</b><span>leo@marsh.studio</span></div>
+    </div>
+  </aside>
+
+  <section class="list">
+    <div class="list-h">
+      <div class="row">
+        <h1>Inbox</h1><span class="sub">8 unread</span>
+        <div class="tools"><button class="ib"><svg class="i"><use href="#filter"/></svg></button><button class="ib"><svg class="i"><use href="#more"/></svg></button></div>
+      </div>
+      <div class="search"><svg class="i"><use href="#search"/></svg>Search mail<kbd>⌘K</kbd></div>
+    </div>
+    <div class="tabs">
+      <a class="on" href="#">Primary</a>
+      <a href="#">Updates <span class="pill">5</span></a>
+      <a href="#">Newsletters</a>
+    </div>
+    <div class="msgs" id="messages">
+      <div class="m u on" id="msg-ines">
+        <div class="av g1">IC</div>
+        <div class="c">
+          <div class="l1"><span class="from">Inês Carvalho</span><span class="time">9:41 AM</span></div>
+          <div class="subj">Re: Lisbon — the real list</div>
+          <div class="snip">You asked for the real list, so here it is. Ignore anything with a laminated menu out front…</div>
+          <div class="meta"><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span><span class="att"><svg class="i"><use href="#clip"/></svg>3</span></div>
+        </div>
+      </div>
+      <div class="m u">
+        <div class="av g2">AT</div>
+        <div class="c">
+          <div class="l1"><span class="from">Atlântica Air</span><span class="time">9:12 AM</span></div>
+          <div class="subj">Your boarding pass · SFO → LIS, Fri Oct 16</div>
+          <div class="snip">Check-in is open. Seat 14A, Zone 2. Boarding begins at 9:35 AM from Gate G94.</div>
+        </div>
+      </div>
+      <div class="m u">
+        <div class="av g3">MW</div>
+        <div class="c">
+          <div class="l1"><span class="from">Marcus Webb</span><span class="time">8:27 AM</span></div>
+          <div class="subj">Q4 roadmap draft — comments by Thursday?</div>
+          <div class="snip">Pulled everything into one doc. The big open question is whether sync ships before or after the redesign.</div>
+          <div class="meta"><span class="chip l-work"><span class="dot"></span>Studio</span></div>
+        </div>
+      </div>
+      <div class="m u">
+        <div class="av logo-av"><svg viewBox="0 0 64 64"><defs><linearGradient id="dbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7461"/><stop offset="1" stop-color="#e5392b"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#dbg)"/><rect x="12" y="15" width="40" height="37" rx="7" fill="#fff"/><path d="M12 27h40" stroke="#e5392b" stroke-width="3.5"/><circle cx="32" cy="39.5" r="6" fill="#f0503f"/><rect x="21" y="10" width="5" height="10" rx="2.5" fill="#fff" stroke="#e5392b" stroke-width="2"/><rect x="38" y="10" width="5" height="10" rx="2.5" fill="#fff" stroke="#e5392b" stroke-width="2"/></svg></div>
+        <div class="c">
+          <div class="l1"><span class="from">Daybook</span><span class="time">7:00 AM</span></div>
+          <div class="subj">Today: Design review at 10:00, Interview at 3:00</div>
+          <div class="snip">You have 5 events today. First up: Standup at 9:00 AM with the studio team.</div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g4">CA</div>
+        <div class="c">
+          <div class="l1"><span class="from">Casa do Alecrim</span><span class="time">Yesterday</span></div>
+          <div class="subj">Reservation confirmed · 4 nights in Alfama</div>
+          <div class="snip">Obrigado, Leo! We look forward to welcoming you on Friday, October 16. Check-in from 3 PM.</div>
+          <div class="meta"><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span></div>
+        </div>
+      </div>
+      <div class="m u">
+        <div class="av g6">PR</div>
+        <div class="c">
+          <div class="l1"><span class="from">Priya Raman</span><span class="time">Yesterday</span></div>
+          <div class="subj">Photos from Saturday</div>
+          <div class="snip">The light at the lake was unreal. Picked my favorite 24, the rest are in the shared album.</div>
+          <div class="meta"><span class="att"><svg class="i"><use href="#img"/></svg>24 photos</span></div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g5">SO</div>
+        <div class="c">
+          <div class="l1"><span class="from">Studio Okto</span><span class="time">Mon</span></div>
+          <div class="subj">Invoice #2041 for September</div>
+          <div class="snip">Attached is the invoice for September — 42 hours on the brand refresh. Due in 30 days.</div>
+          <div class="meta"><span class="chip l-fin"><span class="dot"></span>Finance</span><span class="att"><svg class="i"><use href="#clip"/></svg>1</span></div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g8">JL</div>
+        <div class="c">
+          <div class="l1"><span class="from">Jonah Lee</span><span class="time">Mon</span></div>
+          <div class="subj">lunch thursday?</div>
+          <div class="snip">the new ramen place on Valencia finally opened. 12:30? I'll grab a table if you're in.</div>
+        </div>
+      </div>
+      <div class="m u">
+        <div class="av logo-av"><svg viewBox="0 0 64 64"><defs><linearGradient id="mgg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6bd57"/><stop offset="1" stop-color="#e08f27"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#mgg)"/><rect x="16" y="11" width="32" height="42" rx="5" fill="#fffaf0"/><path d="M25 11v42" stroke="#c4542b" stroke-width="3.5"/><path d="M31 22h10M31 29.5h10M31 37h6" stroke="#d6bf96" stroke-width="3.5" stroke-linecap="round"/></svg></div>
+        <div class="c">
+          <div class="l1"><span class="from">Margin</span><span class="time">Sun</span></div>
+          <div class="subj">Inês left 3 notes on “Lisbon trip”</div>
+          <div class="snip">“Swap Belém to the morning — the pastry line is brutal after 11.” Open the doc to reply.</div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g6">M</div>
+        <div class="c">
+          <div class="l1"><span class="from">Mom</span><span class="time">Sun</span></div>
+          <div class="subj">Sunday dinner + your aunt's birthday</div>
+          <div class="snip">Don't forget to call Ruth on the 20th. Also — are you still bringing the good bread?</div>
+          <div class="meta"><span class="chip l-fam"><span class="dot"></span>Family</span></div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g3">TL</div>
+        <div class="c">
+          <div class="l1"><span class="from">The Long Read</span><span class="time">Oct 10</span></div>
+          <div class="subj">The quiet revival of the Portuguese tile</div>
+          <div class="snip">How a generation of ceramicists in Lisbon is rescuing azulejos from demolition sites.</div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av logo-av"><svg viewBox="0 0 64 64"><defs><linearGradient id="hmb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#57206b"/><stop offset="1" stop-color="#1f0b29"/></linearGradient><linearGradient id="hmw" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ff3d7f"/><stop offset="1" stop-color="#ffa43d"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#hmb)"/><g fill="url(#hmw)"><rect x="12" y="26" width="7" height="12" rx="3.5"/><rect x="23" y="16" width="7" height="32" rx="3.5"/><rect x="34" y="21" width="7" height="22" rx="3.5"/><rect x="45" y="27" width="7" height="10" rx="3.5"/></g></svg></div>
+        <div class="c">
+          <div class="l1"><span class="from">Hum</span><span class="time">Oct 9</span></div>
+          <div class="subj">Your Weekly Mix is ready</div>
+          <div class="snip">30 new songs picked for you, starting with Noa Lindqvist and Marisol Vey.</div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g5">RB</div>
+        <div class="c">
+          <div class="l1"><span class="from">Rosa Bianchi</span><span class="time">Oct 8</span></div>
+          <div class="subj">Re: Studio lease renewal</div>
+          <div class="snip">Landlord agreed to hold the rate for another year if we sign before November. Draft attached.</div>
+          <div class="meta"><span class="chip l-work"><span class="dot"></span>Studio</span><span class="att"><svg class="i"><use href="#clip"/></svg>1</span></div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g4">FM</div>
+        <div class="c">
+          <div class="l1"><span class="from">Field Market</span><span class="time">Oct 7</span></div>
+          <div class="subj">Your order is on its way</div>
+          <div class="snip">Two bags of the Huila single origin, arriving Thursday between 10 and 2.</div>
+          <div class="meta"><span class="chip" style="background:#f1f2f5;color:#6b7180"><span class="dot" style="background:#b6bcc8"></span>Receipts</span></div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g7">SK</div>
+        <div class="c">
+          <div class="l1"><span class="from">Sana Kapoor</span><span class="time">Oct 6</span></div>
+          <div class="subj">Interview panel for Wednesday</div>
+          <div class="snip">Sharing the portfolio and the rubric. I'll take craft, can you cover collaboration?</div>
+          <div class="meta"><span class="chip l-work"><span class="dot"></span>Studio</span></div>
+        </div>
+      </div>
+      <div class="m">
+        <div class="av g1">DA</div>
+        <div class="c">
+          <div class="l1"><span class="from">Dad</span><span class="time">Oct 5</span></div>
+          <div class="subj">Bike's fixed</div>
+          <div class="snip">New chain and the back brake. Come get it whenever, it's in the garage.</div>
+          <div class="meta"><span class="chip l-fam"><span class="dot"></span>Family</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main class="read">
+    <div class="read-t">
+      <button class="ib" title="Archive"><svg class="i"><use href="#archive"/></svg></button>
+      <button class="ib" title="Move"><svg class="i"><use href="#folder"/></svg></button>
+      <button class="ib" title="Delete"><svg class="i"><use href="#trash"/></svg></button>
+      <span class="sep"></span>
+      <button class="ib" title="Snooze"><svg class="i"><use href="#clock"/></svg></button>
+      <span class="pos">1 of 248</span>
+      <button class="ib"><svg class="i"><use href="#up"/></svg></button>
+      <button class="ib"><svg class="i"><use href="#down"/></svg></button>
+      <span class="sep"></span>
+      <button class="ib" title="Reply"><svg class="i"><use href="#reply"/></svg></button>
+      <button class="ib" title="Forward"><svg class="i"><use href="#fwd"/></svg></button>
+      <button class="ib"><svg class="i"><use href="#more"/></svg></button>
+    </div>
+    <div class="read-b">
+      <div class="read-in">
+        <div class="subject"><h2>Re: Lisbon — the real list</h2><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span></div>
+        <div class="thread-n">2 messages</div>
+
+        <div class="collapsed">
+          <div class="av sm g7">LM</div>
+          <div class="t"><b>Leo Marsh</b><span>Landing on the 16th for four nights! Any recs beyond the obvious ones? We want the places you'd actually take friends.</span></div>
+          <time>Oct 11</time>
+        </div>
+
+        <div class="sender">
+          <div class="av lg g1">IC</div>
+          <div class="who">
+            <b>Inês Carvalho</b><span class="addr">ines@carvalho.pt</span>
+            <div class="to">to me, Mara<svg class="i"><use href="#down"/></svg></div>
+          </div>
+          <time>Wed, Oct 14, 9:41 AM</time>
+          <div class="acts">
+            <button class="ib star-on"><svg class="i"><use href="#star"/></svg></button>
+            <button class="ib"><svg class="i"><use href="#reply"/></svg></button>
+          </div>
+        </div>
+
+        <div class="body">
+          <p>Leo —</p>
+          <p>You asked for the real list, so here it is. Rule of thumb: ignore anything with a laminated menu out front.</p>
+          <ol>
+            <li><b>Tasca do Alecrim</b>, Alfama. Grilled sardines and vinho verde from the barrel. No reservations, so go before 8 or after 10.</li>
+            <li><b>Cervejaria do Cais</b> for clams and garlic prawns. Finish with a prego at the counter, like everyone else does.</li>
+            <li><b>Senhora do Monte</b> at sunset, not Santa Justa. Bring a bottle and get there 30 minutes early.</li>
+          </ol>
+          <p>I'm in town on the 17th and 18th. Saturday lunch? I've attached the photos from the miradouro and my old map with everything pinned.</p>
+          <p class="sig">Beijinhos,<br>Inês</p>
+        </div>
+
+        <div class="files">
+          <div class="file">
+            <div class="pv"><svg viewBox="0 0 176 104" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6b38a"/><stop offset=".55" stop-color="#fbd7a8"/><stop offset="1" stop-color="#f4c49a"/></linearGradient></defs><rect width="176" height="104" fill="url(#sk)"/><circle cx="118" cy="56" r="15" fill="#fff4dc" opacity=".9"/><path d="M0 70h176v34H0z" fill="#9db8c8"/><path d="M0 70h176v3H0z" fill="#c9d6dc" opacity=".7"/><path d="M0 62l14-4 10 3 0-9h8v8l9-6 12 5v-8h9v9l12-3 10 5 10-7 8 4v-6h10v7l12-4 14 6 8-3 10 5V80H0z" fill="#c76a4a"/><path d="M0 74l20-5 16 4 18-6 22 6 16-3 20 5 22-6 22 4 20-3v34H0z" fill="#a24b34"/><g fill="#f6e6cf" opacity=".85"><rect x="6" y="78" width="6" height="7"/><rect x="28" y="80" width="5" height="6"/><rect x="58" y="76" width="6" height="7"/><rect x="88" y="81" width="5" height="6"/><rect x="120" y="78" width="6" height="7"/><rect x="150" y="80" width="5" height="6"/></g><path d="M0 90l30-6 30 5 34-6 30 5 52-5v21H0z" fill="#7d3426"/></svg></div>
+            <div class="cap"><b>miradouro.heic</b><span>2.4 MB</span></div>
+          </div>
+          <div class="file">
+            <div class="pv"><svg viewBox="0 0 176 104" preserveAspectRatio="xMidYMid slice"><rect width="176" height="104" fill="#e9dccb"/><rect x="0" y="0" width="70" height="104" fill="#d8c3a5"/><g fill="#c6ad8a"><rect x="12" y="10" width="14" height="22" rx="2"/><rect x="40" y="10" width="14" height="22" rx="2"/><rect x="12" y="44" width="14" height="22" rx="2"/><rect x="40" y="44" width="14" height="22" rx="2"/></g><rect x="70" y="0" width="106" height="104" fill="#f1e8db"/><path d="M0 86h176v18H0z" fill="#8f8478"/><path d="M0 92h176" stroke="#6e655c" stroke-width="2"/><rect x="62" y="38" width="96" height="50" rx="7" fill="#f2b632"/><rect x="62" y="38" width="96" height="9" rx="4" fill="#e3a21f"/><g fill="#5a4a33" opacity=".85"><rect x="70" y="51" width="14" height="14" rx="2"/><rect x="89" y="51" width="14" height="14" rx="2"/><rect x="108" y="51" width="14" height="14" rx="2"/><rect x="127" y="51" width="14" height="14" rx="2"/></g><rect x="62" y="72" width="96" height="4" fill="#fff" opacity=".7"/><text x="146" y="85" font-family="Helvetica Neue" font-weight="700" font-size="7" fill="#5a4a33">28</text><path d="M110 38l-10-14h20" stroke="#4b4038" stroke-width="1.5" fill="none"/><path d="M0 22h176" stroke="#4b4038" stroke-width="1" opacity=".6"/><circle cx="76" cy="88" r="5" fill="#3d3833"/><circle cx="144" cy="88" r="5" fill="#3d3833"/></svg></div>
+            <div class="cap"><b>tram-28.heic</b><span>1.9 MB</span></div>
+          </div>
+          <div class="file">
+            <div class="pv pdf"><span class="tag">PDF</span><div class="pg"><i></i><i></i><i></i><i style="width:60%"></i><i></i><i style="width:80%"></i></div></div>
+            <div class="cap"><b>lisboa-map.pdf</b><span>860 KB</span></div>
+          </div>
+        </div>
+
+        <div class="reply" id="reply">
+          <svg class="i"><use href="#reply"/></svg>
+          <span>Reply to Inês…</span>
+          <div class="tools"><button class="ib"><svg class="i"><use href="#clip"/></svg></button><button class="ib"><svg class="i"><use href="#smile"/></svg></button></div>
+          <button class="send" id="send"><svg class="i"><use href="#send"/></svg>Send</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

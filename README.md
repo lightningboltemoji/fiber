@@ -16,6 +16,7 @@ make size       # what Chrome's code costs by directory, what the linker strips,
 make harness    # just the UI, against a mock browser, without Chromium
 make patches    # regenerate patches/chromium/ from edits in chromium/src
 make icon       # regenerate the app icon (core/branding/icon)
+make demo       # record and cut the demo video (.agents/DEMO.md)
 
 make dist       # self-contained dist/Fiber.app from out/Release, plus a zip
 make install    # the same app, into /Applications

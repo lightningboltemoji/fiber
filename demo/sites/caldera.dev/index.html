@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caldera – Deploy to every edge</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#08080a;--panel:#111115;--raise:#1c1c22;
+  --line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.11);--line3:rgba(255,255,255,.16);
+  --text:#f4f4f5;--text2:#b6b6be;--muted:#8b8b95;--faint:#5f5f69;
+  --ember:#ff6a2b;--ember2:#ff8d4d;--gold:#ffb547;--ok:#4fd18b;
+  --mono:Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg);color-scheme:dark}
+body{font:16px/1.6 system-ui,-apple-system,"Helvetica Neue",sans-serif;color:var(--text2);-webkit-font-smoothing:antialiased;background:var(--bg);overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+::selection{background:rgba(255,106,43,.35);color:#fff}
+.wrap{max-width:1200px;margin:0 auto;padding:0 40px}
+
+.top{position:absolute;inset:0 0 auto;z-index:10;height:72px;display:flex;align-items:center;gap:36px;padding:0 52px 0 36px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--text);font-weight:650;font-size:18px;letter-spacing:-.015em}
+.links{display:flex;gap:4px;font-size:14.5px}
+.links a{padding:6px 12px;border-radius:8px;color:var(--text2)}
+.links a:hover{color:var(--text)}
+.right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 15px;border-radius:9px;font-size:14px;font-weight:560;white-space:nowrap}
+.btn.pri{background:linear-gradient(180deg,#ff7a3a,#f2541f);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 0 0 1px rgba(255,106,43,.55),0 8px 24px -8px rgba(255,90,30,.6)}
+.btn.sec{color:var(--text);background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px var(--line2)}
+.btn.lg{height:48px;padding:0 22px;font-size:15.5px;border-radius:12px}
+
+.hero{position:relative;height:clamp(760px,100vh,1040px);overflow:hidden;background:radial-gradient(1100px 520px at 50% 108%,rgba(255,96,32,.28),transparent 70%),var(--bg)}
+.hero::after{content:"";position:absolute;inset:auto 0 0;height:140px;background:linear-gradient(rgba(8,8,10,0),var(--bg));z-index:1;pointer-events:none}
+.hero .art{position:absolute;inset:auto 0 0 0;height:100%;width:100%}
+.hero-copy{position:relative;z-index:2;text-align:center;padding-top:clamp(120px,15vh,168px)}
+.pill{display:inline-flex;align-items:center;gap:10px;height:34px;padding:0 14px 0 6px;border-radius:999px;background:rgba(255,255,255,.04);box-shadow:inset 0 0 0 1px var(--line2);font-size:13.5px;color:var(--text2)}
+.pill b{font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:linear-gradient(180deg,#ff7a3a,#e24a1c);padding:4px 8px;border-radius:999px}
+.pill span{color:var(--muted)}
+h1{margin:26px auto 0;font-size:clamp(60px,5.6vw,92px);line-height:1.02;font-weight:720;letter-spacing:-.045em;color:var(--text);max-width:1000px}
+h1 em{font-style:normal;background:linear-gradient(100deg,#ffb25e 0%,#ff6a2b 45%,#ff4a2a 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{margin:24px auto 0;max-width:640px;font-size:19.5px;line-height:1.55;color:#a9a9b2;letter-spacing:-.005em}
+.cta{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:36px}
+.cmd{display:inline-flex;align-items:center;gap:12px;height:48px;padding:0 16px 0 18px;border-radius:12px;background:rgba(17,17,21,.8);box-shadow:inset 0 0 0 1px var(--line2);font:14px var(--mono);color:var(--text)}
+.cmd i{font-style:normal;color:var(--ember)}
+.cmd svg{color:var(--muted);margin-left:6px}
+
+.logos{padding:56px 0 20px;text-align:center}
+.logos p{font-size:14px;color:var(--muted)}
+.logo-row{display:flex;justify-content:space-between;align-items:center;margin-top:30px;color:#77777f;opacity:.95}
+.logo-row span{display:flex;align-items:center;gap:9px;font-size:22px}
+
+.split{display:grid;grid-template-columns:420px 1fr;gap:72px;align-items:center;padding:120px 0 40px}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ember2)}
+h2{margin-top:14px;font-size:46px;line-height:1.08;font-weight:700;letter-spacing:-.035em;color:var(--text)}
+.split p{margin-top:18px;font-size:17px;line-height:1.65;color:var(--text2)}
+.ticks{list-style:none;margin-top:26px;display:grid;gap:12px;font-size:15.5px;color:var(--text2)}
+.ticks li{display:flex;gap:12px;align-items:center}
+.ticks svg{color:var(--ember)}
+.term{border-radius:16px;background:linear-gradient(180deg,#141419,#0e0e12);box-shadow:inset 0 0 0 1px var(--line2),0 40px 80px -30px rgba(0,0,0,.9),0 0 120px -40px rgba(255,106,43,.35);overflow:hidden}
+.term-hd{display:flex;align-items:center;height:42px;padding:0 16px;border-bottom:1px solid var(--line)}
+.dots{display:flex;gap:8px}
+.dots i{width:12px;height:12px;border-radius:50%;background:#2a2a31}
+.term-hd span{margin:0 auto;font:12px var(--mono);color:var(--faint);transform:translateX(-26px)}
+pre{padding:22px 26px 26px;font:13.5px/1.8 var(--mono);color:#e4e4e8;white-space:pre}
+.t-pr{color:#ff6a2b}.t-f{color:#ffd9ad}.t-o{color:#7d7d89}.t-d{color:#6c6c78}.t-ok{color:#4fd18b}.t-k{color:#ff8f5e}
+.t-u{color:#f2f2f3;text-decoration:underline;text-decoration-color:rgba(255,255,255,.25);text-underline-offset:3px}
+
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;padding:100px 0 0}
+.feat{border-radius:18px;background:linear-gradient(180deg,#121217,#0d0d10);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden}
+.feat .vis{height:210px;position:relative;border-bottom:1px solid var(--line);background:radial-gradient(360px 180px at 50% 0,rgba(255,106,43,.1),transparent 70%)}
+.feat .txt{padding:24px 26px 28px}
+.feat h3{font-size:19px;font-weight:650;letter-spacing:-.015em;color:var(--text)}
+.feat p{margin-top:8px;font-size:15px;line-height:1.6;color:var(--muted)}
+.chips{position:absolute;inset:34px 30px auto;display:grid;gap:10px}
+.chip{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px;border-radius:10px;background:#16161b;box-shadow:inset 0 0 0 1px var(--line2);font:12.5px var(--mono);color:var(--text2)}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px rgba(79,209,139,.7)}
+.chip i.z{background:#4a4a52;box-shadow:none}
+.chip em{margin-left:auto;font-style:normal;color:var(--faint);font-size:11.5px}
+.chip:nth-child(2){margin-left:22px;margin-right:-22px}
+.chip:nth-child(3){opacity:.55}
+.snip{position:absolute;inset:30px 30px auto;padding:16px 18px;border-radius:12px;background:#0f0f13;box-shadow:inset 0 0 0 1px var(--line2);font:12.5px/1.85 var(--mono);color:#e4e4e8;white-space:pre}
+.t-p{color:#8cc4ff}.t-s{color:#b4db98}.t-n{color:#f5c26b}.t-c{color:#5e616f;font-style:italic}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:110px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{padding:40px 32px 38px;border-left:1px solid var(--line)}
+.stat:first-child{border-left:0;padding-left:0}
+.stat b{display:block;font-size:52px;line-height:1;font-weight:680;letter-spacing:-.04em;color:var(--text)}
+.stat b small{font-size:26px;color:var(--ember2);margin-left:3px;letter-spacing:-.02em}
+.stat span{display:block;margin-top:12px;font-size:14.5px;color:var(--muted)}
+
+.closing{position:relative;margin:120px 0 0;padding:110px 0 120px;text-align:center;overflow:hidden;background:radial-gradient(800px 380px at 50% 120%,rgba(255,96,32,.32),transparent 70%)}
+.closing h2{font-size:56px;margin:0 auto;max-width:760px}
+.closing p{margin:18px auto 0;font-size:18px;color:var(--text2);max-width:520px}
+.closing .cta{margin-top:34px}
+
+footer{border-top:1px solid var(--line);padding:56px 0 64px;font-size:14px}
+.fgrid{display:grid;grid-template-columns:2fr repeat(4,1fr);gap:32px}
+.fgrid h6{font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px}
+.fgrid a{display:block;color:var(--muted);margin-bottom:9px}
+.fgrid .about{color:var(--faint);max-width:260px;margin-top:14px;line-height:1.55}
+
+@media (max-width:1360px){
+  .split{grid-template-columns:380px 1fr;gap:48px}
+  pre{font-size:12.5px}
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="/">
+    <svg width="28" height="28" viewBox="0 0 64 64"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9446"/><stop offset="1" stop-color="#e5391a"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#lg)"/><path d="M7 51 23.5 18H28l4 9 4-9h4.5L57 51Z" fill="#fff"/></svg>
+    Caldera
+  </a>
+  <nav class="links">
+    <a href="#">Product</a>
+    <a href="/docs/getting-started/">Docs</a>
+    <a href="#">Pricing</a>
+    <a href="#">Customers</a>
+    <a href="#">Changelog</a>
+  </nav>
+  <div class="right">
+    <a class="btn" href="#" style="color:var(--text2)">Log in</a>
+    <a class="btn pri" href="/docs/getting-started/">Start deploying</a>
+  </div>
+</header>
+
+<section class="hero">
+  <svg class="art" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <defs>
+      <radialGradient id="atmo" cx="800" cy="700" r="760" gradientUnits="userSpaceOnUse" gradientTransform="translate(0 700) scale(1 .42) translate(0 -700)">
+        <stop offset="0" stop-color="#ff7a32" stop-opacity=".55"/>
+        <stop offset=".35" stop-color="#ff5a24" stop-opacity=".2"/>
+        <stop offset="1" stop-color="#ff5a24" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="rim" x1="0" x2="1">
+        <stop offset="0" stop-color="#ff6a2b" stop-opacity="0"/>
+        <stop offset=".3" stop-color="#ff7a36" stop-opacity=".7"/>
+        <stop offset=".5" stop-color="#ffd2a0"/>
+        <stop offset=".7" stop-color="#ff7a36" stop-opacity=".7"/>
+        <stop offset="1" stop-color="#ff6a2b" stop-opacity="0"/>
+      </linearGradient>
+      <radialGradient id="planet" cx="800" cy="640" r="900" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#1e120d"/>
+        <stop offset=".35" stop-color="#0e0b0b"/>
+        <stop offset="1" stop-color="#08080a"/>
+      </radialGradient>
+      <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse">
+        <circle cx="7" cy="7" r="1.1" fill="#ff9a62"/>
+      </pattern>
+      <radialGradient id="dfade" cx="800" cy="660" r="760" gradientUnits="userSpaceOnUse" gradientTransform="translate(0 660) scale(1 .5) translate(0 -660)">
+        <stop offset="0" stop-color="#fff" stop-opacity=".5"/>
+        <stop offset=".6" stop-color="#fff" stop-opacity=".12"/>
+        <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      </radialGradient>
+      <mask id="dm"><rect width="1600" height="1000" fill="url(#dfade)"/></mask>
+      <clipPath id="pc"><ellipse cx="800" cy="1900" rx="1500" ry="1260"/></clipPath>
+      <linearGradient id="arc" x1="0" x2="1">
+        <stop offset="0" stop-color="#ff6a2b" stop-opacity=".15"/>
+        <stop offset=".5" stop-color="#ffb070"/>
+        <stop offset="1" stop-color="#ff6a2b" stop-opacity=".15"/>
+      </linearGradient>
+      <radialGradient id="node">
+        <stop offset="0" stop-color="#ff8d4d" stop-opacity=".7"/>
+        <stop offset="1" stop-color="#ff6a2b" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect y="360" width="1600" height="640" fill="url(#atmo)"/>
+    <ellipse cx="800" cy="1900" rx="1500" ry="1260" fill="url(#planet)"/>
+    <g clip-path="url(#pc)"><rect y="600" width="1600" height="400" fill="url(#dots)" mask="url(#dm)" opacity=".55"/></g>
+    <ellipse cx="800" cy="1900" rx="1500" ry="1260" fill="none" stroke="url(#rim)" stroke-width="1.6"/>
+    <ellipse cx="800" cy="1902" rx="1500" ry="1260" fill="none" stroke="url(#rim)" stroke-width="10" opacity=".18" filter="blur(6px)" style="filter:blur(6px)"/>
+
+    <g fill="none" stroke="url(#arc)" stroke-width="1.4" stroke-linecap="round">
+      <path d="M300 880Q410 690 520 760"/>
+      <path d="M520 760Q610 610 700 700"/>
+      <path d="M700 700Q780 600 860 690"/>
+      <path d="M860 690Q950 610 1040 730"/>
+      <path d="M1040 730Q1150 640 1250 800"/>
+      <path d="M1250 800Q1330 720 1400 900"/>
+      <path d="M520 760Q790 520 1040 730" stroke-dasharray="2 6" opacity=".7"/>
+      <path d="M700 700Q980 560 1250 800" stroke-dasharray="2 6" opacity=".55"/>
+    </g>
+    <g>
+      <circle cx="300" cy="880" r="26" fill="url(#node)"/><circle cx="300" cy="880" r="4" fill="#ffd9bd"/>
+      <circle cx="520" cy="760" r="30" fill="url(#node)"/><circle cx="520" cy="760" r="4.5" fill="#ffd9bd"/>
+      <circle cx="700" cy="700" r="34" fill="url(#node)"/><circle cx="700" cy="700" r="5" fill="#fff1e6"/>
+      <circle cx="860" cy="690" r="34" fill="url(#node)"/><circle cx="860" cy="690" r="5" fill="#fff1e6"/>
+      <circle cx="1040" cy="730" r="30" fill="url(#node)"/><circle cx="1040" cy="730" r="4.5" fill="#ffd9bd"/>
+      <circle cx="1250" cy="800" r="28" fill="url(#node)"/><circle cx="1250" cy="800" r="4" fill="#ffd9bd"/>
+      <circle cx="1400" cy="900" r="24" fill="url(#node)"/><circle cx="1400" cy="900" r="3.5" fill="#ffd9bd"/>
+    </g>
+    <g font-family="Menlo,monospace" font-size="12" fill="#e9e3de">
+      <g transform="translate(316 896)"><rect width="78" height="26" rx="7" fill="#151217" stroke="rgba(255,255,255,.12)"/><text x="11" y="17">sfo1<tspan fill="#7d7d89"> 9ms</tspan></text></g>
+      <g transform="translate(436 712)"><rect width="78" height="26" rx="7" fill="#151217" stroke="rgba(255,255,255,.12)"/><text x="11" y="17">iad1<tspan fill="#7d7d89"> 7ms</tspan></text></g>
+      <g transform="translate(600 650)"><rect width="88" height="26" rx="7" fill="#1b130f" stroke="rgba(255,141,77,.45)"/><text x="11" y="17" fill="#ffb98a">lis1<tspan fill="#a98a78"> 4ms</tspan></text></g>
+      <g transform="translate(872 640)"><rect width="78" height="26" rx="7" fill="#151217" stroke="rgba(255,255,255,.12)"/><text x="11" y="17">fra1<tspan fill="#7d7d89"> 6ms</tspan></text></g>
+      <g transform="translate(1056 744)"><rect width="78" height="26" rx="7" fill="#151217" stroke="rgba(255,255,255,.12)"/><text x="11" y="17">sin1<tspan fill="#7d7d89"> 8ms</tspan></text></g>
+      <g transform="translate(1266 816)"><rect width="78" height="26" rx="7" fill="#151217" stroke="rgba(255,255,255,.12)"/><text x="11" y="17">nrt1<tspan fill="#7d7d89"> 6ms</tspan></text></g>
+      <g transform="translate(1306 916)"><rect width="78" height="26" rx="7" fill="#151217" stroke="rgba(255,255,255,.12)"/><text x="11" y="17">syd1<tspan fill="#7d7d89"> 9ms</tspan></text></g>
+    </g>
+  </svg>
+
+  <div class="hero-copy wrap">
+    <a class="pill" href="#"><b>New</b>Caldera 3.2 <span>· Previews now cold-start in under two seconds</span> <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 6h7M6.5 3 9.5 6l-3 3"/></svg></a>
+    <h1>Deploy to <em>every edge</em>,<br>with one command.</h1>
+    <p class="sub">Caldera builds, ships and rolls back your app across 38 regions in seconds — from a single CLI and one readable config file.</p>
+    <div class="cta">
+      <a class="btn pri lg" href="/docs/getting-started/">Get started <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 6h7M6.5 3 9.5 6l-3 3"/></svg></a>
+      <span class="cmd"><i>$</i>npm i -g @caldera/cli<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="5" width="8.5" height="8.5" rx="2"/><path d="M10.5 5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5H5"/></svg></span>
+    </div>
+  </div>
+</section>
+
+<section class="logos wrap">
+  <p>Trusted by 14,000 teams shipping to production every day</p>
+  <div class="logo-row">
+    <span style="font-family:Futura;font-weight:700;letter-spacing:.14em;font-size:19px">TIDEWELL</span>
+    <span style="font-family:Didot;font-style:italic;font-size:27px">Fernhall</span>
+    <span style="font-family:'Avenir Next';font-weight:600;letter-spacing:-.03em"><svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor"><path d="M2 6h9l-4 5H2zM11 6h9l-9 11z"/></svg>kestrel</span>
+    <span style="font-family:'Gill Sans';letter-spacing:.32em;font-size:18px">QUARRY</span>
+    <span style="font-family:Optima;font-weight:600;font-size:23px"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="10" cy="10" r="7"/></svg>Ninebark</span>
+    <span style="font-family:Menlo;font-weight:700;font-size:18px;letter-spacing:-.04em">solstice/</span>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="split">
+    <div>
+      <div class="eyebrow">One command</div>
+      <h2>From git push to global in eleven seconds.</h2>
+      <p><code style="font:15px var(--mono);color:var(--text)">caldera deploy</code> builds in an isolated runner, uploads immutable assets and promotes the release on every edge at once. Traffic switches atomically — no one ever sees a half-deployed app.</p>
+      <ul class="ticks">
+        <li><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3.5 8.4 3 3 6-6.6"/></svg>Health-checked on every edge before promotion</li>
+        <li><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3.5 8.4 3 3 6-6.6"/></svg>Your last 20 releases kept warm for rollbacks</li>
+        <li><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3.5 8.4 3 3 6-6.6"/></svg>Works with any framework that has a build step</li>
+      </ul>
+    </div>
+    <div class="term">
+      <div class="term-hd"><div class="dots"><i></i><i></i><i></i></div><span>~/code/ember-shop</span></div>
+<pre><span class="t-pr">$ </span><span class="t-f">caldera</span> deploy <span class="t-o">--prod</span>
+
+  <span class="t-k">◆ Caldera</span> <span class="t-d">3.2.0 · harbor-labs/ember-shop · main@3f9c2a1</span>
+
+  <span class="t-d">Build  </span>  <span class="t-ok">✓</span> Compiled 14 routes in 4.2s     <span class="t-d">312 kB</span>
+  <span class="t-d">Upload </span>  <span class="t-ok">✓</span> 38 files, 1.8 MB              <span class="t-d">0.9s</span>
+  <span class="t-d">Edges  </span>  <span class="t-ok">✓</span> lis1  <span class="t-ok">✓</span> fra1  <span class="t-ok">✓</span> iad1  <span class="t-ok">✓</span> sfo1  <span class="t-ok">✓</span> nrt1
+  <span class="t-d">Health </span>  <span class="t-ok">✓</span> /healthz 200 on 6 of 6 edges
+
+  <span class="t-ok">✓ Production</span>  <span class="t-u">https://ember-shop.caldera.app</span>  <span class="t-d">[11.6s]</span></pre>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feat">
+      <div class="vis">
+        <div class="chips">
+          <div class="chip"><i></i>checkout-redesign<em>9.8s</em></div>
+          <div class="chip"><i></i>fix/cart-rounding<em>10.2s</em></div>
+          <div class="chip"><i class="z"></i>spike/search-v2<em>asleep</em></div>
+        </div>
+      </div>
+      <div class="txt"><h3>A preview for every branch</h3><p>Each push gets its own URL, secrets scope and logs. Previews sleep when idle and wake in under two seconds.</p></div>
+    </div>
+    <div class="feat">
+      <div class="vis">
+        <svg viewBox="0 0 380 210" width="100%" height="210" fill="none">
+          <path d="M40 120H340" stroke="rgba(255,255,255,.12)" stroke-width="2"/>
+          <path d="M40 120H246" stroke="url(#tl)" stroke-width="2"/>
+          <defs><linearGradient id="tl" x1="40" x2="246" gradientUnits="userSpaceOnUse"><stop stop-color="#ff6a2b" stop-opacity=".1"/><stop offset="1" stop-color="#ff8d4d"/></linearGradient></defs>
+          <g fill="#2a2a31" stroke="#08080a" stroke-width="4"><circle cx="70" cy="120" r="8"/><circle cx="140" cy="120" r="8"/><circle cx="320" cy="120" r="8"/></g>
+          <circle cx="226" cy="120" r="20" fill="#ff6a2b" opacity=".18"/>
+          <circle cx="226" cy="120" r="9" fill="#ff8d4d" stroke="#08080a" stroke-width="4"/>
+          <path d="M310 96C290 62 248 60 232 92" stroke="#ff8d4d" stroke-width="2" stroke-dasharray="4 5" stroke-linecap="round"/>
+          <path d="m226 84 6 10 9-7" stroke="#ff8d4d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <g font-family="Menlo,monospace" font-size="11"><text x="294" y="150" fill="#6c6c78">rel_7Hq2</text><text x="200" y="150" fill="#ffb98a">rel_5Mn8</text><text x="116" y="150" fill="#5f5f69">rel_2Lt4</text></g>
+          <g transform="translate(222 34)"><rect width="74" height="26" rx="8" fill="#16161b" stroke="rgba(255,255,255,.12)"/><text x="12" y="17" font-family="Menlo,monospace" font-size="11.5" fill="#4fd18b">✓ 0.4s</text></g>
+        </svg>
+      </div>
+      <div class="txt"><h3>Roll back in under a second</h3><p>Releases are immutable and stay warm on every edge, so undoing a bad deploy is a pointer swap, not a rebuild.</p></div>
+    </div>
+    <div class="feat">
+      <div class="vis">
+<div class="snip"><span class="t-c"># caldera.toml</span>
+<span class="t-p">name</span>    <span class="t-o">=</span> <span class="t-s">"ember-shop"</span>
+<span class="t-p">regions</span> <span class="t-o">=</span> <span class="t-o">[</span><span class="t-s">"auto"</span><span class="t-o">]</span>
+
+<span class="t-k">[previews]</span>
+<span class="t-p">ttl</span>     <span class="t-o">=</span> <span class="t-s">"7d"</span></div>
+      </div>
+      <div class="txt"><h3>One readable config</h3><p>A dozen lines of <span style="font:14px var(--mono);color:var(--text2)">caldera.toml</span>, checked in next to your code. No YAML pyramids, no dashboards to keep in sync.</p></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>38</b><span>edge regions on six continents</span></div>
+    <div class="stat"><b>11.6<small>s</small></b><span>median production deploy</span></div>
+    <div class="stat"><b>0.4<small>s</small></b><span>worldwide rollback</span></div>
+    <div class="stat"><b>99.995<small>%</small></b><span>uptime over the last 12 months</span></div>
+  </div>
+</section>
+
+<section class="closing">
+  <div class="wrap">
+    <h2>Ship your first release<br>in five minutes.</h2>
+    <p>Free for personal projects. Unlimited previews on every plan.</p>
+    <div class="cta">
+      <a class="btn pri lg" href="/docs/getting-started/">Read the getting started guide</a>
+      <a class="btn sec lg" href="#">Talk to an engineer</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap fgrid">
+    <div>
+      <a class="brand" href="/" style="display:flex;margin:0;color:var(--text)"><svg width="24" height="24" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="url(#lg)"/><path d="M7 51 23.5 18H28l4 9 4-9h4.5L57 51Z" fill="#fff"/></svg>Caldera</a>
+      <p class="about">Global deploys, previews and rollbacks from one command. © 2026 Caldera Systems, Inc.</p>
+    </div>
+    <div><h6>Product</h6><a href="#">Edges</a><a href="#">Previews</a><a href="#">Rollbacks</a><a href="#">Pricing</a></div>
+    <div><h6>Developers</h6><a href="/docs/getting-started/">Docs</a><a href="#">CLI reference</a><a href="#">Changelog</a><a href="#">Status</a></div>
+    <div><h6>Company</h6><a href="#">About</a><a href="#">Customers</a><a href="#">Careers</a><a href="#">Blog</a></div>
+    <div><h6>Legal</h6><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Security</a></div>
+  </div>
+</footer>
+</body>
+</html>

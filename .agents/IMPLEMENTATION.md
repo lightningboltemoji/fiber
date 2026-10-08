@@ -3,7 +3,8 @@
 A high-level map of how Fiber is built and why. The rules it follows are in
 [PRINCIPLES.md](PRINCIPLES.md); detailed designs live in their own docs
 ([MEDIA.md](MEDIA.md), [PALETTE.md](PALETTE.md))
-and in the code. Commands are in `README.md`.
+and in the code, and how the demo video is made in [DEMO.md](DEMO.md).
+Commands are in `README.md`.
 
 Fiber forks Chromium's `//chrome` layer rather than embedding a web engine,
 because full Chrome extension support is a hard requirement. (CEF rules that
@@ -345,5 +346,6 @@ core/                → //fiber
   media/             Chromium's media stack on macOS's codecs
   bridge/            include/FiberBridge/*.h
   ui/                Sources/FiberUI, Sources/FiberUIHarness, Package.swift
+demo/                the demo video: tapes, director, sites, studio (DEMO.md)
 chromium/            gclient checkout, not tracked
 ```
