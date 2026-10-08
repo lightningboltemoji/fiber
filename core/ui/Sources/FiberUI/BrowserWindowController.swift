@@ -87,6 +87,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var canPin = false
   private lazy var extensionsController = ExtensionsController(
     bar: tabOverlay.extensionsBar, bubbles: extensionBubbles,
+    popupLayer: extensionPopups,
+    restoreFocus: { [weak self] in self?.actions?.restoreFocus() },
     isBarShown: { [weak self] in self?.tabOverlay.isOpen ?? false },
     hiddenMenuButtonRect: { [weak self] in
       guard let self, let content = self.window.contentView else {
@@ -108,6 +110,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let sadTabView = SadTabView()
   /// Over the page, under the tab picker.
   private let extensionBubbles = ExtensionBubbles()
+  /// Over the tab overlay.
+  private let extensionPopups = ExtensionPopupLayer()
   /// Over the page while the active tab has key passthrough.
   private let keyPassthroughBubble = KeyPassthroughBubble()
   fileprivate private(set) var hasKeyPassthrough = false
@@ -335,6 +339,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     controlsView.addSubview(tabPicker)
 
     configureTabOverlay()
+    extensionPopups.frame = content.bounds
+    extensionPopups.autoresizingMask = [.width, .height]
+    content.addSubview(extensionPopups)
     configureWindowControls()
     updateWindowControls(animated: false)
 
@@ -602,8 +609,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   /// While open, the tab overlay keeps the keyboard from the rest of the
-  /// window (Chrome focuses a page it switches to), but not from a popover
-  /// over it, whose content shares the window's keyboard until it closes.
+  /// window, which Chrome gives a page it switches to (as when the active tab
+  /// closes), though not from an extension's popup opened from it.
   fileprivate func tabOverlayKeepsKeyboard(from responder: NSResponder?)
     -> Bool
   {
@@ -611,9 +618,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return false
     }
     guard let view = responder as? NSView else {
-      return responder == nil || responder === window
+      return true
     }
-    return view.window === window && !view.isDescendant(of: tabOverlay)
+    return !view.isDescendant(of: tabOverlay)
+      && !view.isDescendant(of: extensionPopups)
   }
 
   /// For what opens in its place, which it gets out of the way of at once,
@@ -1345,8 +1353,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   /// The browser focuses the page when something else navigates it (the
-  /// About item in the app menu, say), and the omnibar and command palette
-  /// give way, as Chrome's omnibox does.
+  /// About item in the app menu, say), or an extension's popup as it opens,
+  /// and the omnibar and command palette give way, as Chrome's omnibox does.
   fileprivate func firstResponderDidChange() {
     madeFindBar?.firstResponderDidChange()
     if let bubble = shownBubble {
@@ -1367,7 +1375,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
         bubble.firstResponderDidChange()
       }
     }
-    let pages = [contentsView, devTools?.view].compactMap { $0 }
+    let pages = [contentsView, devTools?.view, extensionPopups].compactMap {
+      $0
+    }
     guard pages.contains(where: isFirstResponder(in:)) else {
       return
     }

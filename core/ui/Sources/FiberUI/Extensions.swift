@@ -43,6 +43,8 @@ final class ExtensionsController: NSObject, FiberExtensions {
 
   private let bar: ExtensionsBar
   private let bubbles: ExtensionBubbles
+  private let popupLayer: ExtensionPopupLayer
+  private let restoreFocus: () -> Void
   private let isBarShown: () -> Bool
   /// Where the bar's menu button is, in the window's content view, for
   /// popups while the tab overlay is closed.
@@ -50,17 +52,20 @@ final class ExtensionsController: NSObject, FiberExtensions {
   private var extensions: [FiberExtensionState] = []
   private var menu: ExtensionsMenu?
   private weak var popup: ExtensionPopup?
-  /// The click that last closed a popover (see CapsuleButton), so the same
-  /// click on its button doesn't open it again.
+  /// The click that last closed the menu or a popup (see CapsuleButton), so
+  /// the same click on its button doesn't open it again.
   private var closingClick: (button: String, timestamp: TimeInterval)?
 
   init(
     bar: ExtensionsBar, bubbles: ExtensionBubbles,
+    popupLayer: ExtensionPopupLayer, restoreFocus: @escaping () -> Void,
     isBarShown: @escaping () -> Bool,
     hiddenMenuButtonRect: @escaping () -> (NSView, NSRect)?
   ) {
     self.bar = bar
     self.bubbles = bubbles
+    self.popupLayer = popupLayer
+    self.restoreFocus = restoreFocus
     self.isBarShown = isBarShown
     self.hiddenMenuButtonRect = hiddenMenuButtonRect
     super.init()
@@ -121,8 +126,9 @@ final class ExtensionsController: NSObject, FiberExtensions {
   ) -> any FiberExtensionPopup {
     popup?.close()
     let popup = ExtensionPopup(
-      contentsView: contentsView, actions: actions,
-      anchor: { [weak self] in self?.popupAnchor(for: extensionID) })
+      contentsView: contentsView, actions: actions, layer: popupLayer,
+      anchor: { [weak self] in self?.popupAnchor(for: extensionID) },
+      restoreFocus: restoreFocus)
     popup.onUserClose = { [weak self] in
       self?.noteClosingClick(for: extensionID)
     }
@@ -187,8 +193,8 @@ final class ExtensionsController: NSObject, FiberExtensions {
     actions?.runExtension(withID: button.extensionID, fromMenu: false)
   }
 
-  /// A popover that closes on a click outside it closes before the click
-  /// reaches whatever was clicked; if that's the button that opened it, the
+  /// The menu and popups close on a click outside them before the click
+  /// reaches whatever was clicked; if that's the button that opened one, the
   /// click only closes it.
   private func noteClosingClick(for key: String) {
     guard let event = NSApp.currentEvent,
@@ -224,7 +230,7 @@ final class ExtensionsController: NSObject, FiberExtensions {
 }
 
 /// A capsule's button that notes when it's pressed, so a click that closed its
-/// popover doesn't open it again (see ExtensionsController).
+/// menu or popup doesn't open it again (see ExtensionsController).
 class CapsuleButton: NSButton {
   private(set) var mouseDownTimestamp: TimeInterval = -1
 
@@ -430,89 +436,111 @@ final class ExtensionBadge: NSView {
   }
 }
 
-/// An extension's popup: its page, in a popover fitted to the page's size.
+/// An extension's popup: its page in glass (see ExtensionPanel) by the button
+/// it opened from, fitted to the page's size. It's in the window because a
+/// popover's window never becomes key, which a page needs to have focus.
 @MainActor
-final class ExtensionPopup: NSObject, FiberExtensionPopup, NSPopoverDelegate {
-  /// Called when the user closes the popup, by clicking in the window it
-  /// opened from.
+final class ExtensionPopup: NSObject, FiberExtensionPopup {
+  /// Called when the user closes the popup, by clicking elsewhere in its
+  /// window.
   var onUserClose: () -> Void = {}
 
-  private let popover = NSPopover()
-  private let container = PopupBackground()
+  private let panel = ExtensionPanel()
   private let actions: any FiberExtensionPopupActions
+  private weak var layer: ExtensionPopupLayer?
   private let anchor: () -> (NSView, NSRect)?
-  private weak var anchorWindow: NSWindow?
+  /// Gives the keyboard to the window's tab, when what had it before the
+  /// popup can't take it back.
+  private let restoreFocus: () -> Void
+  private var contentSize = NSSize.zero
+  private weak var previousResponder: NSResponder?
+  private var clickMonitor: Any?
   private var isClosed = false
-
-  /// AppKit asks to close during either half of the click.
-  private static let clicks: Set<NSEvent.EventType> = [
-    .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
-    .otherMouseDown, .otherMouseUp,
-  ]
 
   init(
     contentsView: NSView, actions: any FiberExtensionPopupActions,
-    anchor: @escaping () -> (NSView, NSRect)?
+    layer: ExtensionPopupLayer, anchor: @escaping () -> (NSView, NSRect)?,
+    restoreFocus: @escaping () -> Void
   ) {
     self.actions = actions
+    self.layer = layer
     self.anchor = anchor
+    self.restoreFocus = restoreFocus
     super.init()
-    contentsView.frame = container.bounds
-    contentsView.autoresizingMask = [.width, .height]
-    container.addSubview(contentsView)
-    let controller = NSViewController()
-    controller.view = container
-    popover.contentViewController = controller
-    popover.behavior = .transient
-    popover.animates = true
-    popover.delegate = self
+    panel.setPage(contentsView)
   }
 
   func setContentSize(_ size: NSSize) {
-    popover.contentSize = size
+    contentSize = size
+    layout()
   }
 
   func show() {
-    guard !isClosed, !popover.isShown else {
+    guard !isClosed, panel.superview == nil, let layer else {
       return
     }
-    guard let (view, rect) = anchor() else {
+    guard anchor() != nil else {
       // Nowhere to show it.
       DispatchQueue.main.async { [weak self] in self?.userDidClose() }
       return
     }
-    anchorWindow = view.window
-    popover.show(relativeTo: rect, of: view, preferredEdge: .minY)
+    previousResponder = layer.window?.firstResponder
+    layer.popup = self
+    layer.addSubview(panel)
+    layout()
+    panel.alphaValue = 0
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.18
+      panel.animator().alphaValue = 1
+    }
+    clickMonitor = NSEvent.addLocalMonitorForEvents(
+      matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+    ) { [weak self] event in
+      MainActor.assumeIsolated {
+        self?.closeIfOutside(event)
+      }
+      return event
+    }
   }
 
   func close() {
+    guard !isClosed else {
+      return
+    }
     isClosed = true
-    popover.close()
+    dismiss()
   }
 
-  func popoverShouldClose(_ popover: NSPopover) -> Bool {
-    // As in Chrome, it stays open while another window has the focus (a save
-    // panel the page opened, which needs the page alive to save), and closes
-    // on a click in the window it opened from.
-    guard let event = NSApp.currentEvent, Self.clicks.contains(event.type),
-      let anchorWindow
+  /// Above the button it opened from, or below it if there's no room,
+  /// centered on it and within the window.
+  fileprivate func layout() {
+    guard let layer = panel.superview, let (view, rect) = anchor() else {
+      return
+    }
+    let button = layer.convert(rect, from: view)
+    let bounds = layer.bounds.insetBy(
+      dx: ExtensionBubbles.margin, dy: ExtensionBubbles.margin)
+    let size = panel.frameSize(forPage: contentSize)
+    let width = min(size.width, bounds.width)
+    let height = min(size.height, bounds.height)
+    let above = button.minY - GlassCapsule.spacing - height
+    let below = button.maxY + GlassCapsule.spacing
+    panel.frame = NSRect(
+      x: ExtensionBubbleLayout.clamp(
+        button.midX - width / 2, bounds.minX, bounds.maxX - width),
+      y: above >= bounds.minY ? above : min(below, bounds.maxY - height),
+      width: width, height: height)
+  }
+
+  /// As in Chrome, it stays open while another window has the focus (a save
+  /// panel the page opened, which needs the page alive to save), and closes
+  /// on a click elsewhere in its window.
+  private func closeIfOutside(_ event: NSEvent) {
+    guard let window = panel.window, event.window === window,
+      !panel.bounds.contains(panel.convert(event.locationInWindow, from: nil))
     else {
-      return false
+      return
     }
-    var window = event.window
-    while let current = window, current !== anchorWindow {
-      window = current.parent
-    }
-    return window != nil
-  }
-
-  func popoverWillClose(_ notification: Notification) {
-    if !isClosed {
-      onUserClose()
-    }
-  }
-
-  func popoverDidClose(_ notification: Notification) {
     userDidClose()
   }
 
@@ -521,18 +549,69 @@ final class ExtensionPopup: NSObject, FiberExtensionPopup, NSPopoverDelegate {
       return
     }
     isClosed = true
+    onUserClose()
+    dismiss()
     actions.extensionPopupDidClose()
+  }
+
+  private func dismiss() {
+    if let clickMonitor {
+      NSEvent.removeMonitor(clickMonitor)
+      self.clickMonitor = nil
+    }
+    guard panel.superview != nil else {
+      return
+    }
+    if hasKeyboard {
+      giveKeyboardBack()
+    }
+    let panel = panel
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.14
+      panel.animator().alphaValue = 0
+    } completionHandler: {
+      MainActor.assumeIsolated {
+        panel.removeFromSuperview()
+      }
+    }
+  }
+
+  private var hasKeyboard: Bool {
+    guard let responder = panel.window?.firstResponder as? NSView else {
+      return false
+    }
+    return responder.isDescendant(of: panel)
+  }
+
+  /// To what had it as the popup showed (the tab overlay, say), if that's
+  /// still in the window and can take it.
+  private func giveKeyboardBack() {
+    if let window = panel.window, let previous = previousResponder,
+      previous === window || (previous as? NSView)?.window === window,
+      window.makeFirstResponder(previous)
+    {
+      return
+    }
+    restoreFocus()
   }
 }
 
-/// Behind a popup's page, which may not draw a background of its own: the
-/// window's background color, as Chrome's popup bubble has its own, rather
-/// than the glass (and what's behind it) showing through.
+/// Over the tab overlay, whose extensions' buttons popups open from: the
+/// window's extension popup. Clicks anywhere else go through.
 @MainActor
-private final class PopupBackground: NSView {
-  override var wantsUpdateLayer: Bool { true }
+final class ExtensionPopupLayer: NSView {
+  fileprivate weak var popup: ExtensionPopup?
 
-  override func updateLayer() {
-    layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+  override var isFlipped: Bool { true }
+
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    let view = super.hitTest(point)
+    return view === self ? nil : view
+  }
+
+  // The window's other views have laid out by now, the popup's button with
+  // them.
+  override func resizeSubviews(withOldSize oldSize: NSSize) {
+    popup?.layout()
   }
 }

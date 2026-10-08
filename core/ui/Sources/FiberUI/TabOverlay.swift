@@ -709,7 +709,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   /// While open, the window keeps the keyboard from the rest of it (see
   /// BrowserWindowController.tabOverlayKeepsKeyboard(from:)).
-  override var acceptsFirstResponder: Bool { true }
+  override var acceptsFirstResponder: Bool { isOpen }
 
   /// Command-W closes the selection, not the tab behind the overlay.
   override func performKeyEquivalent(with event: NSEvent) -> Bool {

@@ -208,7 +208,7 @@ final class ExtensionWindowBubble: NSObject, FiberExtensionWindow {
   private static let minContentSize = NSSize(width: 240, height: 200)
 
   let bubbleView = ExtensionBubbleView()
-  let panel = ExtensionWindowPanel()
+  let panel = ExtensionPanel()
   private(set) var isExpanded = false
   private weak var container: ExtensionBubbles?
   private var actions: (any FiberExtensionWindowActions)?
@@ -414,11 +414,11 @@ final class ExtensionWindowBubble: NSObject, FiberExtensionWindow {
 
 // MARK: - Panel
 
-/// An extension window's page, in glass, with the page's site above it when
-/// it isn't one of the extension's own. Menu actions go to the extension's
-/// window while the page has focus.
+/// An extension's page in glass: an extension window's, with the page's site
+/// above it when it isn't one of the extension's own, or a popup's. Menu
+/// actions go to the extension's window while its page has focus.
 @MainActor
-final class ExtensionWindowPanel: NSView {
+final class ExtensionPanel: NSView {
   private static let cornerRadius: CGFloat = 22
   private static let rimWidth: CGFloat = 6
   private static let siteHeight: CGFloat = 26
@@ -430,11 +430,10 @@ final class ExtensionWindowPanel: NSView {
   }
 
   private let shadowView = OutsetShadowView()
-  private let glass = RimmedGlassView(rimWidth: ExtensionWindowPanel.rimWidth)
+  private let glass = RimmedGlassView(rimWidth: ExtensionPanel.rimWidth)
   private let content = PanelContent(
-    siteHeight: ExtensionWindowPanel.siteHeight,
-    pageCornerRadius: ExtensionWindowPanel.cornerRadius
-      - ExtensionWindowPanel.rimWidth)
+    siteHeight: ExtensionPanel.siteHeight,
+    pageCornerRadius: ExtensionPanel.cornerRadius - ExtensionPanel.rimWidth)
 
   override init(frame: NSRect) {
     super.init(frame: frame)
