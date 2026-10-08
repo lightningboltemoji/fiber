@@ -3,8 +3,8 @@ import FiberBridge
 import SwiftUI
 
 /// The harness's own controls, in a panel beside the browser window they act
-/// on: its tabs, the profile's pins, a prompt on its page, a tab opened from a
-/// link on it, and how slowly the UI animates.
+/// on: its tabs, the profile's pins and downloads, a prompt on its page, a tab
+/// opened from a link on it, and how slowly the UI animates.
 @MainActor
 final class HarnessControls: NSObject, NSWindowDelegate {
   @Observable
@@ -15,6 +15,7 @@ final class HarnessControls: NSObject, NSWindowDelegate {
     @ObservationIgnored var setTabCount: (Int) -> Void = { _ in }
     @ObservationIgnored var setPinCount: (Int) -> Void = { _ in }
     @ObservationIgnored var showPrompt: (PromptSample) -> Void = { _ in }
+    @ObservationIgnored var addDownload: () -> Void = {}
     /// In front, or behind.
     @ObservationIgnored var openTabFromLink: (Bool) -> Void = { _ in }
   }
@@ -157,6 +158,9 @@ private struct ControlsView: View {
           }
         }
         .fixedSize()
+      }
+      LabeledContent("Download:") {
+        Button("Start") { model.addDownload() }
       }
       LabeledContent("Link:") {
         HStack {

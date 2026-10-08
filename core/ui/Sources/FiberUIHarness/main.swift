@@ -1,6 +1,7 @@
 // Runs Fiber's UI against a mock browser that uses the bridge exactly as
 // //fiber/browser does, without Chromium. Flags: `--tabs N` (made-up sites),
-// `--downloads N` (which quitting waits for), `--ask-before-leaving`,
+// `--downloads N` (made-up downloads in every state, in the tab overlay;
+// quitting waits for those in progress), `--ask-before-leaving`,
 // `--palette QUERY` (the command palette, open with QUERY typed),
 // `--find QUERY` (the find bar, likewise), `--extension-window` (a window an extension opened, as its bubble),
 // `--incognito` (the first window is Incognito, on the New Tab page),
@@ -31,7 +32,8 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   let incognitoTabIndex = FiberTabIndexFactory.tabIndex()
   /// The profile's pins, which its windows share.
   let pins = MockPins()
-  private lazy var downloads = MockDownloads(count: launchDownloadCount)
+  /// The profile's, which its windows list.
+  lazy var downloads = MockDownloads(count: launchDownloadCount)
   /// Waited for from the controls, without quitting.
   private var sampleDownloads: MockDownloads?
   private lazy var profiles = MockProfiles(app: self)
@@ -128,7 +130,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       return .terminateCancel
     }
     // Like Chrome, it waits for downloads, in the window last used.
-    guard !downloads.isEmpty,
+    guard downloads.hasInProgress,
       let window = NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible)
     else {
       return .terminateNow
@@ -234,6 +236,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       }
       self?.showPrompt(sample, in: browser)
     }
+    controls.model.addDownload = { [weak self] in self?.downloads.add() }
     controls.model.openTabFromLink = { [weak self] inFront in
       self?.currentBrowser?.openTabFromLink(
         MockBrowser.sampleURLs(count: 4).last!, inFront: inFront)

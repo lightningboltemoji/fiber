@@ -85,6 +85,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
     extensions = MockExtensions(ui: ui.extensions, window: ui.window) {
       [weak self] in self?.activeTab.id ?? 0
     }
+    // Incognito's profile has downloads of its own, none so far.
+    if !isIncognito {
+      app.downloads.attach(ui.downloads)
+    }
     for url in urls {
       openTab(url, activate: true)
     }

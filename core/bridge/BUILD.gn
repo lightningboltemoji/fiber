@@ -15,6 +15,7 @@ source_set("bridge") {
     "include/FiberBridge/FiberBuiltInPageFavicon.h",
     "include/FiberBridge/FiberContextMenu.h",
     "include/FiberBridge/FiberDevTools.h",
+    "include/FiberBridge/FiberDownloads.h",
     "include/FiberBridge/FiberDownloadsWait.h",
     "include/FiberBridge/FiberExtensions.h",
     "include/FiberBridge/FiberFindBar.h",

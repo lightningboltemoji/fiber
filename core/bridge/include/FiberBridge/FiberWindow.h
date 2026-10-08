@@ -4,6 +4,7 @@
 @class FiberPageState;
 @class FiberPinState;
 @class FiberTabState;
+@protocol FiberDownloads;
 @protocol FiberExtensions;
 @protocol FiberFindBar;
 @protocol FiberOmnibox;
@@ -111,6 +112,8 @@ NS_SWIFT_UI_ACTOR
 // The omnibar, where the user enters an address or search.
 @property(readonly) id<FiberOmnibox> omnibox;
 @property(readonly) id<FiberExtensions> extensions;
+// Listed in the tab overlay, under its tabs.
+@property(readonly) id<FiberDownloads> downloads;
 @property(readonly) id<FiberFindBar> findBar;
 // A startup window's are set once, by the browser that takes it over (see
 // FiberWindowFactory); what the user does before then waits in the event

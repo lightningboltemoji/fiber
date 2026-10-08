@@ -4,10 +4,10 @@ import SwiftUI
 
 /// The window's tabs, over the dimmed page with Command-S: those that aren't
 /// pins', in the tab strip's order, in a panel as wide as the command
-/// palette's, with the pins (PinGrid) in rows above it, and the page's address
-/// and the extensions beside it. The arrow keys, Return and Command-W move
-/// through, switch to and close them. This view takes the events and keeps the
-/// model; TabOverlayView draws.
+/// palette's, with the pins (PinGrid) in rows above it, the page's address
+/// and the extensions beside it, and the downloads (DownloadsBubble) under it.
+/// The arrow keys, Return and Command-W move through, switch to and close
+/// them. This view takes the events and keeps the model; TabOverlayView draws.
 @MainActor
 final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Called with a tab to switch to, never the active one. Its owner closes
@@ -25,6 +25,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   var onPinMenu: (FiberPinState, NSEvent) -> Void = { _, _ in }
   var onTabMenu: (Int, NSEvent) -> Void = { _, _ in }
   var onAddressClick: () -> Void = {}
+  var onDownloadAction: (DownloadAction) -> Void = { _ in }
+  /// Called as the overlay opens over downloads.
+  var onDownloadsShown: () -> Void = {}
   /// Called when the overlay is done without switching tabs: the user picked
   /// the active tab, pressed Escape, or clicked outside it. Its owner closes
   /// it.
@@ -54,6 +57,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private let addressButton = TabOverlay.makeAddressButton()
   private let extensionsBubble = RimmedGlassView(
     rimWidth: GlassCapsule.rimWidth)
+  private let downloadsBubble = DownloadsBubble()
   private let isIncognito: Bool
   /// All the window's tabs; the panel lists those that aren't pins'.
   private var tabs: [FiberTabState] = []
@@ -81,6 +85,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var heldAddress: String?
   private var heldTabs: (tabs: [FiberTabState], activeTabID: Int)?
   private var heldPins: [FiberPinState]?
+  private var heldDownloads: [FiberDownloadState]?
   /// Its fade out as it closes, which waits for what's on it to leave.
   private var pendingFadeOut: DispatchWorkItem?
   /// Counts its closings, so that a fade out from one cut short does nothing.
@@ -109,6 +114,18 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       extensionsBar, fillingWidth: false)
     // Pinning an extension widens its capsule.
     extensionsBar.onResize = { [weak self] in self?.layoutPanel() }
+    addSubview(downloadsBubble)
+    downloadsBubble.onAction = { [weak self] action in
+      self?.onDownloadAction(action)
+    }
+    downloadsBubble.onResize = { [weak self] in self?.layoutPanel() }
+    downloadsBubble.onGlassChange = { [weak self] in
+      guard let self else {
+        return
+      }
+      self.model.downloadsFrame = self.downloadsBubble.glassFrame
+      self.model.downloadsCornerRadius = self.downloadsBubble.glassCornerRadius
+    }
     setAddress("")
     model.onSelect = { [weak self] tabID in self?.pick(tabID) }
     model.onClose = { [weak self] tabID in self?.onClose(tabID) }
@@ -137,8 +154,13 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     guard !isOpen else {
       return
     }
+    downloadsBubble.isOverlayOpen = true
     stopClosing()
     isOpen = true
+    downloadsBubble.setExpanded(false, animated: false)
+    if downloadsBubble.isShown {
+      onDownloadsShown()
+    }
     model.selection = initialSelection
     model.closeButton = nil
     restingPointer = NSEvent.mouseLocation
@@ -161,6 +183,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   func close(forReplacement: Bool = false) {
     if isOpen {
       isOpen = false
+      downloadsBubble.isOverlayOpen = false
       isClosing = true
       closings += 1
       model.isOpen = false
@@ -230,11 +253,15 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       heldTabs = nil
       setTabs(tabs, activeTabID: activeTabID)
     }
+    if let downloads = heldDownloads {
+      heldDownloads = nil
+      setDownloads(downloads)
+    }
   }
 
   /// The address and extensions come and go with the pins (see
   /// TabOverlayMotion), from the left beside the panel, or from above like
-  /// the pins when above them.
+  /// the pins when above them; the downloads with the panel's wave.
   private func moveBubbles() {
     let offset =
       model.areBubblesBeside
@@ -246,6 +273,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         delay: model.motionDelay(ofBubble: bubble.frame),
         span: model.motionSpan)
     }
+    TabOverlayMotion.move(
+      downloadsBubble, from: CGSize(width: 0, height: -TabOverlayMotion.travel),
+      isOpening: isOpen,
+      delay: model.motionDelay(belowPanel: model.downloadsFrame),
+      span: model.motionSpan)
   }
 
   /// How light the page under the overlay is, in CIE L*: the darker, the more
@@ -328,6 +360,14 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     if countChanged {
       updatePinToolTips()
     }
+  }
+
+  func setDownloads(_ downloads: [FiberDownloadState]) {
+    guard !isClosing else {
+      heldDownloads = downloads
+      return
+    }
+    downloadsBubble.setDownloads(downloads)
   }
 
   /// A flourish where each pin that came or went is, or was.
@@ -420,14 +460,15 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func resizeSubviews(withOldSize oldSize: NSSize) {
     hostingView.frame = bounds
+    downloadsBubble.frame = bounds
     heldTop = nil
-    layoutPanel()
+    layoutPanel(animated: false)
   }
 
-  /// The panel as wide as the command palette's, as tall as its list as far
-  /// as fits, and with what's above it a little above the window's middle;
-  /// the address and extensions to its left, or above the pins if narrow.
-  private func layoutPanel() {
+  /// The panel as wide as the command palette's, as tall as fits, with what's
+  /// above and below it a little above the window's middle; the address and
+  /// extensions to its left (or above if narrow), the downloads under it.
+  private func layoutPanel(animated: Bool = true) {
     guard bounds.width > 0 else {
       return
     }
@@ -443,16 +484,18 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let pinsHeight = model.pinsHeight(width: width)
     let above = pinsHeight + (isBeside ? 0 : height + Self.bubbleSpacing)
     let footerHeight = TabOverlayModel.footerHeight
+    let below =
+      footerHeight
+      + (downloadsBubble.isShown
+        ? DownloadsLayout.spacing + GlassCapsule.height : 0)
     let highest = PaletteView.minTop + above
     let listHeight = min(
       model.listContentHeight,
-      max(bounds.height - PaletteView.bottomMargin - footerHeight - highest, 0)
-    )
+      max(bounds.height - PaletteView.bottomMargin - below - highest, 0))
     let lowest = max(
-      bounds.height - PaletteView.bottomMargin - footerHeight - listHeight,
-      highest)
+      bounds.height - PaletteView.bottomMargin - below - listHeight, highest)
     let placed =
-      ((bounds.height - above - footerHeight - listHeight) * Self.topShare)
+      ((bounds.height - above - below - listHeight) * Self.topShare)
       .rounded() + above
     let top = min(max(heldTop ?? placed, highest), lowest)
     if isOpen {
@@ -488,6 +531,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       updatePinToolTips()
     }
     setScrollOffset(clamp(model.scrollOffset, to: model.scrollRange))
+    let downloadsWidth = min(downloadsBubble.capsuleWidth, width)
+    downloadsBubble.setCapsuleFrame(
+      CGRect(
+        x: frame.maxX - downloadsWidth, y: frame.maxY + DownloadsLayout.spacing,
+        width: downloadsWidth, height: GlassCapsule.height),
+      animated: animated && isOpen)
   }
 
   /// `view` in the middle of a capsule's glass, as wide as its ends allow if
@@ -719,7 +768,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   override func cancelOperation(_ sender: Any?) {
-    onDismiss()
+    if downloadsBubble.isExpanded {
+      downloadsBubble.setExpanded(false, animated: true)
+    } else {
+      onDismiss()
+    }
   }
 
   private enum Direction {
@@ -838,15 +891,14 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   // MARK: Pointer
 
-  /// Everything but the address and extensions, which take their own clicks.
-  /// The page under it takes none.
+  /// Everything but the address, extensions and downloads, which take their
+  /// own clicks. The page under it takes none.
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard isOpen, let view = super.hitTest(point) else {
       return nil
     }
-    let isInBubble = [addressBubble, extensionsBubble].contains {
-      view.isDescendant(of: $0)
-    }
+    let isInBubble = [addressBubble, extensionsBubble, downloadsBubble]
+      .contains { view.isDescendant(of: $0) }
     return isInBubble ? view : self
   }
 
@@ -883,6 +935,14 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func mouseDown(with event: NSEvent) {
     let point = location(of: event)
+    // A click off the downloads' list closes it; on nothing else, that's all
+    // it does.
+    if downloadsBubble.isExpanded {
+      downloadsBubble.setExpanded(false, animated: true)
+      guard isOnPanelOrPins(point) else {
+        return
+      }
+    }
     guard isOnPanelOrPins(point) else {
       onDismiss()
       return
@@ -965,6 +1025,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   override func rightMouseDown(with event: NSEvent) {
+    downloadsBubble.setExpanded(false, animated: true)
     showMenu(for: event)
   }
 
@@ -978,12 +1039,15 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   /// The selection follows the pointer onto a pin or a tab, once it has
-  /// moved. Nil for the pointer gone.
+  /// moved. Nil for the pointer gone, or on the downloads over the tabs.
   private func hover(at point: CGPoint?) {
     guard isOpen, restingPointer != NSEvent.mouseLocation else {
       return
     }
     restingPointer = nil
+    let point = point.flatMap {
+      downloadsBubble.glassFrame.contains($0) ? nil : $0
+    }
     if let point, model.pinDrag == nil {
       if let pin = pin(at: point) {
         model.selection = .pin(pin.pinID)
@@ -1004,7 +1068,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// flick coasts, and stops at the end. The page under it doesn't scroll.
   override func scrollWheel(with event: NSEvent) {
     let range = model.scrollRange
-    guard range.upperBound > 0 else {
+    guard range.upperBound > 0,
+      !downloadsBubble.glassFrame.contains(location(of: event))
+    else {
       return
     }
     let delta = -event.scrollingDeltaY
@@ -1076,6 +1142,10 @@ final class TabOverlayModel {
   /// panel rather than above it and its pins.
   var bubbleFrames: [CGRect] = []
   var areBubblesBeside = true
+  /// The downloads' glass under the panel (see DownloadsBubble): the
+  /// capsule, or the list it opens into. Empty with no downloads.
+  var downloadsFrame: CGRect = .zero
+  var downloadsCornerRadius: CGFloat = 0
   /// The page's, in CIE L* (see TabOverlay.setPageLightness(_:)).
   var pageLightness: Double = 100
   @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
@@ -1119,6 +1189,12 @@ final class TabOverlayModel {
       : motionDelay(amongPins: frame)
   }
 
+  /// The same for something under the panel, as the panel's wave reaches it.
+  func motionDelay(belowPanel frame: CGRect) -> TimeInterval {
+    frame.isEmpty
+      ? 0 : TabOverlayMotion.panelDelay(at: distanceFromCorner(of: frame))
+  }
+
   /// The same for something among or above the pins, by where it comes
   /// between the nearest pin and the farthest, or with the panel's wave if
   /// there are none.
@@ -1139,7 +1215,9 @@ final class TabOverlayModel {
       pinDistances.map {
         TabOverlayMotion.pinsDuration(reach: $0.farthest - $0.nearest)
       } ?? 0
-    let bubblesDelay = bubbleFrames.map(motionDelay(ofBubble:)).max() ?? 0
+    let bubblesDelay = max(
+      bubbleFrames.map(motionDelay(ofBubble:)).max() ?? 0,
+      motionDelay(belowPanel: downloadsFrame))
     return TabOverlayMotion.span(
       lastDelay: max(pinsDelay, bubblesDelay),
       panelReach: PanelWave.reach(of: panelFrame.size))
@@ -1165,7 +1243,7 @@ final class TabOverlayModel {
   }
 
   /// The glass, for the black pooled under it: the panel, each row of pins,
-  /// and the address's and extensions' capsules.
+  /// the address's and extensions' capsules, and the downloads'.
   var poolShapes: [DimmingPool.Shape] {
     var shapes = [
       DimmingPool.Shape(
@@ -1186,6 +1264,10 @@ final class TabOverlayModel {
         DimmingPool.Shape(
           id: "bubble\(index)", frame: frame, cornerRadius: frame.height / 2))
     }
+    shapes.append(
+      DimmingPool.Shape(
+        id: "downloads", frame: downloadsFrame,
+        cornerRadius: downloadsCornerRadius))
     return shapes.filter { !$0.frame.isEmpty }
   }
 

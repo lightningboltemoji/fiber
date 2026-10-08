@@ -2,26 +2,6 @@ import AppKit
 import FiberBridge
 import SwiftUI
 
-@objc @implementation extension FiberDownloadState {
-  let downloadID: String
-  let fileName: String
-  let statusText: String
-  let progress: Double
-  let paused: Bool
-
-  init(
-    downloadID: String, fileName: String, statusText: String,
-    progress: Double, paused: Bool
-  ) {
-    self.downloadID = downloadID
-    self.fileName = fileName
-    self.statusText = statusText
-    self.progress = progress
-    self.paused = paused
-    super.init()
-  }
-}
-
 @objc @implementation extension FiberDownloadsWaitFactory {
   @objc(waitWithReason:window:actions:)
   class func wait(

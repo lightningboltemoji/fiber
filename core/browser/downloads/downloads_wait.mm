@@ -11,10 +11,10 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
-#include "chrome/browser/download/download_item_model.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/download/public/common/download_item.h"
 #include "content/public/browser/download_manager.h"
+#include "fiber/browser/downloads/download_state.h"
 
 // Forwards what the user does to its DownloadsWait.
 @interface FiberDownloadsWaitActionsBridge
@@ -78,18 +78,6 @@ bool IsBlocking(const download::DownloadItem& item) {
   return !item.IsTransient() &&
          item.GetState() == download::DownloadItem::IN_PROGRESS &&
          !item.IsDangerous() && !item.IsInsecure();
-}
-
-FiberDownloadState* StateForDownload(download::DownloadItem* item) {
-  int percent = item->PercentComplete();
-  return [[FiberDownloadState alloc]
-      initWithDownloadID:base::SysUTF8ToNSString(item->GetGuid())
-                fileName:base::SysUTF16ToNSString(
-                             item->GetFileNameToReportUser().LossyDisplayName())
-              statusText:base::SysUTF16ToNSString(
-                             DownloadItemModel(item).GetStatusText())
-                progress:percent < 0 ? -1 : percent / 100.0
-                  paused:item->IsPaused()];
 }
 
 }  // namespace
@@ -233,7 +221,7 @@ void DownloadsWait::Update() {
   }
   NSMutableArray<FiberDownloadState*>* states = [NSMutableArray array];
   for (download::DownloadItem* item : downloads) {
-    [states addObject:StateForDownload(item)];
+    [states addObject:DownloadStateFor(item)];
   }
   [ui_ setDownloads:states];
 }

@@ -52,6 +52,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
   var omnibox: any FiberOmnibox { omnibar }
   var extensions: any FiberExtensions { extensionsController }
+  var downloads: any FiberDownloads { windowDownloads }
   var findBar: any FiberFindBar { madeFindBar ?? makeFindBar() }
 
   private let browserWindow: BrowserWindow
@@ -102,6 +103,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
           y: content.bounds.maxY - inset - size, width: size, height: size)
       )
     })
+  private let windowDownloads = WindowDownloads()
   private let newTabView: NewTabView
   private let sadTabView = SadTabView()
   /// Over the page, under the tab picker.
@@ -495,6 +497,18 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabOverlay)
     }
     tabOverlay.onAddressClick = { [weak self] in self?.showOmnibar() }
+    tabOverlay.onDownloadAction = { [weak self] action in
+      if action.leavesOverlay {
+        self?.closeTabOverlay()
+      }
+      self?.windowDownloads.perform(action)
+    }
+    tabOverlay.onDownloadsShown = { [weak self] in
+      self?.windowDownloads.didShow()
+    }
+    windowDownloads.onChange = { [weak self] downloads in
+      self?.tabOverlay.setDownloads(downloads)
+    }
     tabOverlay.onDismiss = { [weak self] in self?.closeTabOverlay() }
     tabOverlay.onShowOrHide = { [weak self] in
       self?.schedulePanelDimmingUpdate()

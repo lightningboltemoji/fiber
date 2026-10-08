@@ -1,5 +1,7 @@
 #import <AppKit/AppKit.h>
 
+#import "FiberDownloads.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 // What's waiting for downloads to finish.
@@ -9,28 +11,6 @@ typedef NS_ENUM(NSInteger, FiberDownloadsWaitReason) {
   // Incognito window's, say).
   FiberDownloadsWaitReasonCloseWindow,
 };
-
-// A download that's in progress or paused.
-NS_SWIFT_SENDABLE
-@interface FiberDownloadState : NSObject
-
-- (instancetype)initWithDownloadID:(NSString*)downloadID
-                          fileName:(NSString*)fileName
-                        statusText:(NSString*)statusText
-                          progress:(double)progress
-                            paused:(BOOL)paused NS_DESIGNATED_INITIALIZER;
-- (instancetype)init NS_UNAVAILABLE;
-
-// Stable for the download's life.
-@property(readonly, copy) NSString* downloadID;
-@property(readonly, copy) NSString* fileName;
-// Its size and time left, "12.3/45.6 MB, 2 mins left", or that it's paused.
-@property(readonly, copy) NSString* statusText;
-// From 0 to 1, or negative while its size isn't known.
-@property(readonly) double progress;
-@property(readonly) BOOL paused;
-
-@end
 
 NS_SWIFT_UI_ACTOR
 @protocol FiberDownloadsWaitActions <NSObject>

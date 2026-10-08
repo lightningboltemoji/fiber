@@ -50,6 +50,7 @@
 #include "content/public/common/result_codes.h"
 #include "content/public/common/url_constants.h"
 #include "fiber/browser/downloads/downloads_wait.h"
+#include "fiber/browser/downloads/fiber_downloads.h"
 #include "fiber/browser/extensions/fiber_extension_window.h"
 #include "fiber/browser/extensions/fiber_extensions_toolbar.h"
 #include "fiber/browser/find_bar/fiber_find_bar.h"
@@ -256,6 +257,7 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
   extensions_toolbar_ =
       std::make_unique<FiberExtensionsToolbar>(browser_, ui_.extensions);
+  downloads_ = std::make_unique<FiberDownloads>(browser_, ui_.downloads);
   // Before the window observes its tab strip, so it sees which tabs are pins'.
   PinStore* pin_store = PinStore::FromProfile(GetProfile());
   if (pin_store &&
@@ -273,6 +275,7 @@ FiberBrowserWindow::~FiberBrowserWindow() {
   pinned_tabs_.reset();
   // Its popup and actions go while the browser's features are still there.
   extensions_toolbar_.reset();
+  downloads_.reset();
   if (downloads_wait_) {
     downloads_wait_->Close();
   }

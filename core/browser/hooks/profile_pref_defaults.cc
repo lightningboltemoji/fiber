@@ -22,6 +22,9 @@ void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry) {
   // through the Share menu.
   registry->SetDefaultPrefValue(prefs::kDesktopSharingHubEnabled,
                                 base::Value(false));
+  // "Ask where to save each file before downloading": on, so a download
+  // goes where the user picks rather than straight to the Downloads folder.
+  registry->SetDefaultPrefValue(prefs::kPromptForDownload, base::Value(true));
 }
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {

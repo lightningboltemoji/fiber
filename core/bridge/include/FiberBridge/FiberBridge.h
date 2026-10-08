@@ -5,6 +5,7 @@
 #import "FiberBuiltInPageFavicon.h"
 #import "FiberContextMenu.h"
 #import "FiberDevTools.h"
+#import "FiberDownloads.h"
 #import "FiberDownloadsWait.h"
 #import "FiberExtensions.h"
 #import "FiberFindBar.h"

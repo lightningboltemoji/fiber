@@ -29,6 +29,7 @@
 namespace fiber {
 
 class DownloadsWait;
+class FiberDownloads;
 class FiberExtensionsToolbar;
 class HistorySwipeNavigation;
 class FiberLocationBar;
@@ -311,6 +312,7 @@ class FiberBrowserWindow : public BrowserWindow,
   std::unique_ptr<FiberLocationBar> location_bar_;
   std::unique_ptr<FiberStatusBubble> status_bubble_;
   std::unique_ptr<FiberExtensionsToolbar> extensions_toolbar_;
+  std::unique_ptr<FiberDownloads> downloads_;
   std::unique_ptr<PinnedTabs> pinned_tabs_;
   // The profile's, shared with its other windows.
   raw_ptr<TabIndexSource> tab_index_source_;
