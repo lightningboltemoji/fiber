@@ -119,7 +119,7 @@ Each surface Fiber replaces, and where it lives:
 | New Tab page | `browser/new_tab/` | `NewTabView.swift` |
 | Incognito windows: dark, like Safari's Private Browsing, with a hand in the address and a New Tab page that says what Incognito keeps | `browser/window/`, `browser/new_tab/` | `BrowserWindowController.swift`, `TabOverlay.swift`, `NewTabView.swift` |
 | JavaScript dialogs | `browser/dialogs/` | `JavaScriptDialog.swift` |
-| Prompts, in glass bubbles over the page, which stays usable around them: leave site, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth), a site's files from an earlier visit (File System Access), and Chrome's `ui::DialogModel` dialogs (confirming a folder upload, File System Access's questions, Name Window, extensions' notices). A tab's shows while the tab is active, centered on a short page and a quarter of the way down a tall one; the window's own (downloads, extension notices, Name Window) shows over whichever tab is, ahead of the tab's. Each is a capsule with its icon at one end and its buttons at the other, growing into a rounded rectangle for fields, a list or more text; once its text runs past a few lines the buttons go under it, at the end, and beside fields they line up with them, one to a field when there are as many. Sites are named without http or https; a sign-in over HTTP says the connection isn't private. It opens from a circle around its icon as a wave like the tab overlay's runs across it. Its glass is light, or dark over a dark page, whatever the window's appearance (from a thumbnail of the page behind it as it shows): light glass reads over anything, dark glass only over dark. It takes the keyboard as it shows, unless something over the page has it, so Return and Escape answer it (their keys show on its buttons), and gives it back when the user clicks the page | `browser/dialogs/`, `browser/downloads/`, `browser/extensions/` | `PromptBubble.swift`, `Prompt.swift`, `DownloadsWait.swift` |
+| Prompts, in glass bubbles over the page, which stays usable around them: leave site, downloads on quit, extension install and removal, site permissions, form resubmission, opening another app, a site's sign-in (HTTP auth), a site's files from an earlier visit (File System Access), reopening windows after a crash (see [Sessions](#sessions)), and Chrome's `ui::DialogModel` dialogs (confirming a folder upload, File System Access's questions, Name Window, extensions' notices). A tab's shows while the tab is active, centered on a short page and a quarter of the way down a tall one; the window's own (downloads, extension notices, Name Window, reopening windows) shows over whichever tab is, ahead of the tab's. Each is a capsule with its icon at one end and its buttons at the other, growing into a rounded rectangle for fields, a list or more text; once its text runs past a few lines the buttons go under it, at the end, and beside fields they line up with them, one to a field when there are as many. Sites are named without http or https; a sign-in over HTTP says the connection isn't private. It opens from a circle around its icon as a wave like the tab overlay's runs across it. Its glass is light, or dark over a dark page, whatever the window's appearance (from a thumbnail of the page behind it as it shows): light glass reads over anything, dark glass only over dark. It takes the keyboard as it shows, unless something over the page has it, so Return and Escape answer it (their keys show on its buttons), and gives it back when the user clicks the page. The window's own holds off the omnibar a New Tab page opens | `browser/dialogs/`, `browser/downloads/`, `browser/extensions/` | `PromptBubble.swift`, `Prompt.swift`, `DownloadsWait.swift` |
 | Hold to quit (⌘Q), in place of Chrome's confirm-to-quit panel: the veil fills each window's page while the keys are held | `hooks/confirm_quit.mm` | `QuitConfirmation.swift`, `Veil.swift` |
 | Dimming under the tab overlay, omnibar, command palette and veil: black over the window, and under the tab overlay more, pooled under its glass (the panel, each row of pins, the address, extensions and downloads) and blurred, so the glass sits on a dark backdrop and the page fades back in toward the window's edges. The pool is darker over a darker page, by how light a thumbnail of the page is, the middle counting most | `browser/window/page_thumbnail.mm` | `Dimming.swift` |
 | Profile switcher, in place of Chrome's Profile Picker and avatar menu (Profiles › Switch Profile…, ⇧⌘M): the profiles turning slowly around a hub over the veiled page, making one, and making one from a Chrome profile (its bookmarks, history, passwords and cookies). Fiber's avatars stand in for Chrome's wherever Chrome draws one | `browser/profiles/`, `hooks/resource_bundle_delegate.mm` | `ProfileSwitcher.swift`, `ProfileSwitcherView.swift`, `ProfileAvatar.swift` |
@@ -230,6 +230,49 @@ profile shows whether or not it has the pin open:
 - Chrome's own pinned-tab persistence (`PinnedTabService`, and pinned tabs
   reopened at startup) is cut: pins open only when clicked.
 
+## Sessions
+
+Fiber's windows are Chrome's session: `SessionService` keeps a log of each
+window's tabs (their history, scroll and form state, pins) a few seconds
+behind, which session restore reads back. A log cut short loses only its last
+few seconds. What Fiber decides is when to restore, so that no way of ending
+Fiber loses a window (`browser/sessions/`):
+
+- **Every launch** brings back the windows open when Fiber last quit: "On
+  startup" defaults to "Continue where you left off"
+  (`hooks/profile_pref_defaults.cc`). Where each was comes from its session,
+  which the window tells as it moves or changes size, as Chrome's windows do
+  (`FiberBrowserWindow::OnWindowFrameChanged()`); in fullscreen, the frame it
+  returns to.
+- **After a crash too.** Chrome doesn't restore after a crash, lest the
+  restore crash in a loop, and asks in a views bubble. Fiber restores as after
+  a quit (`HasPendingUncleanExit()` is false, `hooks/crash_restore.h`), unless
+  restoring after the crash before crashed too, within a minute: then, or if
+  "On startup" isn't Continue, a prompt offers to, in place of Chrome's bubble.
+  Until the restore is done, or the prompt answered, Chrome keeps the session
+  that crashed (`ExitTypeService`). Fiber writes the profile's prefs as it
+  starts, where `ExitTypeService` has just marked the session open, so a
+  crash in its first seconds counts too. Chrome's infobar about the setting
+  is off.
+- **A Dock click with no windows open** brings back the windows last closed,
+  as relaunching would; Chrome only does for a login item (`AppController`'s
+  `-applicationShouldHandleReopen:`). ⌘N opens an empty window.
+- **Closed windows** are Chrome's recently closed: ⇧⌘T, History › Recently
+  Closed, and the command palette (see [PALETTE.md](PALETTE.md)). Fiber keeps
+  100 closed windows and tabs rather than 25 (`tab_restore_service_helper.h`).
+- **Previous sessions.** Chrome keeps one, the session before, deleted once
+  the next ends or history is cleared. As each ends, `CommandStorageBackend`
+  hard-links its file into the profile's `Sessions/Previous/`
+  (`hooks/previous_session.h`), and `PreviousSessions` reads and prunes them:
+  at most 20, none a later one has all the pages of, none with only New Tab
+  pages. History › Previous Sessions and the command palette list those whose
+  pages aren't all open now, and reopen their windows
+  (`SessionRestore::RestoreForeignSessionWindows()`). Clearing history (not
+  its expiring) clears them.
+
+[TESTING.md](TESTING.md#restoring-windows) has what to try after changing any
+of it.
+
 ## Startup
 
 Fiber's window shows before Chrome's startup is done. Chrome makes its first
@@ -239,8 +282,9 @@ the main loop's first idle, later still.
 
 - **The startup window** (`hooks/startup_window.mm`). As soon as the process
   holds the process singleton (so it's the browser, not a launch handing its
-  URLs to a running one), `ShowStartupWindow()` shows a Fiber window where the
-  last startup's window went, with only the New Tab page's mark on its page,
+  URLs to a running one), `ShowStartupWindow()` shows a Fiber window where a
+  normal window was last moved or resized to, with only the New Tab page's
+  mark on its page,
   since that's usually what it turns out to be. The first normal,
   non-Incognito browser takes the window over rather than making one
   (`FiberBrowserWindow`'s constructor), and tells it what to show from then

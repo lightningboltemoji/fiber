@@ -145,6 +145,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
     activate(tab)
   }
 
+  func restore(_ restorableID: String, showingPageAt pageIndex: Int) {
+    app?.restore(restorableID, showingPageAt: pageIndex)
+  }
+
   func revealText(_ text: String, inTabWithID tabID: Int) {
     selectTab(withID: tabID)
     app?.browser(withTab: tabID)?.tabs.first { $0.id == tabID }?.page.find(text)
@@ -291,6 +295,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
   func windowDidResignMain() {}
 
   func windowDidChangeFullScreen() {}
+
+  func windowDidChangeFrame() {}
 
   // MARK: Menu actions (forwarded by the window)
 
@@ -795,7 +801,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   /// `url` as Chrome shows it: no "https://", "www." or lone "/".
-  private static func displayURL(_ url: String) -> String {
+  static func displayURL(_ url: String) -> String {
     var display = url
     for prefix in ["https://", "http://", "www."]
     where display.hasPrefix(prefix) {

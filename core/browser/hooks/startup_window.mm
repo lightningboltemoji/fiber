@@ -18,7 +18,7 @@ namespace fiber {
 
 namespace {
 
-// Where the last startup's window went, in the app's user defaults.
+// Where the last normal window went, in the app's user defaults.
 NSString* const kFrameKey = @"FiberStartupWindowFrame";
 
 // Chrome's window sizer puts a new window without a saved placement this far
@@ -85,9 +85,7 @@ void FinishStartupWindow() {
   }
   if (g_taken) {
     [window showPage];
-    [NSUserDefaults.standardUserDefaults
-        setObject:NSStringFromRect(window.window.frame)
-           forKey:kFrameKey];
+    RememberStartupWindowFrame(window.window.frame);
   } else {
     [window.window close];
   }
@@ -120,6 +118,11 @@ void ShowStartupWindow() {
                 base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
                     FROM_HERE, base::BindOnce(&FinishStartupWindow));
               }];
+}
+
+void RememberStartupWindowFrame(NSRect frame) {
+  [NSUserDefaults.standardUserDefaults setObject:NSStringFromRect(frame)
+                                          forKey:kFrameKey];
 }
 
 id<FiberWindow> TakeStartupWindow() {

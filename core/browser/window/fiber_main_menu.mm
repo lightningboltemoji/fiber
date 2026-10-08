@@ -4,6 +4,7 @@
 
 #import "FiberBridge/FiberWindow.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "fiber/browser/sessions/previous_sessions_menu.h"
 
 namespace fiber {
 
@@ -62,6 +63,11 @@ void InstallMainMenuItems() {
   [view_menu insertItem:command_palette atIndex:1];
   [view_menu insertItem:key_passthrough atIndex:2];
   [view_menu insertItem:NSMenuItem.separatorItem atIndex:3];
+
+  if (NSMenu* history_menu =
+          [NSApp.mainMenu itemWithTag:IDC_HISTORY_MENU].submenu) {
+    InstallPreviousSessionsMenu(history_menu);
+  }
 
   // Opens Fiber's profile switcher. ProfileMenuController, which fills the
   // Profiles menu later or already has, keeps its profiles above the first

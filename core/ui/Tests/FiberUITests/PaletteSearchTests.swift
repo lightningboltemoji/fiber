@@ -1,3 +1,4 @@
+import FiberBridge
 import Foundation
 import Testing
 
@@ -131,6 +132,51 @@ struct PaletteSearchTests {
     #expect(references?.optional == [0])
     let github = ranked.pageText.first { $0.tabID == 1 }
     #expect(github?.required == [0, 1])
+  }
+
+  /// A window closed an hour ago: GitHub's settings, and a Linear issue.
+  private static let closedWindow = FiberRestorable(
+    id: "window:1", kind: .window, date: now.addingTimeInterval(-3600),
+    windowCount: 1,
+    pages: [
+      FiberRestorablePage(title: "GitHub", url: "github.com/settings"),
+      FiberRestorablePage(title: "FIB-12 Restore sessions", url: "linear.app"),
+    ])
+
+  /// The tabs and commands, with the closed window's pages and the window as
+  /// a whole, as the palette lists them.
+  private func rankWithClosedWindow(_ query: String) -> [PaletteSearch.Result] {
+    let index = TabIndex()
+    let window = Self.closedWindow
+    let restorables = ([0, 1] as [Int?] + [nil]).map { page in
+      PaletteSearch.Entry(
+        id: .restorable(window.restorableID, page: page),
+        candidate: index.candidate(for: window, page: page),
+        lastActive: window.date, isCurrent: false)
+    }
+    return PaletteSearch.rank(
+      PaletteQuery(query), entries: Self.entries + restorables, now: Self.now
+    ).results
+  }
+
+  @Test func closedWindowsListBelowOpenTabs() {
+    let ids = rankWithClosedWindow("github").map(\.id)
+    #expect(ids.first == .tab(1))
+    #expect(ids.contains(.restorable("window:1", page: 0)))
+    #expect(
+      rankWithClosedWindow("restore sessions").first?.id
+        == .restorable("window:1", page: 1))
+  }
+
+  @Test func closedWindowsAreFoundByWhatTheyAre() {
+    let ids = rankWithClosedWindow("closed window").map(\.id)
+    #expect(ids.contains(.restorable("window:1", page: nil)))
+    #expect(!ids.contains { if case .tab = $0 { true } else { false } })
+    // A few letters inside a word aren't enough, as for commands.
+    #expect(
+      !rankWithClosedWindow("indo").contains {
+        if case .restorable = $0.id { true } else { false }
+      })
   }
 
   @Test func shortQueriesDontSearchPageText() {

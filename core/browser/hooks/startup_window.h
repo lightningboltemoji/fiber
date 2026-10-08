@@ -12,8 +12,8 @@ namespace fiber {
 
 // Shows the first browser window as soon as this process knows it's the
 // browser, before Chrome has loaded the profile and made the browser: a Fiber
-// window where the last startup's went, with only the New Tab page's mark on
-// its page yet. The first normal, non-Incognito browser takes it over
+// window where a normal one was last moved or resized to, with only the New
+// Tab page's mark on its page yet. The first normal, non-Incognito browser takes it over
 // (TakeStartupWindow()), and its page shows once AppKit has finished
 // launching; if no browser has taken it by then (Incognito by policy, say), it
 // closes.
@@ -26,6 +26,10 @@ void ShowStartupWindow();
 // The startup window, for the first normal browser; nil if there isn't one
 // (any more).
 id<FiberWindow> TakeStartupWindow();
+
+// The next startup's window shows at `frame`, where a normal browser window
+// was last moved or resized to.
+void RememberStartupWindowFrame(NSRect frame);
 #endif
 
 }  // namespace fiber

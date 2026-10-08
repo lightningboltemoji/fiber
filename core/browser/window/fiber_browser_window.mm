@@ -253,6 +253,7 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
                tabIndex:tab_index_source_->index()
               incognito:browser_->GetProfile()->IsIncognitoProfile()];
   }
+  restored_bounds_ = GetBounds();
   location_bar_ = std::make_unique<FiberLocationBar>(this, ui_.omnibox);
   status_bubble_ = std::make_unique<FiberStatusBubble>(ui_);
   extensions_toolbar_ =
@@ -393,6 +394,11 @@ void FiberBrowserWindow::RevealText(int32_t tab_id,
   tab_index_source_->RevealText(tab->GetContents(), text);
 }
 
+void FiberBrowserWindow::Restore(const std::string& restorable_id,
+                                 std::optional<size_t> page_index) {
+  tab_index_source_->Restore(browser_, restorable_id, page_index);
+}
+
 void FiberBrowserWindow::CloseTab(int32_t tab_id) {
   TabStripModel* model = browser_->GetTabStripModel();
   tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
@@ -427,6 +433,7 @@ void FiberBrowserWindow::OnCommandPaletteOpened() {
   if (content::WebContents* contents = GetActiveWebContents()) {
     tab_index_source_->ReadPageText(contents);
   }
+  tab_index_source_->UpdatePreviousSessions();
 }
 
 bool FiberBrowserWindow::PerformReservedKeyEquivalent(NSEvent* event) {
@@ -536,6 +543,20 @@ void FiberBrowserWindow::OnWindowActivationChanged(bool active) {
     BrowserActiveStateManager::From(browser_)->DidBecomeActive();
   } else {
     BrowserActiveStateManager::From(browser_)->DidBecomeInactive();
+  }
+}
+
+void FiberBrowserWindow::OnWindowFrameChanged() {
+  if (IsFullscreen()) {
+    return;
+  }
+  restored_bounds_ = GetBounds();
+  if (chrome::ShouldSaveWindowPlacement(browser_)) {
+    chrome::SaveWindowPlacement(browser_, restored_bounds_, GetRestoredState());
+  }
+  if (browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL &&
+      !browser_->GetProfile()->IsIncognitoProfile()) {
+    RememberStartupWindowFrame(GetNSWindow().frame);
   }
 }
 
@@ -1080,7 +1101,7 @@ bool FiberBrowserWindow::IsFullscreen() const {
 }
 
 gfx::Rect FiberBrowserWindow::GetRestoredBounds() const {
-  return GetBounds();
+  return IsFullscreen() ? restored_bounds_ : GetBounds();
 }
 
 ui::mojom::WindowShowState FiberBrowserWindow::GetRestoredState() const {

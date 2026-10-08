@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
+index 598e361a29..d957a77815 100644
+--- a/chrome/browser/ui/startup/infobar_utils.cc
++++ b/chrome/browser/ui/startup/infobar_utils.cc
+@@ -50,6 +50,10 @@
+ #include "chrome/browser/ui/startup/chrome_for_testing_infobar_delegate.h"
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/crash_restore.h"
++#endif
++
+ #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/pdf/infobar/pdf_infobar_controller.h"
+@@ -218,9 +222,14 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
+       !is_web_app && HasPendingUncleanExit(browser->GetProfile());
+   base::UmaHistogramBoolean("Startup.CrashBubbleShown", should_display_bubble);
+   if (should_display_bubble) {
++#if BUILDFLAG(IS_MAC)
++    // Fiber: Fiber's prompt, in place of Chrome's bubble.
++    fiber::OfferRestoreAfterCrash(browser);
++#else
+     SessionCrashedBubble::ShowIfNotOffTheRecordProfile(
+         browser,
+         /*skip_tab_checking=*/false);
++#endif
+   }
+ 
+   // These info bars are not shown when the browser is being controlled by

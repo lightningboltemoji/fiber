@@ -59,6 +59,15 @@ struct MatchField {
 struct MatchCandidate {
   let fields: [MatchField]
 
+  /// Other words for something, which find it too.
+  static func aliasFields(_ aliases: [String]) -> [MatchField] {
+    aliases.map {
+      MatchField(
+        words: TextMatching.words(in: $0), weight: 0.85, target: .hidden,
+        isLeading: true)
+    }
+  }
+
   static func tab(title: String, url: String) -> MatchCandidate {
     MatchCandidate(
       fields: [
@@ -74,12 +83,7 @@ struct MatchCandidate {
         MatchField(
           words: TextMatching.words(in: title), weight: 1, target: .title,
           isLeading: true)
-      ]
-        + aliases.map {
-          MatchField(
-            words: TextMatching.words(in: $0), weight: 0.85, target: .hidden,
-            isLeading: true)
-        })
+      ] + aliasFields(aliases))
   }
 
   /// A URL as Chrome formats it for display (no https://, a Unicode host):
@@ -187,17 +191,22 @@ enum PaletteSearch {
     static let command = 0.03
     /// The tab the user is on, which they rarely want to switch to.
     static let currentTab = -0.05
+    /// For a closed window or earlier session, below a tab that's open.
+    static let restorable = -0.1
   }
 
   struct Entry {
     enum ID: Hashable {
       case tab(Int)
       case command(PaletteCommand)
+      /// A closed window or earlier session (FiberRestorable), by one of its
+      /// pages, or by what it is.
+      case restorable(String, page: Int?)
     }
 
     let id: ID
     let candidate: MatchCandidate
-    /// Nil for commands.
+    /// Nil for commands. When a restorable closed or ended.
     let lastActive: Date?
     let isCurrent: Bool
 
@@ -206,6 +215,14 @@ enum PaletteSearch {
         return true
       }
       return false
+    }
+
+    /// Matched like a tab, by any word of its name.
+    var isPage: Bool {
+      switch id {
+      case .tab, .restorable(_, page: .some): true
+      default: false
+      }
     }
   }
 
@@ -261,19 +278,28 @@ enum PaletteSearch {
     var pageText: [PageTextCandidate] = []
     for entry in entries {
       let match = match(query, entry.candidate)
+      // A page matches by any word of its name; other names (a command's,
+      // a page's aliases) need more than a few letters inside a word.
       if match.isComplete
-        && (entry.isTab
-          || match.hits.allSatisfy { $0!.quality >= Quality.command })
+        && match.hits.allSatisfy({
+          (entry.isPage && entry.candidate.fields[$0!.field].target != .hidden)
+            || $0!.quality >= Quality.command
+        })
       {
         var score = match.score
-        if entry.isTab {
-          let age = max(now.timeIntervalSince(entry.lastActive ?? now), 0)
+        if let lastActive = entry.lastActive {
+          let age = max(now.timeIntervalSince(lastActive), 0)
           score += Bonus.recency * pow(0.5, age / Bonus.recencyHalfLife)
+        }
+        switch entry.id {
+        case .tab:
           if entry.isCurrent {
             score += Bonus.currentTab
           }
-        } else {
+        case .command:
           score += Bonus.command
+        case .restorable:
+          score += Bonus.restorable
         }
         ranked.append(
           (

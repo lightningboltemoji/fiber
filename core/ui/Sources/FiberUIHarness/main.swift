@@ -6,6 +6,8 @@
 // `--find QUERY` (the find bar, likewise), `--extension-window` (a window an extension opened, as its bubble),
 // `--incognito` (the first window is Incognito, on the New Tab page),
 // `--pins N` (made-up pinned sites, the first two open),
+// `--restorables N` (N made-up closed windows and earlier sessions, for the
+// command palette),
 // `--overlay` (the tab overlay, as Command-S opens it),
 // `--key-passthrough` (the active tab has key passthrough),
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page),
@@ -32,6 +34,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   let incognitoTabIndex = FiberTabIndexFactory.tabIndex()
   /// The profile's pins, which its windows share.
   let pins = MockPins()
+  private let restorables = MockRestorables()
   /// The profile's, which its windows list.
   lazy var downloads = MockDownloads(count: launchDownloadCount)
   /// Waited for from the controls, without quitting.
@@ -64,6 +67,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         isIncognito: true)
     } else {
       openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
+    }
+    if let count = launchValue(of: "--restorables").flatMap(Int.init) {
+      restorables.addSamples(count)
     }
     if let count = launchValue(of: "--pins").flatMap(Int.init), count > 0 {
       setPinCount(count)
@@ -194,6 +200,12 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
 
   func browserDidClose(_ browser: MockBrowser) {
     browsers.removeAll { $0 === browser }
+    if !browser.isIncognito {
+      restorables.windowClosed(
+        tabs: browser.tabs.map {
+          MockRestorables.Tab(url: $0.url, title: $0.page.title)
+        })
+    }
     if currentBrowser == nil || currentBrowser === browser,
       let last = browsers.last
     {
@@ -204,6 +216,10 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
 
   func tabsDidChange() {
     tabIndex.setTabs(browsers.filter { !$0.isIncognito }.flatMap(\.tabStates))
+    tabIndex.setRestorables(
+      restorables.states(
+        openURLs: Set(
+          browsers.filter { !$0.isIncognito }.flatMap(\.tabs).map(\.url))))
     incognitoTabIndex.setTabs(
       browsers.filter(\.isIncognito).flatMap(\.tabStates))
     updateControls()
@@ -284,6 +300,25 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
 
   func browser(withTab tabID: Int) -> MockBrowser? {
     browsers.first { $0.tabs.contains { $0.id == tabID } }
+  }
+
+  /// Like TabIndexSource: a window, showing the page asked for, or a
+  /// session's windows.
+  func restore(_ id: String, showingPageAt pageIndex: Int) {
+    guard let restorable = restorables.take(id) else {
+      return
+    }
+    for tabs in restorable.windows {
+      openWindow(urls: tabs.map(\.url))
+    }
+    let listed = restorable.windows[0].indices.filter {
+      restorable.windows[0][$0].url != MockBrowser.newTabURL
+    }
+    if restorable.kind == .window, listed.indices.contains(pageIndex),
+      let browser = browsers.last
+    {
+      browser.show(tabWithID: browser.tabs[listed[pageIndex]].id)
+    }
   }
 
   /// Like Chrome, switching to a tab in another window brings it forward.

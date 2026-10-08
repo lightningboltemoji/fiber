@@ -1,7 +1,7 @@
 import AppKit
 
-/// The command palette's rows: tabs and commands, then tabs found by their
-/// pages' text, under a heading. The palette moves the selection. Before the
+/// The command palette's rows: tabs, commands and the windows it can bring
+/// back, then tabs found by their pages' text, under a heading. The palette moves the selection. Before the
 /// user types it lists every tab, so only the rows in sight have views, which
 /// are reused as the list scrolls and changes.
 @MainActor
@@ -239,7 +239,8 @@ extension Array {
 
 /// One tab or command. A tab shows its title over its URL; one found in its
 /// page, its title and URL over the words around the match; a command, its
-/// name and shortcut.
+/// name and shortcut; a closed window or earlier session, the page of it that
+/// matched, or its pages and how many.
 @MainActor
 private final class PaletteRow: NSView {
   static let leadingPadding: CGFloat = 12
@@ -272,7 +273,7 @@ private final class PaletteRow: NSView {
 
   static func height(for kind: PaletteItem.Kind) -> CGFloat {
     switch kind {
-    case .tab: 50
+    case .tab, .restorable: 50
     case .pageText: 72
     case .command: 40
     }
@@ -350,10 +351,9 @@ private final class PaletteRow: NSView {
         8
       }
     let iconY =
-      if case .tab = item.kind {
-        ((bounds.height - Self.iconSize) / 2).rounded()
-      } else {
-        titleY + ((titleHeight - Self.iconSize) / 2).rounded()
+      switch item.kind {
+      case .tab, .restorable: ((bounds.height - Self.iconSize) / 2).rounded()
+      default: titleY + ((titleHeight - Self.iconSize) / 2).rounded()
       }
     icon.frame = NSRect(
       x: Self.leadingPadding, y: iconY, width: Self.iconSize,

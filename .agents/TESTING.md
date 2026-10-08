@@ -92,6 +92,36 @@ Run the dev build on a throwaway profile:
   `NSApp.appearance = NSAppearance(named: .aqua)` in the same place. Don't pass
   `-NSRequiresAquaSystemAppearance YES`: Chrome opens `YES` as a URL.
 
+## Restoring windows
+
+What to try after changing how Fiber restores windows (see
+[Sessions](IMPLEMENTATION.md#sessions)), on a throwaway profile with two
+windows of real pages (a second comes from running the build again with
+`--new-window` and a URL). The build quits cleanly on `kill -INT`, as on ⌘Q;
+`kill -TERM` is how macOS ends it at logout or restart, and `kill -9` leaves
+what a crash or power cut does.
+
+- **Pressing things in the background:** with Accessibility allowed, an
+  `AXPress` reaches a prompt's buttons and the main menu's items (History ›
+  Previous Sessions) by the build's PID, and the build's Dock item, found by
+  its `AXURL`, is a Dock click. That brings the build forward.
+- **Closing a window:** neither AppKit's `performClose:` nor the close button
+  closes it while the build is in the background. A temporary hook (see
+  "Driving it" above) calls its actions' `windowShouldClose()` instead.
+
+| Do | Then |
+|---|---|
+| Quit, or `kill -TERM`, and relaunch | Both windows back, on the same tabs |
+| `kill -9`, and relaunch | Both back, with no prompt |
+| `kill -9` again within a minute, and relaunch | Nothing restored, and a prompt, "Fiber quit while reopening your windows", whose Reopen Windows brings them back |
+| Close one window, quit, relaunch | Only the other back; the closed one in the command palette ("closed window") |
+| Close both, then click the build's Dock item | The one closed last back |
+| Relaunch a few times with different tabs | History › Previous Sessions lists the earlier sessions, not the one open now, and reopens one's windows; so does the palette ("previous session") |
+| Clear browsing history | No previous sessions |
+
+`make size` shows whether Chrome's crash bubble (`session_crashed_bubble_view.cc`)
+is still linked: nothing should reach it.
+
 ## Measuring lag
 
 Typed keys that don't show right away mean the main thread is busy.

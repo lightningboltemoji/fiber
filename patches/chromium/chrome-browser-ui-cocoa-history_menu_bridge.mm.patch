@@ -1,0 +1,24 @@
+diff --git a/chrome/browser/ui/cocoa/history_menu_bridge.mm b/chrome/browser/ui/cocoa/history_menu_bridge.mm
+index 711936a21d..ac46015d10 100644
+--- a/chrome/browser/ui/cocoa/history_menu_bridge.mm
++++ b/chrome/browser/ui/cocoa/history_menu_bridge.mm
+@@ -51,6 +51,9 @@
+ #include "ui/gfx/paint_vector_icon.h"
+ #include "ui/resources/grit/ui_resources.h"
+ 
++// Fiber: History › Previous Sessions.
++#include "fiber/browser/sessions/previous_sessions_menu.h"
++
+ namespace {
+ 
+ // Number of days to consider when getting the number of visited items.
+@@ -727,6 +730,9 @@ bool HistoryMenuBridge::ShouldMenuItemBeVisible(NSMenuItem* item) {
+     case kVisitedTitle:
+     case kShowFullSeparator:
+     case IDC_SHOW_HISTORY:
++    // Fiber: History › Previous Sessions, which an Incognito window has none
++    // of.
++    case fiber::kPreviousSessionsMenuTag:
+       return !profile_->IsOffTheRecord();
+   }
+ 

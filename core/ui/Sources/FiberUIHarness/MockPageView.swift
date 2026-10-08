@@ -161,13 +161,17 @@ final class MockPageView: NSView {
       .draw(in: bounds, angle: 60)
   }
 
-  func show(url: String, loaded: Bool) {
+  /// What the page at `url` is titled once loaded.
+  static func title(for url: String) -> String {
     let host = URL(string: url)?.host() ?? url
     let path = URL(string: url)?.path() ?? ""
-    title =
-      url == MockBrowser.newTabURL
+    return url == MockBrowser.newTabURL
       ? "New Tab"
       : MockPages.page(for: url)?.title ?? "\(host)\(path == "/" ? "" : path)"
+  }
+
+  func show(url: String, loaded: Bool) {
+    title = Self.title(for: url)
     titleLabel.stringValue = loaded ? title : "Loading…"
     urlLabel.stringValue = url
     needsDisplay = true

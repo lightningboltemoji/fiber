@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/app_controller_mac.mm b/chrome/browser/app_controller_mac.mm
-index cb1b5aa8be..efb49e9d16 100644
+index cb1b5aa8be..6df5faa91e 100644
 --- a/chrome/browser/app_controller_mac.mm
 +++ b/chrome/browser/app_controller_mac.mm
 @@ -88,7 +88,6 @@
@@ -156,7 +156,26 @@ index cb1b5aa8be..efb49e9d16 100644
    return NO;
  }
  
-@@ -1986,7 +1906,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -1882,15 +1802,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+   base::FilePath lastProfilePath = GetStartupProfilePathMac();
+   DCHECK_NE(lastProfilePath, ProfileManager::GetSystemProfilePath());
+ 
+-  // If launched as a hidden login item (due to installation of a persistent app
+-  // or by the user, for example in System Settings->General->Login Items),
+-  // allow the session to be restored first time the user clicks on a Dock icon.
+-  // Normally, it'd just open a new empty page.
+-  static BOOL doneOnce = NO;
+-  BOOL attemptRestore =
+-      apps::AppShimTerminationManager::Get()->ShouldRestoreSession() ||
+-      (!doneOnce && base::mac::WasLaunchedAsHiddenLoginItem());
+-  doneOnce = YES;
++  // Fiber: the windows last closed come back, as they would if Fiber were
++  // relaunched (fiber/browser/sessions). ⌘N still opens an empty one.
++  BOOL attemptRestore = YES;
+ 
+   // If the profile is locked or was off-the-record, open the profile picker.
+   if (lastProfilePath == ProfileManager::GetGuestProfilePath() ||
+@@ -1986,7 +1900,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
  // display of that item depending on the preference state.
  - (void)updateConfirmToQuitPrefMenuItem:(NSMenuItem*)item {
    // Format the string so that the correct key equivalent is displayed.
@@ -166,7 +185,7 @@ index cb1b5aa8be..efb49e9d16 100644
    NSString* title = l10n_util::GetNSStringF(IDS_CONFIRM_TO_QUIT_OPTION,
        base::SysNSStringToUTF16(acceleratorString));
    [item setTitle:title];
-@@ -2593,13 +2514,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -2593,13 +2508,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
    });
  }
  

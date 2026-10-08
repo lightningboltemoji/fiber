@@ -52,6 +52,10 @@ NS_SWIFT_UI_ACTOR
 // Selects the tab, as -selectTabWithID: does, and finds `text` (from its page
 // text, see FiberTabIndex) in its page, leaving it selected.
 - (void)revealText:(NSString*)text inTabWithID:(NSInteger)tabID;
+// Brings back a window the user closed, or an earlier session's windows (see
+// FiberTabIndex), as they were, but showing page `pageIndex` of a closed
+// window's if it isn't NSNotFound.
+- (void)restore:(NSString*)restorableID showingPageAtIndex:(NSInteger)pageIndex;
 // Closes one of the window's tabs, as its close button would: the page may
 // ask the user first.
 - (void)closeTabWithID:(NSInteger)tabID;
@@ -88,6 +92,9 @@ NS_SWIFT_UI_ACTOR
 - (void)windowDidBecomeMain;
 - (void)windowDidResignMain;
 - (void)windowDidChangeFullScreen;
+// The window moved or changed size (once a live resize is over): the browser
+// keeps where it is, for restoring it.
+- (void)windowDidChangeFrame;
 
 @end
 

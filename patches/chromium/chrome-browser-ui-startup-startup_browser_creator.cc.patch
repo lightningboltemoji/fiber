@@ -1,0 +1,25 @@
+diff --git a/chrome/browser/ui/startup/startup_browser_creator.cc b/chrome/browser/ui/startup/startup_browser_creator.cc
+index 661831f8e9..ec730eb2d5 100644
+--- a/chrome/browser/ui/startup/startup_browser_creator.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator.cc
+@@ -124,6 +124,7 @@
+ 
+ #if BUILDFLAG(IS_MAC)
+ #include "chrome/browser/web_applications/os_integration/mac/app_shim_registry.h"
++#include "fiber/browser/hooks/crash_restore.h"
+ #endif
+ 
+ #if BUILDFLAG(IS_WIN)
+@@ -1597,6 +1598,12 @@ bool StartupBrowserCreator::ActivatedProfile() {
+ }
+ 
+ bool HasPendingUncleanExit(Profile* profile) {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: a crash Fiber restores from, as from a quit, isn't pending.
++  if (fiber::RestoresAfterCrash(profile)) {
++    return false;
++  }
++#endif
+   return ExitTypeService::GetLastSessionExitType(profile) ==
+              ExitType::kCrashed &&
+          !ProfileLaunchObserver::HasBeenLaunchedAndBrowserOpen(profile) &&

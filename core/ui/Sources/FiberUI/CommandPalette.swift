@@ -61,6 +61,9 @@ struct PaletteItem: Equatable {
     /// A tab listed for what's in its page.
     case pageText(Int)
     case command(PaletteCommand)
+    /// A closed window or earlier session, by the page of it that matched or
+    /// as a whole.
+    case restorable(String, page: Int?)
   }
 
   let kind: Kind
@@ -81,9 +84,9 @@ struct PaletteItem: Equatable {
 }
 
 /// Fiber's command palette (Command-P): the profile's tabs, in all its
-/// windows, and browser commands, found by name or by what's in the tabs'
-/// pages. Before the user types, the tabs, most recently used first. Covers
-/// the window while open. See .agents/PALETTE.md.
+/// windows, browser commands, and the windows it can bring back, found by name
+/// or by what's in the tabs' pages. Before the user types, the tabs, most
+/// recently used first. Covers the window while open. See .agents/PALETTE.md.
 @MainActor
 final class CommandPalette: NSObject {
   private static let pageStep = 5
@@ -195,10 +198,15 @@ final class CommandPalette: NSObject {
           id: .command($0), candidate: $0.candidate, lastActive: nil,
           isCurrent: false)
       }
+      entries += restorableEntries(openURLs: Set(tabs.map(\.url)))
     }
     let ranked = PaletteSearch.rank(query, entries: entries)
     let tabsByID = Dictionary(
       tabs.map { ($0.tabID, $0) }, uniquingKeysWith: { first, _ in first })
+    // Each restorable once, by its best match, and each page once, in the
+    // most recent that has it, which ranks first.
+    var listedRestorables: Set<String> = []
+    var listedPages: Set<String> = []
     nameItems = ranked.results.compactMap { result in
       switch result.id {
       case .tab(let tabID):
@@ -212,6 +220,10 @@ final class CommandPalette: NSObject {
           kind: .command(command), title: command.title,
           titleRanges: result.titleRanges, symbolName: command.symbolName,
           accessory: command.shortcut)
+      case .restorable(let id, let page):
+        restorableItem(
+          id: id, page: page, result: result, listed: &listedRestorables,
+          listedPages: &listedPages)
       }
     }
     pageTextCandidates = Dictionary(
@@ -303,6 +315,87 @@ final class CommandPalette: NSObject {
     }
   }
 
+  /// The windows the palette can bring back, by each of their pages but those
+  /// open now (the open tab is the one wanted), and by what they are.
+  private func restorableEntries(openURLs: Set<String>)
+    -> [PaletteSearch.Entry]
+  {
+    index.restorables.flatMap { restorable in
+      let pages = restorable.pages.indices.filter {
+        !openURLs.contains(restorable.pages[$0].url)
+      }
+      return (pages.map(Optional.some) + [nil]).map { page in
+        PaletteSearch.Entry(
+          id: .restorable(restorable.restorableID, page: page),
+          candidate: index.candidate(for: restorable, page: page),
+          lastActive: restorable.date, isCurrent: false)
+      }
+    }
+  }
+
+  private func restorable(withID id: String) -> FiberRestorable? {
+    index.restorables.first { $0.restorableID == id }
+  }
+
+  /// One of the restorable's pages, if that's what matched; otherwise the
+  /// restorable, named by its pages. Nil if either is listed already.
+  private func restorableItem(
+    id: String, page: Int?, result: PaletteSearch.Result,
+    listed: inout Set<String>, listedPages: inout Set<String>
+  ) -> PaletteItem? {
+    guard !listed.contains(id), let restorable = restorable(withID: id) else {
+      return nil
+    }
+    let isWindow = restorable.kind == .window
+    let symbolName = isWindow ? "macwindow" : "clock.arrow.circlepath"
+    if let page, !result.titleRanges.isEmpty || !result.subtitleRanges.isEmpty
+    {
+      let shown = restorable.pages[page]
+      guard listedPages.insert(shown.url).inserted else {
+        return nil
+      }
+      listed.insert(id)
+      return PaletteItem(
+        kind: .restorable(restorable.restorableID, page: page),
+        title: shown.title, titleRanges: result.titleRanges,
+        subtitle: shown.url, subtitleRanges: result.subtitleRanges,
+        symbolName: symbolName,
+        accessory: isWindow ? "Closed window" : "Earlier session")
+    }
+    listed.insert(id)
+    let titles = restorable.pages.map(\.title)
+    let named = titles.prefix(3).joined(separator: ", ")
+    let tabs = Self.count(restorable.pages.count, "tab")
+    let windows = Self.count(restorable.windowCount, "window")
+    return PaletteItem(
+      kind: .restorable(restorable.restorableID, page: nil),
+      title: titles.count > 3 ? "\(named) and \(titles.count - 3) more" : named,
+      subtitle: isWindow
+        ? "Closed window · \(tabs)" : "Earlier session · \(windows) · \(tabs)",
+      symbolName: symbolName,
+      accessory: Self.when(restorable))
+  }
+
+  private static func count(_ count: Int, _ noun: String) -> String {
+    "\(count) \(noun)\(count == 1 ? "" : "s")"
+  }
+
+  /// When a window closed ("2 hours ago"), or a session ended ("Yesterday at
+  /// 6:40 PM", as History › Previous Sessions has it).
+  private static func when(_ restorable: FiberRestorable) -> String {
+    restorable.kind == .window
+      ? restorable.date.formatted(.relative(presentation: .named))
+      : sessionDateFormatter.string(from: restorable.date)
+  }
+
+  private static let sessionDateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    formatter.doesRelativeDateFormatting = true
+    return formatter
+  }()
+
   private func tabItem(
     _ kind: PaletteItem.Kind, tab: FiberTabState, titleRanges: [NSRange],
     subtitleRanges: [NSRange]
@@ -324,6 +417,11 @@ final class CommandPalette: NSObject {
       case .tab: "Switch to Tab"
       case .pageText: "Show in Page"
       case .command: "Run"
+      case .restorable(let id, _):
+        restorable(withID: id).map {
+          $0.windowCount == 1
+            ? "Reopen Window" : "Reopen \($0.windowCount) Windows"
+        }
       case nil: nil
       }
     view.hints = (action.map { [($0, "↩")] } ?? []) + [("Close", "esc")]
@@ -346,6 +444,8 @@ final class CommandPalette: NSObject {
       actions.revealText(item.findText, inTabWithID: tabID)
     case .command(let command):
       actions.run(command.command)
+    case .restorable(let id, let page):
+      actions.restore(id, showingPageAt: page ?? NSNotFound)
     }
   }
 }

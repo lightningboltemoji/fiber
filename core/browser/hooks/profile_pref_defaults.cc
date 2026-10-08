@@ -1,13 +1,20 @@
 #include "fiber/browser/hooks/profile_pref_defaults.h"
 
 #include "base/values.h"
+#include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/common/pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "fiber/browser/pins/pin_store.h"
+#include "fiber/browser/sessions/crash_restore.h"
 
 namespace fiber {
 
 void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry) {
+  // On startup, the windows open when Fiber last quit come back ("Continue
+  // where you left off"), as they do after a crash (hooks/crash_restore.h).
+  registry->SetDefaultPrefValue(
+      prefs::kRestoreOnStartup,
+      base::Value(SessionStartupPref::kPrefValueLast));
   // "Autocomplete searches and URLs": off, so the omnibox doesn't send what's
   // typed to the search engine for suggestions. Its suggestions come from the
   // user's own history, bookmarks, and tabs.
@@ -29,6 +36,7 @@ void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry) {
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   PinStore::RegisterProfilePrefs(registry);
+  RegisterCrashRestorePrefs(registry);
 }
 
 }  // namespace fiber

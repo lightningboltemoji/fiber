@@ -4,6 +4,7 @@
 #include <CoreGraphics/CoreGraphics.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/color/color_provider_source.h"
+#include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/native_ui_types.h"
 
 @class FiberBrowserWindowActions;
@@ -84,6 +86,10 @@ class FiberBrowserWindow : public BrowserWindow,
   void SelectTab(int32_t tab_id);
   // Selects the tab, and finds `text` in its page.
   void RevealText(int32_t tab_id, const std::u16string& text);
+  // Brings back a closed window or a previous session the command palette
+  // lists (see TabIndexSource).
+  void Restore(const std::string& restorable_id,
+               std::optional<size_t> page_index);
   // Closes one of this window's tabs as the user would, so its page can ask
   // first and it can be reopened (see WillCloseTabs()).
   void CloseTab(int32_t tab_id);
@@ -101,6 +107,9 @@ class FiberBrowserWindow : public BrowserWindow,
   void OnWindowCloseRequested();
   void OnWindowActivationChanged(bool active);
   void OnWindowFullscreenChanged();
+  // Saves where the window is to its session, as Chrome's windows do, and for
+  // the next startup's window.
+  void OnWindowFrameChanged();
 
   // Sends the UI what it shows of the active tab's page (the toolbar, the
   // window title, a sad tab).
@@ -316,6 +325,8 @@ class FiberBrowserWindow : public BrowserWindow,
   std::unique_ptr<PinnedTabs> pinned_tabs_;
   // The profile's, shared with its other windows.
   raw_ptr<TabIndexSource> tab_index_source_;
+  // Its frame outside fullscreen, which is the one restored.
+  gfx::Rect restored_bounds_;
   // Set while closing the window waits for its downloads.
   base::WeakPtr<DownloadsWait> downloads_wait_;
   // After a history swipe lands, until the page it went to shows.

@@ -18,6 +18,13 @@ the browser.
 - **Commands** are New Tab, Print… and Key Passthrough (`FiberCommand`,
   which `browser/` maps to Chrome's command IDs, but for Key Passthrough,
   which is Fiber's own).
+- **Windows to bring back**, as they type: the windows the user closed
+  (Chrome's recently closed) and earlier sessions (see
+  [Sessions](IMPLEMENTATION.md#sessions)), each listed once. By the page of
+  it that matched, beside "Closed window" or "Earlier session", but not by
+  pages open now, since the open tab is the one wanted; or as a whole, named
+  by its pages, for words like "closed window" and "previous session".
+  Return reopens a closed window on that page, or a session's windows.
 - **Opening it**: View > Command Palette (Command-P), which the window
   handles (`FiberWindowMenuActions`). Pages never see Command-P, unless their
   tab has key passthrough (see [IMPLEMENTATION.md](IMPLEMENTATION.md#keyboard-shortcuts)).
@@ -30,10 +37,10 @@ the browser.
 
 | | Where | Does |
 |---|---|---|
-| `browser/` | `palette/tab_index_source.mm` | One per profile, made with its first window: sends the tabs of all its windows to the index, coalesced, and keeps a `PageText` for each. |
+| `browser/` | `palette/tab_index_source.mm` | One per profile, made with its first window: sends the tabs of all its windows to the index, coalesced, and keeps a `PageText` for each. Sends the windows it can bring back too, and brings them back. |
 | | `palette/page_text.cc` | Reads a tab's page text (`content_extraction::GetInnerText`): a second after it loads, two after it changes its URL itself, when the user leaves the tab, and when the palette opens on it. Finds a match in the page with Chrome's find in page, then stops, keeping the selection. |
-| bridge | `FiberTabIndex.h`, `FiberWindow.h` | The index the profile's windows share; the window's palette actions. |
-| `ui/` | `TabIndex.swift` | The index: the tabs, and their text in a `PageTextIndex`. |
+| bridge | `FiberTabIndex.h`, `FiberRestorable.h`, `FiberWindow.h` | The index the profile's windows share, and what it can bring back; the window's palette actions. |
+| `ui/` | `TabIndex.swift` | The index: the tabs, their text in a `PageTextIndex`, and the windows it can bring back. |
 | | `PaletteSearch.swift`, `TextMatching.swift` | Matching names, and ranking. |
 | | `PageTextIndex.swift` | Pages' text: passages, an index by word, BM25, snippets. |
 | | `CommandPalette.swift`, `PaletteResultList.swift` | The palette and its rows. |
@@ -86,11 +93,14 @@ A result's score is the mean of its words' (quality × weight), plus:
 - 0.1 if the first word matches the first word of the title or site;
 - 0.1 if the words match in order, side by side, in one field (0.05 apart);
 - 0.1 × the share of the title's words matched ("Print" beats "Print CSS");
-- up to 0.05 for recency, halving every 6 hours (commands get 0.03);
-- −0.05 for the current tab, which is rarely the one wanted.
+- up to 0.05 for recency, halving every 6 hours (commands get 0.03), as of
+  when a window closed or a session ended;
+- −0.05 for the current tab, which is rarely the one wanted;
+- −0.1 for a closed window or earlier session, below an open tab.
 
 Commands need every word to match at least as well as two typos; a few
-letters inside a word don't make one.
+letters inside a word don't make one. So do the words that find a closed
+window or session by what it is.
 
 ### Page text
 

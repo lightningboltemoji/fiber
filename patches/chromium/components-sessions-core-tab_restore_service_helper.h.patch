@@ -1,0 +1,17 @@
+diff --git a/components/sessions/core/tab_restore_service_helper.h b/components/sessions/core/tab_restore_service_helper.h
+index 41fe1e40c9..b14033e36f 100644
+--- a/components/sessions/core/tab_restore_service_helper.h
++++ b/components/sessions/core/tab_restore_service_helper.h
+@@ -66,7 +66,12 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
+   };
+ 
+   // Max number of entries we'll keep around.
++#if BUILDFLAG(IS_MAC)
++  // Fiber: more, so closed windows last (fiber/browser/sessions).
++  static const int kMaxEntries = 100;
++#else
+   static const int kMaxEntries = 25;
++#endif
+ 
+   // Creates a new TabRestoreServiceHelper and provides an object that provides
+   // the current time. The TabRestoreServiceHelper does not take ownership of

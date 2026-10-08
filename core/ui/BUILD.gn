@@ -42,6 +42,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/Prompt.swift",
     "Sources/FiberUI/PromptBubble.swift",
     "Sources/FiberUI/QuitConfirmation.swift",
+    "Sources/FiberUI/Restorable.swift",
     "Sources/FiberUI/RimmedGlassView.swift",
     "Sources/FiberUI/SadTabView.swift",
     "Sources/FiberUI/SlowMotion.swift",

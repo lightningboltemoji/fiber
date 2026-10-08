@@ -831,6 +831,8 @@ extension FiberPromptTopic {
     case .keyboardLock: ("keyboard.fill", Color(nsColor: .systemGray), nil)
     case .pointerLock: ("cursorarrow.rays", Color(nsColor: .systemGray), nil)
     case .spatial: ("visionpro", Color(nsColor: .systemPurple), nil)
+    case .restore:
+      ("clock.arrow.circlepath", Color(nsColor: .systemBlue), nil)
     default: ("questionmark.circle.fill", Color(nsColor: .systemGray), nil)
     }
   }

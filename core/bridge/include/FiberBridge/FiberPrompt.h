@@ -99,6 +99,8 @@ typedef NS_ENUM(NSInteger, FiberPromptTopic) {
   FiberPromptTopicPointerLock,
   // Virtual and augmented reality, and hand tracking.
   FiberPromptTopicSpatial,
+  // Windows from before Fiber quit unexpectedly.
+  FiberPromptTopicRestore,
 };
 
 // What a prompt says: from the top, a title with a line over it and a

@@ -1,0 +1,25 @@
+diff --git a/components/sessions/core/command_storage_backend.h b/components/sessions/core/command_storage_backend.h
+index 66b3f544d8..c891ef9960 100644
+--- a/components/sessions/core/command_storage_backend.h
++++ b/components/sessions/core/command_storage_backend.h
+@@ -20,6 +20,7 @@
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/time/time.h"
+ #include "base/types/expected.h"
++#include "build/build_config.h"
+ #include "components/os_crypt/async/common/encryptor.h"
+ #include "components/sessions/core/command_storage_manager.h"
+ #include "components/sessions/core/session_command.h"
+@@ -124,6 +125,12 @@ class SESSIONS_EXPORT CommandStorageBackend
+   // Returns the commands from the last session file.
+   ReadCommandsResult ReadLastSessionCommands();
+ 
++#if BUILDFLAG(IS_MAC)
++  // Fiber: reads one of the previous sessions Fiber keeps
++  // (fiber/browser/hooks/previous_session.h).
++  static ReadCommandsResult ReadCommandsFromFile(const base::FilePath& path);
++#endif
++
+   // Deletes the file containing the commands for the last session.
+   void DeleteLastSession();
+ 

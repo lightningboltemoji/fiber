@@ -369,7 +369,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.replaceTabOverlay()
     }
     omnibar.onDismiss = { [weak self] in self?.closeOmnibar() }
-    omnibar.canOpenForTab = { [weak self] in self?.tabOverlay.isOpen != true }
+    omnibar.canOpenForTab = { [weak self] in
+      self?.tabOverlay.isOpen != true && self?.windowBubble == nil
+    }
     omnibar.view.onShowOrHide = { [weak self] in
       self?.schedulePanelDimmingUpdate()
     }
@@ -1208,10 +1210,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  /// Folds `bubble` away, giving the keyboard back to the page if it has it.
+  /// Folds `bubble` away, giving the keyboard back to the tab if it has it.
   private func takeDown(_ bubble: PromptBubble) {
     if bubble.hasKeyboard {
-      actions?.focusPage()
+      actions?.restoreFocus()
     }
     bubble.leave()
   }
@@ -1478,6 +1480,20 @@ extension BrowserWindowController: NSWindowDelegate {
   func windowDidExitFullScreen(_ notification: Notification) {
     updateWindowControls(animated: true)
     actions?.windowDidChangeFullScreen()
+  }
+
+  func windowDidMove(_ notification: Notification) {
+    actions?.windowDidChangeFrame()
+  }
+
+  func windowDidResize(_ notification: Notification) {
+    if !window.inLiveResize {
+      actions?.windowDidChangeFrame()
+    }
+  }
+
+  func windowDidEndLiveResize(_ notification: Notification) {
+    actions?.windowDidChangeFrame()
   }
 }
 

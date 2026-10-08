@@ -1,0 +1,61 @@
+diff --git a/components/sessions/core/command_storage_backend.cc b/components/sessions/core/command_storage_backend.cc
+index 5a6aac0d58..63b67d9406 100644
+--- a/components/sessions/core/command_storage_backend.cc
++++ b/components/sessions/core/command_storage_backend.cc
+@@ -37,6 +37,10 @@
+ #include "components/sessions/core/session_service_commands.h"
+ #include "third_party/abseil-cpp/absl/strings/str_format.h"
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/previous_session.h"
++#endif
++
+ namespace sessions {
+ 
+ namespace {
+@@ -606,6 +610,19 @@ CommandStorageBackend::ReadLastSessionCommands() {
+   return result;
+ }
+ 
++#if BUILDFLAG(IS_MAC)
++// static
++CommandStorageBackend::ReadCommandsResult
++CommandStorageBackend::ReadCommandsFromFile(const base::FilePath& path) {
++  SessionFileReader::ReadResult read_result =
++      SessionFileReader::Read(path, /*encryptor=*/nullptr);
++  ReadCommandsResult result;
++  result.commands = std::move(read_result.commands);
++  result.error_reading = IsError(read_result.status);
++  return result;
++}
++#endif
++
+ void CommandStorageBackend::DeleteLastSession() {
+   InitIfNecessary();
+   if (last_session_info_) {
+@@ -630,6 +647,12 @@ void CommandStorageBackend::MoveCurrentSessionToLastSession() {
+   } else {
+     last_session_info_ = base::unexpected(ReadStatus::kNoFile);
+   }
++#if BUILDFLAG(IS_MAC)
++  // Fiber: kept as one of the profile's previous sessions too.
++  if (last_session_info_) {
++    fiber::KeepPreviousSession(type_, is_encrypted(), last_session_info_->path);
++  }
++#endif
+   VLOG(1) << "CommandStorageBackend::MoveCurrentSessionToLastSession, moved "
+              "current session to: "
+           << (last_session_info_ ? last_session_info_->path : base::FilePath());
+@@ -680,6 +703,12 @@ void CommandStorageBackend::InitIfNecessary() {
+ 
+   // TODO(sky): this is expensive. See if it can be delayed.
+   last_session_info_ = FindLastSessionFile();
++#if BUILDFLAG(IS_MAC)
++  // Fiber: kept as one of the profile's previous sessions too.
++  if (last_session_info_) {
++    fiber::KeepPreviousSession(type_, is_encrypted(), last_session_info_->path);
++  }
++#endif
+ 
+   // Best effort delete all sessions except the current & last.
+   DeleteLastSessionFiles();

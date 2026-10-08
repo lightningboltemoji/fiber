@@ -116,6 +116,16 @@ int CommandID(FiberCommand command) {
   }
 }
 
+- (void)restore:(NSString*)restorableID
+    showingPageAtIndex:(NSInteger)pageIndex {
+  if (_owner) {
+    _owner->Restore(base::SysNSStringToUTF8(restorableID),
+                    pageIndex == NSNotFound || pageIndex < 0
+                        ? std::nullopt
+                        : std::optional<size_t>(pageIndex));
+  }
+}
+
 - (void)closeTabWithID:(NSInteger)tabID {
   if (_owner) {
     _owner->CloseTab(static_cast<int32_t>(tabID));
@@ -219,6 +229,12 @@ int CommandID(FiberCommand command) {
 - (void)windowDidResignMain {
   if (_owner) {
     _owner->OnWindowActivationChanged(false);
+  }
+}
+
+- (void)windowDidChangeFrame {
+  if (_owner) {
+    _owner->OnWindowFrameChanged();
   }
 }
 
