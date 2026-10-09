@@ -1,9 +1,11 @@
 import AppKit
 
-/// The omnibar's field editor. Option-clicking part of a URL selects it and the
-/// rest, ready to replace ("abc" in reddit.com/r/abc/some/thread selects
-/// "abc/some/thread"). Holding Option underlines what a click would select,
-/// and numbers the parts after the host, which Option-1 to Option-9 select.
+/// The omnibar's field editor. Option-clicking part of a URL selects the URL up
+/// to and including it ("abc" in reddit.com/r/abc/some/thread selects
+/// "reddit.com/r/abc"), and Shift-Option-clicking selects it and the rest
+/// ("abc/some/thread"). Holding Option underlines what a click would select,
+/// and numbers the parts after the host, for Option-1 to Option-9 to select as
+/// a click would.
 @MainActor
 final class URLFieldEditor: NSTextView {
   /// Shows the numbers. The omnibar lays it over the field.
@@ -42,10 +44,10 @@ final class URLFieldEditor: NSTextView {
 
   private static let separators = CharacterSet(charactersIn: "/?&#")
 
-  /// The range from the start of the part of `text` at `index` to its end.
-  /// Parts are separated by runs of `/`, `?`, `&` and `#`, and a separator
-  /// belongs to the part after it. Text with spaces is a search: it has none.
-  static func tailRange(in text: String, at index: Int) -> NSRange? {
+  /// The part of `text` at `index`. Parts are separated by runs of `/`, `?`,
+  /// `&` and `#`, and a separator belongs to the part after it. Text with
+  /// spaces is a search: it has none.
+  static func partRange(in text: String, at index: Int) -> NSRange? {
     let text = text as NSString
     guard index < text.length, !isSearch(text) else {
       return nil
@@ -60,11 +62,27 @@ final class URLFieldEditor: NSTextView {
     while start > 0, !isSeparator(text, at: start - 1) {
       start -= 1
     }
-    return NSRange(location: start, length: text.length - start)
+    var end = start
+    while end < text.length, !isSeparator(text, at: end) {
+      end += 1
+    }
+    return NSRange(location: start, length: end - start)
   }
 
-  /// The parts after the host, which Option-1 to Option-9 select with the
-  /// rest. Text without a scheme starts with its host.
+  /// What Option selects of `text` for `part`: the text up to and including
+  /// it, or with Shift, the part and the rest.
+  static func selection(
+    of part: NSRange, in text: String, flags: NSEvent.ModifierFlags
+  ) -> NSRange {
+    flags.contains(.shift)
+      ? NSRange(
+        location: part.location,
+        length: (text as NSString).length - part.location)
+      : NSRange(location: 0, length: NSMaxRange(part))
+  }
+
+  /// The parts after the host, which Option-1 to Option-9 select as a click
+  /// on them would. Text without a scheme starts with its host.
   static func numberedParts(in text: String) -> [NSRange] {
     let text = text as NSString
     guard !isSearch(text) else {
@@ -104,20 +122,23 @@ final class URLFieldEditor: NSTextView {
   // MARK: Events
 
   override func mouseDown(with event: NSEvent) {
-    guard Self.isOptionOnly(event.modifierFlags),
-      let range = tailRange(at: event.locationInWindow)
+    guard Self.selectsParts(event.modifierFlags),
+      let part = partRange(at: event.locationInWindow)
     else {
       super.mouseDown(with: event)
       return
     }
-    setSelectedRange(range)
+    setSelectedRange(
+      Self.selection(of: part, in: string, flags: event.modifierFlags))
   }
 
   /// Text without numbered parts gets Option and a digit as typed (Option-2
-  /// is ™).
+  /// is ™). The digit is read without Shift, which would make Shift-2 "@".
   override func keyDown(with event: NSEvent) {
-    guard Self.isOptionOnly(event.modifierFlags), !hasMarkedText(),
-      let number = event.charactersIgnoringModifiers.flatMap({ Int($0) })
+    guard Self.selectsParts(event.modifierFlags), !hasMarkedText(),
+      let number = event.characters(byApplyingModifiers: []).flatMap({
+        Int($0)
+      })
     else {
       super.keyDown(with: event)
       return
@@ -126,10 +147,10 @@ final class URLFieldEditor: NSTextView {
     if parts.isEmpty {
       super.keyDown(with: event)
     } else if parts.indices.contains(number - 1) {
-      let start = parts[number - 1].location
+      let part = parts[number - 1]
       setSelectedRange(
-        NSRange(location: start, length: (string as NSString).length - start))
-      scrollRangeToVisible(NSRange(location: start, length: 0))
+        Self.selection(of: part, in: string, flags: event.modifierFlags))
+      scrollRangeToVisible(part)
     } else {
       NSSound.beep()
     }
@@ -197,9 +218,13 @@ final class URLFieldEditor: NSTextView {
     at location: NSPoint, flags: NSEvent.ModifierFlags
   ) {
     let point = convert(location, from: nil)
-    setUnderlinedRange(
-      Self.isOptionOnly(flags) && visibleRect.contains(point)
-        ? tailRange(at: location) : nil)
+    guard Self.selectsParts(flags), visibleRect.contains(point),
+      let part = partRange(at: location)
+    else {
+      setUnderlinedRange(nil)
+      return
+    }
+    setUnderlinedRange(Self.selection(of: part, in: string, flags: flags))
   }
 
   private func setUnderlinedRange(_ range: NSRange?) {
@@ -223,8 +248,8 @@ final class URLFieldEditor: NSTextView {
         location: 0, length: (string as NSString).length))
   }
 
-  /// The tail under `location`, in window coordinates, if it's over the text.
-  private func tailRange(at location: NSPoint) -> NSRange? {
+  /// The part under `location`, in window coordinates, if it's over the text.
+  private func partRange(at location: NSPoint) -> NSRange? {
     guard let window else {
       return nil
     }
@@ -240,14 +265,14 @@ final class URLFieldEditor: NSTextView {
     guard (character.minX..<character.maxX).contains(point.x) else {
       return nil
     }
-    return Self.tailRange(in: string, at: index)
+    return Self.partRange(in: string, at: index)
   }
 
   // MARK: Part numbers
 
-  /// Numbers the parts in sight while Option alone is held.
+  /// Numbers the parts in sight while Option is held, alone or with Shift.
   private func updatePartNumbers(flags: NSEvent.ModifierFlags) {
-    guard Self.isOptionOnly(flags), let layoutManager, let textContainer,
+    guard Self.selectsParts(flags), let layoutManager, let textContainer,
       let superview
     else {
       partNumbersView.isShown = false
@@ -272,8 +297,9 @@ final class URLFieldEditor: NSTextView {
     partNumbersView.isShown = true
   }
 
-  private static func isOptionOnly(_ flags: NSEvent.ModifierFlags) -> Bool {
-    flags.intersection([.shift, .control, .option, .command]) == .option
+  private static func selectsParts(_ flags: NSEvent.ModifierFlags) -> Bool {
+    let flags = flags.intersection([.shift, .control, .option, .command])
+    return flags == .option || flags == [.option, .shift]
   }
 }
 
@@ -322,7 +348,7 @@ final class PartNumbersView: NSView {
   }
 
   override func draw(_ dirtyRect: NSRect) {
-    NSColor.tertiaryLabelColor.setFill()
+    NSColor.quaternaryLabelColor.setFill()
     for (part, label) in zip(parts, labels) {
       guard let part else {
         continue
