@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kestrel</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+:root{--ink:#16232b;--ink-2:#55636c;--rule:#e6e9ec;--rust:#ff8a4c}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font:15px/1.5 system-ui,-apple-system,sans-serif;color:var(--ink);background:#fbfaf8;display:grid;place-items:center;-webkit-font-smoothing:antialiased}
+main{display:flex;flex-direction:column;align-items:center;gap:28px;margin-top:-80px}
+.mark{display:flex;align-items:center;gap:14px;font-weight:700;font-size:44px;letter-spacing:-.04em}
+.mark img{width:56px;height:56px}
+form{width:620px;height:54px;border-radius:27px;background:#fff;border:1px solid var(--rule);box-shadow:0 2px 6px rgba(22,35,43,.05),0 12px 32px rgba(22,35,43,.06);display:flex;align-items:center;padding:0 22px;gap:12px}
+form svg{width:19px;height:19px;fill:none;stroke:var(--ink-2);stroke-width:1.8;stroke-linecap:round}
+input{flex:1;border:0;font:inherit;font-size:17px;outline:none;background:none}
+p{color:var(--ink-2);font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <div class="mark"><img src="/favicon.svg" alt="">Kestrel</div>
+  <form action="/search"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg><input name="q" aria-label="Search" autocomplete="off"></form>
+  <p>Search that doesn’t follow you home.</p>
+</main>
+</body>
+</html>

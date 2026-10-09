@@ -9,6 +9,8 @@ import ScreenCaptureKit
 
 // ScreenCaptureKit and the window server calls need a connection to it.
 _ = NSApplication.shared
+// Progress shows as it happens when the output is piped, too.
+setvbuf(stdout, nil, _IOLBF, 0)
 
 var arguments = Array(CommandLine.arguments.dropFirst())
 func flag(_ name: String) -> Bool {
@@ -56,6 +58,8 @@ final class Director {
   private var fiber: Fiber!
   private var input: Input!
   private var devTools: DevTools?
+  /// DevTools sessions holding overrides on pages until the take ends.
+  private var overrides: [DevTools.Session] = []
   private var windowAX: AXElement!
   private var windowFrame = CGRect.zero
   private var start = 0.0
@@ -88,13 +92,25 @@ final class Director {
     let serving = try await server.start(certificateIn: take)
     defer { server.stop() }
 
-    if !tape.visits.isEmpty {
-      print("visiting \(tape.visits.count) pages for history")
-      let visit = try Fiber(bundle: bundle, profile: profile, serving: serving, urls: tape.visits)
-      _ = try await visit.window()
-      await waitUntilServed(tape.visits, by: server)
-      try await Task.sleep(for: .seconds(2))
-      await visit.quit()
+    if !tape.visits.isEmpty || tape.search != nil {
+      print("setting up the profile: \(tape.visits.count) pages for history"
+        + (tape.search.map { ", \($0.name) for search" } ?? ""))
+      let setup = try Fiber(bundle: bundle, profile: profile, serving: serving, urls: tape.visits)
+      do {
+        _ = try await setup.window()
+        await waitUntilServed(tape.visits, by: server)
+        if let search = tape.search {
+          let settings = "chrome://settings/searchEngines"
+          let devTools = try await DevTools.connect(profile: profile)
+          try await devTools.open(settings)
+          try await makeDefault(search, in: devTools, at: settings)
+        }
+        try await Task.sleep(for: .seconds(2))
+      } catch {
+        await setup.quit()
+        throw error
+      }
+      await setup.quit()
     }
     try Profile.addPins(tape.pins, to: profile, sites: sites)
 
@@ -106,6 +122,20 @@ final class Director {
         "--window-size=\(Int(frame.width)),\(Int(frame.height))",
       ], urls: tape.opens)
     input = Input(seed: tape.seed)
+    // Tapes copy and paste on the real pasteboard; what was on it comes back.
+    let pasteboard = NSPasteboard.general.pasteboardItems?.map { item in
+      let copy = NSPasteboardItem()
+      for type in item.types {
+        if let data = item.data(forType: type) {
+          copy.setData(data, forType: type)
+        }
+      }
+      return copy
+    }
+    defer {
+      NSPasteboard.general.clearContents()
+      NSPasteboard.general.writeObjects(pasteboard ?? [])
+    }
     do {
       try await play(server: server)
     } catch {
@@ -174,6 +204,7 @@ final class Director {
       throw error
     }
     try await finish(recorder)
+    overrides.forEach { $0.close() }
   }
 
   private func finish(_ recorder: Recorder?) async throws {
@@ -187,6 +218,49 @@ final class Director {
     let size = (try? take.appending(path: "take.mov").resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
     print(String(format: "recorded %.1fs, %d frames (%d dropped), %.0f MB, in %@", timeline.duration,
       recorder.frames, recorder.dropped, Double(size) / 1e6, take.path()))
+  }
+
+  /// Adds `search` and makes it the default as the user would, on Chrome's
+  /// settings page at `settings`, which keeps the setting's protection
+  /// (Secure Preferences) valid.
+  private func makeDefault(_ search: SearchEngine, in devTools: DevTools, at settings: String) async throws {
+    let arguments = String(
+      decoding: try JSONSerialization.data(withJSONObject: [search.name, search.keyword, search.url]), as: UTF8.self)
+    let script = """
+      (async () => {
+        const {sendWithPromise} = await import('chrome://resources/js/cr.js');
+        const [name, keyword, url] = \(arguments);
+        const find = async () => {
+          const lists = await sendWithPromise('getSearchEnginesList');
+          return [...lists.defaults, ...lists.actives, ...lists.others].find((e) => e.name === name);
+        };
+        if (!await find()) {
+          chrome.send('searchEngineEditStarted', [0]);
+          chrome.send('searchEngineEditCompleted', [name, keyword, url]);
+        }
+        for (let tries = 0; tries < 50; tries++) {
+          const engine = await find();
+          if (engine) {
+            chrome.send('setDefaultSearchEngine', [engine.id, 2, null]);
+            return engine.id;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        return null;
+      })()
+      """
+    var problem = "it never listed it"
+    for _ in 0..<50 {
+      do {
+        if try await devTools.evaluate(script, inPageAt: settings) as? Int != nil {
+          return
+        }
+      } catch {
+        problem = "\(error)"
+      }
+      try await Task.sleep(for: .milliseconds(200))
+    }
+    throw DirectorError("couldn't make \(search.name) the default search engine on \(settings): \(problem)")
   }
 
   private func waitUntilServed(_ urls: [String], by server: SiteServer) async {
@@ -271,7 +345,7 @@ final class Director {
         throw fail("can't find \(target)")
       }
       await input.move(to: CGPoint(x: rect.midX, y: rect.midY), over: duration)
-    case .click(let target):
+    case .click(let target, let count):
       try requireFront(step)
       if let target {
         guard let rect = try await resolve(target) else {
@@ -280,7 +354,7 @@ final class Director {
         await input.move(to: CGPoint(x: rect.midX, y: rect.midY), over: .milliseconds(600))
         try await Task.sleep(for: .milliseconds(120))
       }
-      await input.click()
+      await input.click(count: count)
     case .scroll(let distance, let duration):
       try requireFront(step)
       await input.scroll(by: distance, over: duration)
@@ -303,6 +377,14 @@ final class Director {
       }
       timeline?.markers.append(.init(
         name: name, time: hostNow() - start, rect: .init(rect.offsetBy(dx: -windowFrame.minX, dy: -windowFrame.minY))))
+    case .locate(let latitude, let longitude):
+      guard let devTools else {
+        throw fail("DevTools isn't connected, so the page's location can't be set")
+      }
+      let session = try await devTools.attach(toPageTitled: windowAX.title)
+      try await session.send(
+        "Emulation.setGeolocationOverride", ["latitude": latitude, "longitude": longitude, "accuracy": 25])
+      overrides.append(session)
     case .tree:
       var out = "line \(step.line), window at \(windowFrame.origin):\n"
       windowAX.dump(into: &out)

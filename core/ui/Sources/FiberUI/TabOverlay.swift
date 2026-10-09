@@ -7,7 +7,8 @@ import SwiftUI
 /// palette's, with the pins (PinGrid) in rows above it, the page's address
 /// and the extensions beside it, and the downloads (DownloadsBubble) under it.
 /// The arrow keys, Return and Command-W move through, switch to and close
-/// them. This view takes the events and keeps the model; TabOverlayView draws.
+/// them, and holding Option numbers the tabs, for Option and a number to switch
+/// to one. This view takes the events and keeps the model; TabOverlayView draws.
 @MainActor
 final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Called with a tab to switch to, never the active one. Its owner closes
@@ -50,6 +51,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// How long the pool under the glass takes to follow a new measure of the
   /// page.
   private static let relightDuration: TimeInterval = 0.2
+  /// How long a typed tab number waits for another digit, when one could
+  /// follow it.
+  private static let numberTimeout: TimeInterval = 0.6
 
   private let model = TabOverlayModel()
   private let hostingView: NSHostingView<TabOverlayView>
@@ -90,6 +94,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var pendingFadeOut: DispatchWorkItem?
   /// Counts its closings, so that a fade out from one cut short does nothing.
   private var closings = 0
+  /// A tab number typed with Option that another digit could still lengthen,
+  /// and the switch to its tab once none comes.
+  private var typedNumber: Int?
+  private var pendingNumberPick: DispatchWorkItem?
 
   init(isIncognito: Bool) {
     self.isIncognito = isIncognito
@@ -163,6 +171,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
     model.selection = initialSelection
     model.closeButton = nil
+    model.showsNumbers = Self.isOptionOnly(NSEvent.modifierFlags)
     restingPointer = NSEvent.mouseLocation
     heldTop = nil
     layoutPanel()
@@ -190,6 +199,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       moveBubbles()
       pressedPin = nil
       model.pinDrag = nil
+      cancelTypedNumber()
+      model.showsNumbers = false
       if window?.firstResponder === self {
         window?.makeFirstResponder(nil)
       }
@@ -725,7 +736,90 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   override func keyDown(with event: NSEvent) {
-    interpretKeyEvents([event])
+    guard Self.isOptionOnly(event.modifierFlags),
+      let digit = event.characters(byApplyingModifiers: []).flatMap({
+        Int($0)
+      })
+    else {
+      cancelTypedNumber()
+      interpretKeyEvents([event])
+      return
+    }
+    if !event.isARepeat {
+      type(digit)
+    }
+  }
+
+  /// Letting go of Option switches to the tab whose number was being typed.
+  override func flagsChanged(with event: NSEvent) {
+    super.flagsChanged(with: event)
+    let showsNumbers = isOpen && Self.isOptionOnly(event.modifierFlags)
+    if !showsNumbers {
+      pickTypedNumber()
+    }
+    model.showsNumbers = showsNumbers
+  }
+
+  /// Switches to the tab whose number `digit` completes. While a longer
+  /// number could start with it, its tab is selected for a moment instead.
+  private func type(_ digit: Int) {
+    pendingNumberPick?.cancel()
+    pendingNumberPick = nil
+    guard
+      let (number, isComplete) = Self.tabNumber(
+        typing: digit, after: typedNumber, count: model.tabs.count)
+    else {
+      typedNumber = nil
+      NSSound.beep()
+      return
+    }
+    typedNumber = number
+    guard !isComplete else {
+      pickTypedNumber()
+      return
+    }
+    select(.tab(model.tabs[number - 1].tabID))
+    let pick = DispatchWorkItem { [weak self] in
+      MainActor.assumeIsolated {
+        self?.pickTypedNumber()
+      }
+    }
+    pendingNumberPick = pick
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + Self.numberTimeout, execute: pick)
+  }
+
+  /// The tab number `digit` makes typed after `typed`, of `count` tabs, and
+  /// whether it's complete, no other number starting with it; nil if no tab
+  /// has it.
+  static func tabNumber(typing digit: Int, after typed: Int?, count: Int)
+    -> (number: Int, isComplete: Bool)?
+  {
+    let number = (typed ?? 0) * 10 + digit
+    guard number >= 1, number <= count else {
+      return nil
+    }
+    return (number, number * 10 > count)
+  }
+
+  private func pickTypedNumber() {
+    guard let number = typedNumber else {
+      return
+    }
+    cancelTypedNumber()
+    if model.tabs.indices.contains(number - 1) {
+      pick(model.tabs[number - 1].tabID)
+    }
+  }
+
+  private func cancelTypedNumber() {
+    typedNumber = nil
+    pendingNumberPick?.cancel()
+    pendingNumberPick = nil
+  }
+
+  private static func isOptionOnly(_ flags: NSEvent.ModifierFlags) -> Bool {
+    flags.intersection([.command, .shift, .option, .control]) == .option
   }
 
   override func moveUp(_ sender: Any?) {
@@ -913,8 +1007,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       name: NSWindow.didResignKeyNotification, object: window)
   }
 
+  /// Option's release won't reach it once the window isn't key.
   @objc private func windowDidResignKey(_ notification: Notification) {
     hover(at: nil)
+    cancelTypedNumber()
+    model.showsNumbers = false
   }
 
   override func mouseMoved(with event: NSEvent) {
@@ -1125,6 +1222,8 @@ final class TabOverlayModel {
   /// What the pins and the panel come and go with (see TabOverlayMotion).
   var isOpen = false
   var selection: TabOverlaySelection?
+  /// Whether the tabs show their numbers, while Option is held.
+  var showsNumbers = false
   var pinDrag: PinDrag?
   var pinBursts: [PinBurst] = []
   /// How many pins the list is below (see TabOverlay.panelPins).
@@ -1337,7 +1436,8 @@ struct TabOverlayView: View {
           .accessibilityHidden(true)
 
         TabList(
-          width: panel.width, showsURL: true, tabs: model.tabs,
+          width: panel.width, showsURL: true,
+          showsNumbers: model.showsNumbers, tabs: model.tabs,
           activeTabID: model.activeTabID,
           highlightedTabID: model.selectedTabID,
           closeButton: model.closeButton, onSelect: model.onSelect,

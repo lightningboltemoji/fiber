@@ -312,7 +312,8 @@ class FiberBrowserWindow : public BrowserWindow,
   void UpdatePins();
   // Before the user closes `count` of the window's tabs. Closing them all
   // leaves a browser window open on a New Tab page, and a lone New Tab page
-  // stays. Returns whether to go ahead.
+  // stays, unless the UI confirms closing the window instead. Returns whether
+  // to go ahead.
   bool WillCloseTabs(size_t count);
 
   const raw_ptr<BrowserWindowInterface> browser_;

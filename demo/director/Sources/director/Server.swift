@@ -129,7 +129,9 @@ final class SiteServer: @unchecked Sendable {
     guard request.count >= 2, request[0] == "GET" || request[0] == "HEAD" else {
       return send(status: "405 Method Not Allowed", body: Data(), type: "text/plain", on: connection)
     }
-    let rawPath = String(request[1].split(separator: "?").first ?? "/")
+    let target = request[1].split(separator: "?", maxSplits: 1)
+    let rawPath = String(target.first ?? "/")
+    let query = target.count > 1 ? "?\(target[1])" : ""
     let path = rawPath.removingPercentEncoding ?? rawPath
     requested.insert(host + path)
 
@@ -144,7 +146,7 @@ final class SiteServer: @unchecked Sendable {
     if isDirectory.boolValue {
       guard path.hasSuffix("/") else {
         return send(status: "301 Moved Permanently", body: Data(), type: "text/plain",
-          extra: "Location: \(path)/\r\n", on: connection)
+          extra: "Location: \(rawPath)/\(query)\r\n", on: connection)
       }
       file = file.appending(path: "index.html")
     }

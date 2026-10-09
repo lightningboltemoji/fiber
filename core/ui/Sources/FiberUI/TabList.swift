@@ -87,6 +87,8 @@ struct TabList: View {
   let width: CGFloat
   /// Whether each row shows its URL, after its title.
   var showsURL = false
+  /// Whether each row shows its number, from 1, in its icon's place.
+  var showsNumbers = false
   let tabs: [FiberTabState]
   let activeTabID: Int
   let highlightedTabID: Int?
@@ -98,9 +100,10 @@ struct TabList: View {
 
   var body: some View {
     VStack(spacing: TabListLayout.rowSpacing) {
-      ForEach(tabs, id: \.tabID) { tab in
+      ForEach(Array(tabs.enumerated()), id: \.element.tabID) { row, tab in
         TabRow(
-          tab: tab, showsURL: showsURL, isActive: tab.tabID == activeTabID,
+          tab: tab, showsURL: showsURL, number: row + 1,
+          showsNumber: showsNumbers, isActive: tab.tabID == activeTabID,
           closeButton: closeButton?.tabID == tab.tabID ? closeButton : nil
         )
         .accessibilityElement(children: .combine)
@@ -138,6 +141,8 @@ private struct TabRow: View {
 
   let tab: FiberTabState
   let showsURL: Bool
+  let number: Int
+  let showsNumber: Bool
   let isActive: Bool
   let closeButton: TabCloseButton?
 
@@ -146,6 +151,21 @@ private struct TabRow: View {
     HStack(spacing: 10) {
       icon
         .frame(width: 16, height: 16)
+        .opacity(showsNumber ? 0 : 1)
+        .overlay {
+          // Wider than the icon from 100 on.
+          Text(String(number))
+            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.secondary)
+            .fixedSize()
+            .opacity(showsNumber ? 1 : 0)
+            .accessibilityHidden(true)
+        }
+        .animation(
+          .easeInOut(
+            duration: showsNumber
+              ? PaletteView.fadeInDuration : PaletteView.fadeOutDuration
+          ).slowMotion, value: showsNumber)
       if showsURL {
         TitleAndURLLayout {
           title

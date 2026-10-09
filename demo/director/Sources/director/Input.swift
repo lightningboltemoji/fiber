@@ -24,7 +24,9 @@ struct KeyCombo: CustomStringConvertible {
       key = named
     } else if last.count == 1, let (code, shift) = Keyboard.code(for: last.first!) {
       key = code
-      text = last
+      // AppKit's menus don't match a shortcut whose event carries its own
+      // text (Edit › Copy for ⌘C), so only plain keys get it.
+      text = flags.isEmpty ? last : nil
       if shift {
         flags.insert(.maskShift)
       }
@@ -234,19 +236,25 @@ final class Input {
     onPointer?(point, buttonDown)
   }
 
-  func click() async {
+  /// Clicks `count` times in a row, as a double or triple click.
+  func click(count: Int = 1) async {
     let at = pointer
-    let down = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: at, mouseButton: .left)
-    down?.setIntegerValueField(.mouseEventClickState, value: 1)
-    post(down)
-    buttonDown = true
-    onPointer?(at, true)
-    try? await Task.sleep(for: jitter(85, by: 0.25))
-    let up = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: at, mouseButton: .left)
-    up?.setIntegerValueField(.mouseEventClickState, value: 1)
-    post(up)
-    buttonDown = false
-    onPointer?(at, false)
+    for state in 1...count {
+      if state > 1 {
+        try? await Task.sleep(for: jitter(70, by: 0.25))
+      }
+      let down = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: at, mouseButton: .left)
+      down?.setIntegerValueField(.mouseEventClickState, value: Int64(state))
+      post(down)
+      buttonDown = true
+      onPointer?(at, true)
+      try? await Task.sleep(for: jitter(state == count ? 85 : 60, by: 0.25))
+      let up = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: at, mouseButton: .left)
+      up?.setIntegerValueField(.mouseEventClickState, value: Int64(state))
+      post(up)
+      buttonDown = false
+      onPointer?(at, false)
+    }
   }
 
   /// Scrolls the page under the pointer `distance` points (down is positive)

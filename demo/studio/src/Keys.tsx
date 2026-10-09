@@ -22,12 +22,15 @@ const symbols: Record<string, string> = {
 	right: '→',
 };
 
-/** The shortcuts pressed in the take, as keycaps along the bottom of the picture. */
+/**
+ * The shortcuts pressed in the take, as keycaps along the bottom of the
+ * picture. Keys pressed alone, like return, aren't shortcuts, so aren't shown.
+ */
 export const Keys: React.FC<{timeline: Timeline; from?: At; hold?: number}> = ({timeline, from = 0, hold = 1.1}) => {
 	const frame = useCurrentFrame();
 	const {fps, height} = useVideoConfig();
 	const t = resolveAt(timeline, from) + frame / fps;
-	const shown = timeline.keys.filter((k) => k.time <= t && t < k.time + hold).at(-1);
+	const shown = timeline.keys.filter((k) => k.keys.includes('+') && k.time <= t && t < k.time + hold).at(-1);
 	if (!shown) {
 		return null;
 	}

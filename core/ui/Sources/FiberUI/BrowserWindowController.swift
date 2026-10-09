@@ -63,6 +63,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let tabPicker = TabPicker()
   /// In the top-right corner, after a tab opens from the active one.
   private let openedTabNotice = OpenedTabNotice()
+  /// In the opened-tab notice's place, but over the omnibar, which a New Tab
+  /// page opens, and everything else but the veil.
+  private let closeWindowNotice = CloseWindowNotice()
   /// Toggled with Command-S. Over everything but the traffic lights' capsule
   /// and the veil, one at a time with the omnibar and the command palette.
   fileprivate let tabOverlay: TabOverlay
@@ -313,7 +316,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     controlsView.addSubview(keyPassthroughBubble)
 
-    placeOpenedTabNotice(animated: false)
+    placeNotices(animated: false)
     openedTabNotice.autoresizingMask = [.minXMargin, .minYMargin]
     openedTabNotice.onSelect = { [weak self] tabID in
       self?.actions?.selectTab(withID: tabID)
@@ -351,6 +354,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     configureWindowControls()
     updateWindowControls(animated: false)
 
+    closeWindowNotice.autoresizingMask = [.minXMargin, .minYMargin]
+    content.addSubview(closeWindowNotice)
+
     // Over everything; what the window waits on goes over it.
     veil.dimView.frame = content.bounds
     veil.dimView.autoresizingMask = [.width, .height]
@@ -364,9 +370,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     SlowMotion.pace(window)
   }
 
-  /// Over everything but the veil, one at a time with the command palette
-  /// (see makeCommandPalette()). Made on first use, which for a startup window
-  /// is once the browser takes it, so the window shows sooner.
+  /// Over everything but the close-window notice and the veil, one at a time
+  /// with the command palette (see makeCommandPalette()). Made on first use,
+  /// which for a startup window is once the browser takes it, so the window
+  /// shows sooner.
   private func makeOmnibar() -> Omnibar {
     let omnibar = Omnibar()
     let content = window.contentView!
@@ -374,7 +381,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     omnibar.view.autoresizingMask = [.width, .height]
     omnibar.view.isHeld = isPageHeld
     content.addSubview(
-      omnibar.view, positioned: .below, relativeTo: veil.dimView)
+      omnibar.view, positioned: .below, relativeTo: closeWindowNotice)
     omnibar.onOpen = { [weak self] in
       self?.tabPicker.close()
       self?.openedTabNotice.dismiss()
@@ -427,7 +434,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       findBar.animator().frame = frame
     }
     extensionBubbles.keepClearDidChange(animated: animated)
-    placeOpenedTabNotice(animated: animated)
+    placeNotices(animated: animated)
   }
 
   private static func findBarFrame(in bounds: NSRect) -> NSRect {
@@ -477,17 +484,21 @@ final class BrowserWindowController: NSObject, FiberWindow {
     ]
   }
 
-  /// In the top-right corner, below the find bar while it's open.
-  private func placeOpenedTabNotice(animated: Bool) {
+  /// In the controls' top-right corner, below the find bar while it's open.
+  private func placeNotices(animated: Bool) {
     var inset = NSSize(width: Self.edgeInset, height: Self.edgeInset)
     if madeFindBar?.isOpen == true {
       inset.height += FindBar.height + GlassCapsule.spacing
     }
     let frame = OpenedTabNotice.frame(in: controlsView.bounds, inset: inset)
+    // That one's in the content view, beside the controls.
+    let closeWindowFrame = CloseWindowNotice.frame(
+      in: controlsView.frame, inset: inset)
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animated ? 0.3 : 0
       context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
       openedTabNotice.animator().frame = frame
+      closeWindowNotice.animator().frame = closeWindowFrame
     }
   }
 
@@ -779,6 +790,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func setPageState(_ state: FiberPageState) {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
+    if !isNewTabPage {
+      closeWindowNotice.dismiss()
+    }
     newTabView.isHidden = !isNewTabPage || state.sadTab != nil
     if let sadTab = state.sadTab {
       sadTabView.show(sadTab)
@@ -809,6 +823,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowTabs = tabs
     let didSwitchTabs = activeTabID != self.activeTabID
     self.activeTabID = activeTabID
+    if didSwitchTabs || tabs.count != 1 {
+      closeWindowNotice.dismiss()
+    }
     commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
     removeClosedTabsBubbles()
     updatePromptBubbles(didSwitchTabs: didSwitchTabs)
@@ -823,6 +840,19 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     openedTabNotice.show(tabID: tabID, openedFrom: openerTabID)
+  }
+
+  func confirmClose() -> Bool {
+    // A held key's repeats don't count, so holding Command-W to close tabs
+    // stops at the notice.
+    let event = NSApp.currentEvent
+    let isRepeat = event?.type == .keyDown && event?.isARepeat == true
+    if closeWindowNotice.isShown && !isRepeat {
+      return true
+    }
+    openedTabNotice.dismiss()
+    closeWindowNotice.show()
+    return false
   }
 
   func setPins(_ pins: [FiberPinState]) {
@@ -970,6 +1000,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     if !emulatesDevice {
       controlsView.frame = frame
+      placeNotices(animated: false)
     }
   }
 
@@ -1042,6 +1073,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     self.veilContent = veilContent
     tabPicker.close()
     openedTabNotice.dismiss()
+    closeWindowNotice.dismiss()
     closeOmnibar()
     closeCommandPalette()
     replaceTabOverlay()

@@ -418,7 +418,9 @@ bool FiberBrowserWindow::WillCloseTabs(size_t count) {
     return true;
   }
   if (model->count() == 1 && ShowsNewTabPage(model->GetWebContentsAt(0))) {
-    RestoreFocus();
+    if ([ui_ confirmCloseWindow]) {
+      chrome::CloseWindow(browser_);
+    }
     return false;
   }
   // In the background, so the closing page can still ask the user to stay
@@ -1236,8 +1238,8 @@ void FiberBrowserWindow::OnTabStripModelChanged(
     return;
   }
   // Chrome makes the active tab the opener of a tab opened from a link, in
-  // front of it or behind, or typed (⌘T included, so New Tab pages are left
-  // out). Session restore and pins open tabs without one.
+  // front of it or behind, typed (⌘T included, so New Tab pages are left out)
+  // or from a pin (left out too: the user picked it, not the page).
   tabs::TabInterface* active = tab_strip_model->GetActiveTab();
   for (const auto& inserted : change.GetInsert()->contents) {
     tabs::TabInterface* tab = inserted.tab;
@@ -1245,7 +1247,8 @@ void FiberBrowserWindow::OnTabStripModelChanged(
     tabs::TabInterface* from =
         tab == active && selection.active_tab_changed() ? selection.old_tab.get()
                                                          : active;
-    if (from && tab != from && !ShowsNewTabPage(inserted.contents) &&
+    if (from && tab != from && !tab->IsPinned() &&
+        !ShowsNewTabPage(inserted.contents) &&
         tab_strip_model->GetOpenerOfTabAt(
             tab_strip_model->GetIndexOfTab(tab)) == from) {
       [ui_ didOpenTabWithID:tab->GetHandle().raw_value()

@@ -42,8 +42,11 @@ Each take starts from nothing in `demo/takes/<tape>/`:
 
 - **The profile.** `Visit` pages load in a launch of their own, for history,
   which quits as the Dock's Quit does: a SIGTERM exits without writing
-  history. `Pin`s go into `Preferences` (`fiber.pins`), each with its site's
-  `favicon.svg` as its icon.
+  history. A `Search` engine is added and made the default in that launch
+  too, on `chrome://settings/searchEngines` over DevTools, as a person would:
+  Chrome keeps the default search engine in Secure Preferences, which it
+  resets if they're written by hand. `Pin`s go into `Preferences`
+  (`fiber.pins`), each with its site's `favicon.svg` as its icon.
 - **The sites** are served from `demo/sites` on localhost, over HTTP and
   HTTPS, and `--host-resolver-rules` sends every host there, so a take never
   touches the network. The certificate is made for the take and trusted by its
@@ -56,6 +59,8 @@ Each take starts from nothing in `demo/takes/<tape>/`:
   transparent corners the studio masks with) and `timeline.json` (markers,
   steps, keys and the pointer, in seconds from the first frame and window
   points). The pointer is in the picture unless the tape says `Cursor hidden`.
+- **The pasteboard** is the Mac's, so a tape can copy and paste; what was on
+  it is put back after the take.
 
 The app is `out/Release`'s by default: DCHECKs off, as people get it.
 
@@ -69,6 +74,7 @@ set the scene and aren't recorded. `#` starts a comment.
 | `Window 1600x1000` | The window's size in points, centered on the main display |
 | `Visit URL…` | Pages in history before the take |
 | `Pin URL "title"` | A pin |
+| `Search "name" KEYWORD URL` | The default search engine, with `%s` in URL for the terms |
 | `Open URL…` | The window's tabs as Fiber starts; the first is active |
 | `Pointer @X,Y` | Where the pointer waits as the take starts (outside the window is fine) |
 | `Cursor hidden` | Leaves the pointer out of the picture |
@@ -83,10 +89,11 @@ set the scene and aren't recorded. `#` starts a comment.
 | `Key cmd+s [down …]` | Presses each in turn |
 | `Hold cmd+q 2s` | |
 | `Move TARGET [700ms]` | Moves the pointer to its middle along a slight arc |
-| `Click [TARGET]` | Moves there first if given |
+| `Click [TARGET] [2x\|3x]` | Moves there first if given; `3x` is a triple click, selecting a paragraph |
 | `Scroll 600 [1.2s]` | Scrolls the page under the pointer, down for positive, as a trackpad does |
 | `Wait title "text"`, `Wait TARGET`, `Wait gone TARGET`, `Wait load` | Each takes a timeout, 10s by default |
-| `Mark NAME [TARGET]` | Notes the time, and where TARGET is (the window if none), for the camera |
+| `Mark NAME [TARGET]` | Notes the time, and where TARGET is (the window if none), for the camera. Mark what animates in once it has settled |
+| `Locate LAT,LON` | The active tab finds itself there from now on (DevTools' geolocation override), so a site allowed your location never gets the Mac's |
 | `Tree` | Writes the window's accessibility tree to `tree-<line>.txt` in the take |
 | `Record` | Starts recording |
 
@@ -122,7 +129,9 @@ it draws. Its pieces:
   (not the preview): the window is drawn at several instants across half a
   frame and averaged.
 - **`Keys`** shows the take's shortcuts as keycaps; **`Caption`**, **`Title`**
-  and **`Backdrop`** are the words and what's behind the window.
+  and **`Backdrop`** are the words and what's behind the window. The README's
+  cut loops, so it has no words and starts and ends on a `Backdrop` that
+  `loop`s: its last frame leads into its first.
 - `brand.ts` takes the app icon from `core/branding/icon`, so a render uses
   the icon `make icon` last built.
 
@@ -131,14 +140,26 @@ A render takes about 8 seconds a second of video at 1080p60.
 `make demo TAPE=smoke`. The README's video can only play
 inline on GitHub from an upload: drop `out/readme.mp4` into the README's
 editor on github.com and use the `user-attachments` URL it gives. A free plan
-takes videos up to 10 MB, which `make demo-render CRF=25` fits.
+takes videos up to 10 MB, which `make demo-render CRF=27` fits.
 
 ## The sites
 
 Each folder of `demo/sites` is a host: `wayfarer.travel/lisbon/index.html`
 is `https://wayfarer.travel/lisbon/`. They're made up (brands, people, the
-Lisbon trip they share, "today" being Wednesday, October 14) and work offline:
-no outside requests, only macOS's own fonts, imagery in CSS and SVG, and a
-`favicon.svg` each. Titles are short and distinct, as tabs show them, and
-pages keep clear of the window's top center (the omnibar) and right edge (the
-tab picker). Text the command palette should find has to be on the page.
+Lisbon trip they share, Monday the 12th to Friday the 16th, "today" being
+Wednesday, October 14) and work offline: no outside requests, only macOS's own
+fonts, imagery in CSS and SVG, and a `favicon.svg` each. Titles are short and
+distinct, as tabs show them, and pages keep clear of the window's top center
+(the omnibar) and right edge (the tab picker). Text the command palette should
+find has to be on the page, and nowhere else in the tape's tabs, or it's found
+there too. `kestrel.so` is the search engine `readme.tape` makes the default;
+its results page answers any query with the same results, for coffee in
+Alfama. Pages that draw icons from an SVG sprite keep element IDs off the
+sprite's symbols' IDs, which `getElementById` would find first.
+
+`readme.tape` tells one story, so each step has a reason to happen: Leo, in
+Lisbon, gets an email from Inês asking where he's staying so she can meet him
+for coffee near it. He finds a café near him on Wayfarer's map, opens his mail
+pin to reply, finds the guesthouse's address with ⌘P, and goes back to the
+reply from the tab picker to paste it in. A change to a site or a step should
+keep it true.

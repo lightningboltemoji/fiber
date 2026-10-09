@@ -10,6 +10,8 @@ struct Tape {
   /// Pages loaded before the take, in a launch of their own, for history.
   var visits: [String] = []
   var pins: [(url: String, title: String)] = []
+  /// The profile's default search engine, made before the take.
+  var search: SearchEngine?
   /// The take's first window's tabs.
   var opens: [String] = []
   /// Where the pointer waits as the take starts, in window points.
@@ -20,6 +22,13 @@ struct Tape {
   /// Played before the take starts recording, to set the scene.
   var setup: [Step] = []
   var steps: [Step] = []
+}
+
+struct SearchEngine {
+  var name: String
+  var keyword: String
+  /// With `%s` where the search terms go.
+  var url: String
 }
 
 struct Step {
@@ -34,12 +43,14 @@ enum Command {
   case key([KeyCombo])
   case hold(KeyCombo, Duration)
   case move(Target, Duration)
-  case click(Target?)
+  case click(Target?, count: Int)
   case scroll(Double, Duration)
   case waitTitle(String, timeout: Duration)
   case waitElement(Target, gone: Bool, timeout: Duration)
   case waitLoad(timeout: Duration)
   case mark(String, Target)
+  /// Has the active tab's page find itself at a place, from here on.
+  case locate(latitude: Double, longitude: Double)
   /// Prints the window's accessibility tree, for finding targets.
   case tree
 }
@@ -124,6 +135,11 @@ extension Tape {
       window = CGSize(width: size[0], height: size[1])
     case "visit": visits += p.rest()
     case "pin": pins.append((try p.word(), try p.word()))
+    case "search":
+      search = SearchEngine(name: try p.word(), keyword: try p.word(), url: try p.word())
+      guard search!.url.contains("%s") else {
+        throw p.error("Search's URL takes %s where the search terms go")
+      }
     case "open": opens += p.rest()
     case "pointer":
       guard case .point(let point) = try p.target() else {
@@ -235,6 +251,22 @@ private struct Parser {
     return try duration()
   }
 
+  /// `2x` for a double click, `3x` for a triple.
+  static func clickCount(_ word: String) -> Int? {
+    guard word.count == 2, word.last == "x", let count = Int(word.prefix(1)), (1...3).contains(count) else {
+      return nil
+    }
+    return count
+  }
+
+  mutating func clickCount() throws -> Int {
+    let word = try word()
+    guard let count = Self.clickCount(word) else {
+      throw error("expected a click count like 2x or 3x, not \(word)")
+    }
+    return count
+  }
+
   mutating func target() throws -> Target {
     let word = try word()
     if let alias = Target.aliases[word] {
@@ -287,7 +319,8 @@ private struct Parser {
     case "move":
       return .move(try target(), try optionalDuration(.milliseconds(700)))
     case "click":
-      return .click(atEnd ? nil : try target())
+      let target = atEnd || peek().flatMap(Self.clickCount) != nil ? nil : try target()
+      return .click(target, count: atEnd ? 1 : try clickCount())
     case "scroll":
       return .scroll(try number(), try optionalDuration(.milliseconds(1200)))
     case "wait":
@@ -307,6 +340,12 @@ private struct Parser {
       return .mark(name, atEnd ? .window : try target())
     case "tree":
       return .tree
+    case "locate":
+      let values = try word().split(separator: ",").compactMap { Double($0) }
+      guard values.count == 2 else {
+        throw error("Locate takes LATITUDE,LONGITUDE")
+      }
+      return .locate(latitude: values[0], longitude: values[1])
     default:
       throw error("unknown command \(name)")
     }

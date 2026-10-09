@@ -175,6 +175,38 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
 .file:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(20,24,35,.06), 0 10px 24px rgba(20,24,35,.08); }
 .tabs a:not(.on):hover { color: var(--text-2); }
 
+.draft { margin: 26px 0 28px 55px; max-width: 600px; border: 1px solid var(--line); border-radius: 14px; background: #fff;
+  box-shadow: 0 1px 3px rgba(20,24,35,.04), 0 10px 28px rgba(20,24,35,.07); overflow: hidden; }
+.draft-h { display: flex; align-items: center; gap: 9px; padding: 12px 14px 0 16px; color: var(--text-3); }
+.draft-h .rcpt { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 4px; border-radius: 13px; background: var(--accent-soft); color: var(--accent-2); font-weight: 550; font-size: 13px; }
+.av.xs { width: 19px; height: 19px; font-size: 8.5px; }
+.draft-h .saved { margin-left: auto; font-size: 12px; }
+.draft-b { padding: 12px 18px 0; font-size: 15px; line-height: 1.62; color: #252a33; outline: none; caret-color: var(--accent); }
+.draft-b p + p { margin-top: 11px; }
+.draft-b:empty::before { content: attr(data-placeholder); color: var(--text-3); }
+.draft-room { height: 22px; cursor: text; }
+.draft-f { display: flex; align-items: center; gap: 2px; padding: 8px 12px 10px 10px; border-top: 1px solid var(--line-2); color: var(--text-3); }
+.draft-f .fmt { font: 15px/1 Georgia, serif; }
+.draft-f .sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
+.draft-f .send { margin-left: auto; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 16px; border-radius: 9px; background: var(--accent); color: #fff; font-weight: 600; font-size: 13.5px; }
+.draft-f .send svg { width: 15px; height: 15px; }
+.draft-f .send:hover { filter: brightness(1.06); }
+.pasted { border-radius: 3px; animation: pasted 2.6s ease-out forwards; }
+@keyframes pasted { 0%, 45% { background: #ffe9a3; box-shadow: 0 0 0 2px #ffe9a3; } 100% { background: transparent; box-shadow: 0 0 0 2px transparent; } }
+.draft.going { animation: going .45s cubic-bezier(.5,0,.75,0) forwards; }
+@keyframes going { to { opacity: 0; transform: translateY(14px) scale(.98); } }
+.mine { margin: 26px 0 28px 55px; max-width: 600px; animation: arrive .5s cubic-bezier(.2,.8,.2,1) both; }
+.mine .t span { white-space: normal; }
+.mine .tick { color: #1f9d5b; font-size: 12px; font-weight: 600; align-self: flex-start; }
+@keyframes arrive { from { opacity: 0; transform: translateY(10px); } }
+.toast { position: fixed; left: calc(648px + (100vw - 648px) / 2); bottom: 30px; transform: translate(-50%, 20px); opacity: 0;
+  display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 10px 0 16px; border-radius: 23px; background: #171a21; color: #fff; font-size: 14px; font-weight: 500;
+  box-shadow: 0 10px 30px rgba(20,24,35,.25); transition: opacity .3s, transform .45s cubic-bezier(.2,.9,.25,1.2); }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.toast .ok { width: 22px; height: 22px; border-radius: 50%; background: #1f9d5b; display: grid; place-items: center; }
+.toast .ok svg { width: 13px; height: 13px; stroke: #fff; stroke-width: 2.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.toast .undo { margin-left: 6px; height: 32px; padding: 0 12px; border-radius: 16px; display: flex; align-items: center; color: #9db6ff; font-weight: 600; }
+
 @media (max-width: 1440px) {
   .app { grid-template-columns: 224px 360px 1fr; }
   .read-b { padding: 24px 44px 0 36px; }
@@ -223,7 +255,7 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
     <div class="brand"><img src="favicon.svg" alt=""><b>Lettera</b></div>
     <button class="compose" id="compose"><svg class="i"><use href="#pen"/></svg>Compose<kbd>C</kbd></button>
     <nav class="nav">
-      <a class="on" href="#"><svg class="i"><use href="#inbox"/></svg>Inbox<span class="n">8</span></a>
+      <a class="on" href="#"><svg class="i"><use href="#inbox"/></svg>Inbox<span class="n">5</span></a>
       <a href="#"><svg class="i"><use href="#star"/></svg>Starred</a>
       <a href="#"><svg class="i"><use href="#clock"/></svg>Snoozed<span class="n">3</span></a>
       <a href="#"><svg class="i"><use href="#send"/></svg>Sent</a>
@@ -234,7 +266,7 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
     </nav>
     <div class="sec"><span>Labels</span></div>
     <nav class="nav">
-      <a href="#"><span class="dot" style="background:#f08a3c"></span>Lisbon trip<span class="n">4</span></a>
+      <a href="#"><span class="dot" style="background:#f08a3c"></span>Lisbon trip</a>
       <a href="#"><span class="dot" style="background:#6d70ef"></span>Studio</a>
       <a href="#"><span class="dot" style="background:#2fa36b"></span>Finance</a>
       <a href="#"><span class="dot" style="background:#e2558f"></span>Family</a>
@@ -254,7 +286,7 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
   <section class="list">
     <div class="list-h">
       <div class="row">
-        <h1>Inbox</h1><span class="sub">8 unread</span>
+        <h1>Inbox</h1><span class="sub">5 unread</span>
         <div class="tools"><button class="ib"><svg class="i"><use href="#filter"/></svg></button><button class="ib"><svg class="i"><use href="#more"/></svg></button></div>
       </div>
       <div class="search"><svg class="i"><use href="#search"/></svg>Search mail<kbd>⌘K</kbd></div>
@@ -265,47 +297,46 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
       <a href="#">Newsletters</a>
     </div>
     <div class="msgs" id="messages">
-      <div class="m u on" id="msg-ines">
+      <div class="m on" id="msg-ines">
         <div class="av g1">IC</div>
         <div class="c">
-          <div class="l1"><span class="from">Inês Carvalho</span><span class="time">9:41 AM</span></div>
-          <div class="subj">Re: Lisbon — the real list</div>
-          <div class="snip">You asked for the real list, so here it is. Ignore anything with a laminated menu out front…</div>
-          <div class="meta"><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span><span class="att"><svg class="i"><use href="#clip"/></svg>3</span></div>
+          <div class="l1"><span class="from">Inês Carvalho</span><span class="time">5:31 PM</span></div>
+          <div class="subj">Coffee tomorrow?</div>
+          <div class="snip">You made it! I’m shooting in Alfama tomorrow at ten, so I could do coffee before. Tell me where you’re staying…</div>
+          <div class="meta"><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span></div>
         </div>
       </div>
       <div class="m u">
         <div class="av g2">AT</div>
         <div class="c">
-          <div class="l1"><span class="from">Atlântica Air</span><span class="time">9:12 AM</span></div>
-          <div class="subj">Your boarding pass · SFO → LIS, Fri Oct 16</div>
-          <div class="snip">Check-in is open. Seat 14A, Zone 2. Boarding begins at 9:35 AM from Gate G94.</div>
+          <div class="l1"><span class="from">Atlântica Air</span><span class="time">4:02 PM</span></div>
+          <div class="subj">Check in for your flight home · LIS → SFO, Fri Oct 16</div>
+          <div class="snip">Check-in is open. Flight AT 215 departs at 2:10 PM from Terminal 1. Seat 14A, Zone 2.</div>
+        </div>
+      </div>
+      <div class="m u">
+        <div class="av logo-av"><svg viewBox="0 0 64 64"><defs><linearGradient id="mgg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6bd57"/><stop offset="1" stop-color="#e08f27"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#mgg)"/><rect x="16" y="11" width="32" height="42" rx="5" fill="#fffaf0"/><path d="M25 11v42" stroke="#c4542b" stroke-width="3.5"/><path d="M31 22h10M31 29.5h10M31 37h6" stroke="#d6bf96" stroke-width="3.5" stroke-linecap="round"/></svg></div>
+        <div class="c">
+          <div class="l1"><span class="from">Margin</span><span class="time">2:47 PM</span></div>
+          <div class="subj">Mara left 2 notes on “Lisbon trip”</div>
+          <div class="snip">“Fado tonight at 8? The place by the Sé still has a table for two.” Open the doc to reply.</div>
         </div>
       </div>
       <div class="m u">
         <div class="av g3">MW</div>
         <div class="c">
-          <div class="l1"><span class="from">Marcus Webb</span><span class="time">8:27 AM</span></div>
-          <div class="subj">Q4 roadmap draft — comments by Thursday?</div>
-          <div class="snip">Pulled everything into one doc. The big open question is whether sync ships before or after the redesign.</div>
+          <div class="l1"><span class="from">Marcus Webb</span><span class="time">11:27 AM</span></div>
+          <div class="subj">Q4 roadmap draft, whenever you’re back</div>
+          <div class="snip">No rush while you’re away. The big open question is still whether sync ships before or after the redesign.</div>
           <div class="meta"><span class="chip l-work"><span class="dot"></span>Studio</span></div>
         </div>
       </div>
-      <div class="m u">
+      <div class="m">
         <div class="av logo-av"><svg viewBox="0 0 64 64"><defs><linearGradient id="dbg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7461"/><stop offset="1" stop-color="#e5392b"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#dbg)"/><rect x="12" y="15" width="40" height="37" rx="7" fill="#fff"/><path d="M12 27h40" stroke="#e5392b" stroke-width="3.5"/><circle cx="32" cy="39.5" r="6" fill="#f0503f"/><rect x="21" y="10" width="5" height="10" rx="2.5" fill="#fff" stroke="#e5392b" stroke-width="2"/><rect x="38" y="10" width="5" height="10" rx="2.5" fill="#fff" stroke="#e5392b" stroke-width="2"/></svg></div>
         <div class="c">
           <div class="l1"><span class="from">Daybook</span><span class="time">7:00 AM</span></div>
-          <div class="subj">Today: Design review at 10:00, Interview at 3:00</div>
-          <div class="snip">You have 5 events today. First up: Standup at 9:00 AM with the studio team.</div>
-        </div>
-      </div>
-      <div class="m">
-        <div class="av g4">CA</div>
-        <div class="c">
-          <div class="l1"><span class="from">Casa do Alecrim</span><span class="time">Yesterday</span></div>
-          <div class="subj">Reservation confirmed · 4 nights in Alfama</div>
-          <div class="snip">Obrigado, Leo! We look forward to welcoming you on Friday, October 16. Check-in from 3 PM.</div>
-          <div class="meta"><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span></div>
+          <div class="subj">Today: Out of office · Lisbon</div>
+          <div class="snip">Nothing scheduled. Next up: Design review, Monday at 10:00 AM with the studio team.</div>
         </div>
       </div>
       <div class="m u">
@@ -318,6 +349,15 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
         </div>
       </div>
       <div class="m">
+        <div class="av g4">CA</div>
+        <div class="c">
+          <div class="l1"><span class="from">Casa do Alecrim</span><span class="time">Mon</span></div>
+          <div class="subj">Welcome to Alfama! A few things for your stay</div>
+          <div class="snip">Bem-vindos, Leo! Breakfast is on the terrace from 8, and Teresa is downstairs if you need anything.</div>
+          <div class="meta"><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span></div>
+        </div>
+      </div>
+      <div class="m">
         <div class="av g5">SO</div>
         <div class="c">
           <div class="l1"><span class="from">Studio Okto</span><span class="time">Mon</span></div>
@@ -326,35 +366,27 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
           <div class="meta"><span class="chip l-fin"><span class="dot"></span>Finance</span><span class="att"><svg class="i"><use href="#clip"/></svg>1</span></div>
         </div>
       </div>
-      <div class="m">
+      <div class="m u">
         <div class="av g8">JL</div>
         <div class="c">
           <div class="l1"><span class="from">Jonah Lee</span><span class="time">Mon</span></div>
-          <div class="subj">lunch thursday?</div>
-          <div class="snip">the new ramen place on Valencia finally opened. 12:30? I'll grab a table if you're in.</div>
-        </div>
-      </div>
-      <div class="m u">
-        <div class="av logo-av"><svg viewBox="0 0 64 64"><defs><linearGradient id="mgg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6bd57"/><stop offset="1" stop-color="#e08f27"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="url(#mgg)"/><rect x="16" y="11" width="32" height="42" rx="5" fill="#fffaf0"/><path d="M25 11v42" stroke="#c4542b" stroke-width="3.5"/><path d="M31 22h10M31 29.5h10M31 37h6" stroke="#d6bf96" stroke-width="3.5" stroke-linecap="round"/></svg></div>
-        <div class="c">
-          <div class="l1"><span class="from">Margin</span><span class="time">Sun</span></div>
-          <div class="subj">Inês left 3 notes on “Lisbon trip”</div>
-          <div class="snip">“Swap Belém to the morning — the pastry line is brutal after 11.” Open the doc to reply.</div>
+          <div class="subj">lunch when you’re back?</div>
+          <div class="snip">the new ramen place on Valencia finally opened. I’ll grab a table the week you’re home.</div>
         </div>
       </div>
       <div class="m">
         <div class="av g6">M</div>
         <div class="c">
           <div class="l1"><span class="from">Mom</span><span class="time">Sun</span></div>
-          <div class="subj">Sunday dinner + your aunt's birthday</div>
-          <div class="snip">Don't forget to call Ruth on the 20th. Also — are you still bringing the good bread?</div>
+          <div class="subj">Sunday dinner + your aunt’s birthday</div>
+          <div class="snip">Don’t forget to call Ruth on the 20th. And bring us back some of those tarts!</div>
           <div class="meta"><span class="chip l-fam"><span class="dot"></span>Family</span></div>
         </div>
       </div>
       <div class="m">
         <div class="av g3">TL</div>
         <div class="c">
-          <div class="l1"><span class="from">The Long Read</span><span class="time">Oct 10</span></div>
+          <div class="l1"><span class="from">The Long Read</span><span class="time">Sat</span></div>
           <div class="subj">The quiet revival of the Portuguese tile</div>
           <div class="snip">How a generation of ceramicists in Lisbon is rescuing azulejos from demolition sites.</div>
         </div>
@@ -389,8 +421,8 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
         <div class="av g7">SK</div>
         <div class="c">
           <div class="l1"><span class="from">Sana Kapoor</span><span class="time">Oct 6</span></div>
-          <div class="subj">Interview panel for Wednesday</div>
-          <div class="snip">Sharing the portfolio and the rubric. I'll take craft, can you cover collaboration?</div>
+          <div class="subj">Interview panel, the week you’re back</div>
+          <div class="snip">Sharing the portfolio and the rubric. I’ll take craft, can you cover collaboration?</div>
           <div class="meta"><span class="chip l-work"><span class="dot"></span>Studio</span></div>
         </div>
       </div>
@@ -398,8 +430,8 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
         <div class="av g1">DA</div>
         <div class="c">
           <div class="l1"><span class="from">Dad</span><span class="time">Oct 5</span></div>
-          <div class="subj">Bike's fixed</div>
-          <div class="snip">New chain and the back brake. Come get it whenever, it's in the garage.</div>
+          <div class="subj">Bike’s fixed</div>
+          <div class="snip">New chain and the back brake. Come get it whenever, it’s in the garage.</div>
           <div class="meta"><span class="chip l-fam"><span class="dot"></span>Family</span></div>
         </div>
       </div>
@@ -423,14 +455,7 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
     </div>
     <div class="read-b">
       <div class="read-in">
-        <div class="subject"><h2>Re: Lisbon — the real list</h2><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span></div>
-        <div class="thread-n">2 messages</div>
-
-        <div class="collapsed">
-          <div class="av sm g7">LM</div>
-          <div class="t"><b>Leo Marsh</b><span>Landing on the 16th for four nights! Any recs beyond the obvious ones? We want the places you'd actually take friends.</span></div>
-          <time>Oct 11</time>
-        </div>
+        <div class="subject"><h2>Coffee tomorrow?</h2><span class="chip l-lis"><span class="dot"></span>Lisbon trip</span></div>
 
         <div class="sender">
           <div class="av lg g1">IC</div>
@@ -438,49 +463,107 @@ button, .nav a, .m, .file, .tabs a { cursor: pointer; }
             <b>Inês Carvalho</b><span class="addr">ines@carvalho.pt</span>
             <div class="to">to me, Mara<svg class="i"><use href="#down"/></svg></div>
           </div>
-          <time>Wed, Oct 14, 9:41 AM</time>
+          <time>Wed, Oct 14, 5:31 PM</time>
           <div class="acts">
-            <button class="ib star-on"><svg class="i"><use href="#star"/></svg></button>
+            <button class="ib"><svg class="i"><use href="#star"/></svg></button>
             <button class="ib"><svg class="i"><use href="#reply"/></svg></button>
           </div>
         </div>
 
-        <div class="body">
-          <p>Leo —</p>
-          <p>You asked for the real list, so here it is. Rule of thumb: ignore anything with a laminated menu out front.</p>
-          <ol>
-            <li><b>Tasca do Alecrim</b>, Alfama. Grilled sardines and vinho verde from the barrel. No reservations, so go before 8 or after 10.</li>
-            <li><b>Cervejaria do Cais</b> for clams and garlic prawns. Finish with a prego at the counter, like everyone else does.</li>
-            <li><b>Senhora do Monte</b> at sunset, not Santa Justa. Bring a bottle and get there 30 minutes early.</li>
-          </ol>
-          <p>I'm in town on the 17th and 18th. Saturday lunch? I've attached the photos from the miradouro and my old map with everything pinned.</p>
+        <div class="body" id="message">
+          <p>Leo!</p>
+          <p>You made it! I’m shooting in Alfama tomorrow at ten, so I could do coffee before. Tell me where you’re staying and I’ll come to you.</p>
           <p class="sig">Beijinhos,<br>Inês</p>
         </div>
 
-        <div class="files">
-          <div class="file">
-            <div class="pv"><svg viewBox="0 0 176 104" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="sk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6b38a"/><stop offset=".55" stop-color="#fbd7a8"/><stop offset="1" stop-color="#f4c49a"/></linearGradient></defs><rect width="176" height="104" fill="url(#sk)"/><circle cx="118" cy="56" r="15" fill="#fff4dc" opacity=".9"/><path d="M0 70h176v34H0z" fill="#9db8c8"/><path d="M0 70h176v3H0z" fill="#c9d6dc" opacity=".7"/><path d="M0 62l14-4 10 3 0-9h8v8l9-6 12 5v-8h9v9l12-3 10 5 10-7 8 4v-6h10v7l12-4 14 6 8-3 10 5V80H0z" fill="#c76a4a"/><path d="M0 74l20-5 16 4 18-6 22 6 16-3 20 5 22-6 22 4 20-3v34H0z" fill="#a24b34"/><g fill="#f6e6cf" opacity=".85"><rect x="6" y="78" width="6" height="7"/><rect x="28" y="80" width="5" height="6"/><rect x="58" y="76" width="6" height="7"/><rect x="88" y="81" width="5" height="6"/><rect x="120" y="78" width="6" height="7"/><rect x="150" y="80" width="5" height="6"/></g><path d="M0 90l30-6 30 5 34-6 30 5 52-5v21H0z" fill="#7d3426"/></svg></div>
-            <div class="cap"><b>miradouro.heic</b><span>2.4 MB</span></div>
+        <div class="draft" id="reply-draft">
+          <div class="draft-h">
+            <svg class="i"><use href="#reply"/></svg>
+            <span class="rcpt"><span class="av xs g1">IC</span>Inês Carvalho</span>
+            <span class="saved" id="reply-saved"></span>
           </div>
-          <div class="file">
-            <div class="pv"><svg viewBox="0 0 176 104" preserveAspectRatio="xMidYMid slice"><rect width="176" height="104" fill="#e9dccb"/><rect x="0" y="0" width="70" height="104" fill="#d8c3a5"/><g fill="#c6ad8a"><rect x="12" y="10" width="14" height="22" rx="2"/><rect x="40" y="10" width="14" height="22" rx="2"/><rect x="12" y="44" width="14" height="22" rx="2"/><rect x="40" y="44" width="14" height="22" rx="2"/></g><rect x="70" y="0" width="106" height="104" fill="#f1e8db"/><path d="M0 86h176v18H0z" fill="#8f8478"/><path d="M0 92h176" stroke="#6e655c" stroke-width="2"/><rect x="62" y="38" width="96" height="50" rx="7" fill="#f2b632"/><rect x="62" y="38" width="96" height="9" rx="4" fill="#e3a21f"/><g fill="#5a4a33" opacity=".85"><rect x="70" y="51" width="14" height="14" rx="2"/><rect x="89" y="51" width="14" height="14" rx="2"/><rect x="108" y="51" width="14" height="14" rx="2"/><rect x="127" y="51" width="14" height="14" rx="2"/></g><rect x="62" y="72" width="96" height="4" fill="#fff" opacity=".7"/><text x="146" y="85" font-family="Helvetica Neue" font-weight="700" font-size="7" fill="#5a4a33">28</text><path d="M110 38l-10-14h20" stroke="#4b4038" stroke-width="1.5" fill="none"/><path d="M0 22h176" stroke="#4b4038" stroke-width="1" opacity=".6"/><circle cx="76" cy="88" r="5" fill="#3d3833"/><circle cx="144" cy="88" r="5" fill="#3d3833"/></svg></div>
-            <div class="cap"><b>tram-28.heic</b><span>1.9 MB</span></div>
+          <div class="draft-b" id="reply-body" contenteditable="true" spellcheck="false" data-placeholder="Reply to Inês…"></div>
+          <div class="draft-room" id="reply-room"></div>
+          <div class="draft-f">
+            <button class="ib fmt"><b>B</b></button><button class="ib fmt"><i>I</i></button>
+            <span class="sep"></span>
+            <button class="ib"><svg class="i"><use href="#clip"/></svg></button><button class="ib"><svg class="i"><use href="#smile"/></svg></button><button class="ib"><svg class="i"><use href="#img"/></svg></button>
+            <button class="send" id="send-reply"><svg class="i"><use href="#send"/></svg>Send</button>
           </div>
-          <div class="file">
-            <div class="pv pdf"><span class="tag">PDF</span><div class="pg"><i></i><i></i><i></i><i style="width:60%"></i><i></i><i style="width:80%"></i></div></div>
-            <div class="cap"><b>lisboa-map.pdf</b><span>860 KB</span></div>
-          </div>
-        </div>
-
-        <div class="reply" id="reply">
-          <svg class="i"><use href="#reply"/></svg>
-          <span>Reply to Inês…</span>
-          <div class="tools"><button class="ib"><svg class="i"><use href="#clip"/></svg></button><button class="ib"><svg class="i"><use href="#smile"/></svg></button></div>
-          <button class="send" id="send"><svg class="i"><use href="#send"/></svg>Send</button>
         </div>
       </div>
     </div>
   </main>
 </div>
+<div class="toast" id="toast" role="status">
+  <span class="ok"><svg viewBox="0 0 14 14"><path d="M3 7.5l2.6 2.5L11 4.5"/></svg></span>
+  Reply sent to Inês
+  <span class="undo">Undo</span>
+</div>
+<script>
+(() => {
+  const pane = document.querySelector(".read-b");
+  const draft = document.getElementById("reply-draft");
+  const body = document.getElementById("reply-body");
+  const saved = document.getElementById("reply-saved");
+
+  // A click in the room under the text picks up where the draft left off.
+  document.getElementById("reply-room").addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    body.focus();
+    const range = document.createRange();
+    range.selectNodeContents(body);
+    range.collapse(false);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+  });
+
+  let saving;
+  body.addEventListener("input", () => {
+    saved.textContent = "Saving…";
+    clearTimeout(saving);
+    saving = setTimeout(() => (saved.textContent = "Draft saved"), 700);
+  });
+
+  // Pasted text comes in plain, and lights up for a moment.
+  body.addEventListener("paste", (event) => {
+    event.preventDefault();
+    const text = event.clipboardData.getData("text/plain").replace(/\s+/g, " ").trim();
+    const range = getSelection().getRangeAt(0);
+    const mark = document.createElement("span");
+    mark.className = "pasted";
+    mark.textContent = text;
+    range.deleteContents();
+    range.insertNode(mark);
+    // A caret just after the span types into it, so it goes after a
+    // zero-width space instead.
+    const after = document.createTextNode("​");
+    mark.after(after);
+    range.setStart(after, 1);
+    range.collapse(true);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    body.dispatchEvent(new Event("input"));
+  });
+
+  document.getElementById("send-reply").addEventListener("click", () => {
+    const words = body.innerText.replace(/​/g, "").replace(/\s+/g, " ").trim();
+    draft.classList.add("going");
+    setTimeout(() => {
+      const sent = document.createElement("div");
+      sent.className = "collapsed mine";
+      sent.innerHTML = '<div class="av sm g7">LM</div><div class="t"><b>Leo Marsh</b><span></span></div><span class="tick">Sent · now</span>';
+      sent.querySelector(".t span").textContent = words;
+      const top = pane.scrollTop;
+      const room = draft.offsetHeight;
+      draft.replaceWith(sent);
+      // Keeps the thread where it was rather than jumping to fill the space.
+      sent.style.marginBottom = `${28 + room - sent.offsetHeight}px`;
+      pane.scrollTop = top;
+            document.getElementById("toast").classList.add("on");
+    }, 420);
+  });
+})();
+</script>
 </body>
 </html>

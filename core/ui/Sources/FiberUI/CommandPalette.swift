@@ -116,6 +116,9 @@ final class CommandPalette: NSObject {
   private var pageTextMatches: [PageTextMatch] = []
   private var items: [PaletteItem] = []
   private var selectedIndex = 0
+  /// Until the user moves it, the selection follows the top result as page
+  /// text results come in.
+  private var hasMovedSelection = false
   /// Page text is searched one query at a time; a newer one waits.
   private var isSearchingPageText = false
   private var needsPageTextSearch = false
@@ -153,6 +156,7 @@ final class CommandPalette: NSObject {
     queryText = ""
     query = PaletteQuery("")
     pageTextMatches = []
+    hasMovedSelection = false
     index.addObserver(self) { [weak self] change in
       self?.refresh(
         keepingSelection: true, searchingPageText: change == .pageText)
@@ -179,7 +183,12 @@ final class CommandPalette: NSObject {
     }
     queryText = field.stringValue
     query = PaletteQuery(queryText)
-    pageTextMatches = []
+    // The last query's page text results stay until this one's come in, so
+    // the list doesn't empty for a moment at each key.
+    if !query.searchesPageText {
+      pageTextMatches = []
+    }
+    hasMovedSelection = false
     refresh(keepingSelection: false, searchingPageText: true)
   }
 
@@ -267,7 +276,7 @@ final class CommandPalette: NSObject {
         }
       }
       self.show(
-        keepingSelection: true,
+        keepingSelection: self.hasMovedSelection,
         tabs: Dictionary(
           self.index.tabs.map { ($0.tabID, $0) },
           uniquingKeysWith: { first, _ in first }))
@@ -427,6 +436,11 @@ final class CommandPalette: NSObject {
     view.hints = (action.map { [($0, "↩")] } ?? []) + [("Close", "esc")]
   }
 
+  private func moveSelection(to index: Int) {
+    hasMovedSelection = true
+    select(index)
+  }
+
   @objc private func submit(_ sender: Any?) {
     open(at: selectedIndex)
   }
@@ -464,16 +478,16 @@ extension CommandPalette: NSTextFieldDelegate {
       onDismiss()
     case #selector(NSResponder.moveUp(_:)),
       #selector(NSResponder.insertBacktab(_:)):
-      select(selectedIndex - 1)
+      moveSelection(to: selectedIndex - 1)
     case #selector(NSResponder.moveDown(_:)),
       #selector(NSResponder.insertTab(_:)):
-      select(selectedIndex + 1)
+      moveSelection(to: selectedIndex + 1)
     case #selector(NSResponder.pageUp(_:)),
       #selector(NSResponder.scrollPageUp(_:)):
-      select(selectedIndex - Self.pageStep)
+      moveSelection(to: selectedIndex - Self.pageStep)
     case #selector(NSResponder.pageDown(_:)),
       #selector(NSResponder.scrollPageDown(_:)):
-      select(selectedIndex + Self.pageStep)
+      moveSelection(to: selectedIndex + Self.pageStep)
     // Return with modifiers, which the field would otherwise take as a line
     // break (Option-Return) or beep at (Command-Return).
     case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)),

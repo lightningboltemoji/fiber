@@ -55,14 +55,16 @@ export const resolveShots = (
 ): ResolvedShot[] =>
 	shots
 		.map((shot) => {
-			const rect =
+			const rect = visible(
 				shot.frame === undefined || shot.frame === 'window'
 					? timeline.window
 					: typeof shot.frame === 'string'
 						? marker(timeline, shot.frame).rect
 						: Array.isArray(shot.frame)
 							? union(shot.frame.map((name) => marker(timeline, name).rect))
-							: shot.frame;
+							: shot.frame,
+				timeline.window,
+			);
 			const fill = shot.fill ?? (shot.frame === undefined || shot.frame === 'window' ? 0.82 : 0.7);
 			const scale = Math.min(
 				(picture.width * fill) / Math.max(rect.width, 1),
@@ -94,6 +96,15 @@ const union = (rects: Rect[]): Rect => {
 		width: Math.max(...rects.map((r) => r.x + r.width)) - x,
 		height: Math.max(...rects.map((r) => r.y + r.height)) - y,
 	};
+};
+
+/** What of `rect` is in the window, since a page's element can run past its edge. */
+const visible = (rect: Rect, window: Rect): Rect => {
+	const x = Math.max(rect.x, window.x);
+	const y = Math.max(rect.y, window.y);
+	const width = Math.min(rect.x + rect.width, window.x + window.width) - x;
+	const height = Math.min(rect.y + rect.height, window.y + window.height) - y;
+	return width > 0 && height > 0 ? {x, y, width, height} : rect;
 };
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

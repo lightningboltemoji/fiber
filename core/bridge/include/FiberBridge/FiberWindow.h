@@ -152,6 +152,10 @@ NS_SWIFT_UI_ACTOR
 // `tabID` is active now. Not called for a New Tab page. Follows the
 // -setTabs:activeTabID: that lists it.
 - (void)didOpenTabWithID:(NSInteger)tabID fromTabWithID:(NSInteger)openerTabID;
+// The user tried to close the window's last tab, a New Tab page, which stays.
+// Returns whether to close the window instead: only for another try while the
+// notice the first one shows is up.
+- (BOOL)confirmCloseWindow;
 // Replaces the pins with `pins`, in order. Their open tabs are among the tabs
 // too. Never called for a window that can't have pins, like an Incognito one.
 - (void)setPins:(NSArray<FiberPinState*>*)pins;

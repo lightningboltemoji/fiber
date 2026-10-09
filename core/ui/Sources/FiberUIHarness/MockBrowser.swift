@@ -158,10 +158,13 @@ final class MockBrowser: NSObject, FiberWindowActions {
     guard let tab = tabs.first(where: { $0.id == tabID }) else {
       return
     }
-    // Like Fiber, the last tab leaves a New Tab page, which stays.
+    // Like Fiber, the last tab leaves a New Tab page, which stays unless the
+    // UI confirms closing the window.
     let isLast = tabs.count == 1
     if isLast && tab.url == Self.newTabURL {
-      restoreFocus()
+      if ui.confirmClose() {
+        windowShouldClose()
+      }
       return
     }
     let leave = { [weak self] in
