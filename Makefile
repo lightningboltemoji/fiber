@@ -48,7 +48,7 @@ icon:
 
 # --- The demo video ------------------------------------------------------------------------------
 # The director plays demo/tapes/$(TAPE).tape on out/Release's app (APP=… for another) and records
-# the take into demo/takes/$(TAPE); the studio cuts takes into demo/studio/out/$(CUT).mp4. A take
+# the take into demo/takes/$(TAPE); the studio cuts takes into demo/studio/out/$(CUT).webm. A take
 # takes over the mouse and keyboard while it records. See .agents/DEMO.md.
 TAPE     ?= readme
 CUT      ?= $(TAPE)
@@ -60,9 +60,11 @@ demo-take:
 	swift build -c release --package-path demo/director
 	$(DIRECTOR) demo/tapes/$(TAPE).tape $(if $(APP),--app $(APP))
 
+# Renders near lossless, then encodes that as AV1 at the best quality GitHub's upload limit allows.
 demo-render:
 	cd demo/studio && npm ci --silent && \
-		npx remotion render src/index.ts $(CUT) out/$(CUT).mp4 $(if $(CRF),--crf=$(CRF))
+		npx remotion render src/index.ts $(CUT) out/$(CUT)-master.mp4 && \
+		./encode.sh out/$(CUT)-master.mp4 out/$(CUT).webm
 
 # Previews and scrubs the cuts in a browser, to tune the camera.
 demo-studio:

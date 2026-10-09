@@ -16,9 +16,9 @@ demo/
 ```
 
 ```sh
-make demo                 # record demo/tapes/readme.tape, then render demo/studio/out/readme.mp4
+make demo                 # record demo/tapes/readme.tape, then render demo/studio/out/readme.webm
 make demo-take TAPE=…     # just record (APP=… for another build than out/Release)
-make demo-render CUT=…    # just render (CRF=… for a smaller file; 18 by default)
+make demo-render CUT=…    # just render
 make demo-studio          # preview the cuts in a browser, to tune the camera
 ```
 
@@ -135,12 +135,17 @@ it draws. Its pieces:
 - `brand.ts` takes the app icon from `core/branding/icon`, so a render uses
   the icon `make icon` last built.
 
-A render takes about 8 seconds a second of video at 1080p60.
+A render takes about 8 seconds a second of video at 1080p60, and the
+encode a couple of minutes more.
 `smoke.tape` and its cut check the whole pipeline in a few seconds:
 `make demo TAPE=smoke`. The README's video can only play
-inline on GitHub from an upload: drop `out/readme.mp4` into the README's
+inline on GitHub from an upload: drop `out/readme.webm` into the README's
 editor on github.com and use the `user-attachments` URL it gives. A free plan
-takes videos up to 10 MB, which `make demo-render CRF=27` fits.
+takes videos up to 10 MB (and no images but PNG, GIF, JPEG and SVG, so no
+animated AVIF or WebP), so Remotion renders near lossless, to
+`out/<cut>-master.mp4`, and `encode.sh` encodes that as AV1 at the best
+quality that fits: the lowest CRF whose file does. It needs ffmpeg with
+SVT-AV1 (`brew install ffmpeg`).
 
 ## The sites
 

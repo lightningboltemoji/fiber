@@ -1,8 +1,26 @@
 diff --git a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm
-index d55b8386da..a74146e2c4 100644
+index d55b8386da..281db565b5 100644
 --- a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm
 +++ b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm
-@@ -3136,7 +3136,9 @@ extern NSString* NSTextInputReplacementRangeAttributeName;
+@@ -1025,12 +1025,11 @@ static NSWindow* __weak _deferredResignKeyWindow;
+     }
+   }
+ 
+-  NSView* contentView = window.contentView;
+-  // -hitTest: assumes use of the superview's coordinate system.
+-  NSPoint pointForHitTestInContentView =
+-      [contentView.superview convertPoint:theEvent.locationInWindow
+-                                 fromView:nil];
+-  NSView* view = [contentView hitTest:pointForHitTestInContentView];
++  // Fiber: from the frame view, as AppKit hit tests to deliver the event, since
++  // Fiber puts views over the content view there (extension popups). It has no
++  // superview, so -hitTest: takes window coordinates.
++  NSView* view =
++      [window.contentView.superview hitTest:theEvent.locationInWindow];
+   // Traverse the superview hierarchy as the hitTest will return the frontmost
+   // view, such as an NSTextView, while nonWebContentView may be specified by
+   // its parent view.
+@@ -3136,7 +3135,9 @@ extern NSString* NSTextInputReplacementRangeAttributeName;
  // native_app_window_cocoa.mm). This requires the render host view to be
  // draggable by default.
  - (BOOL)mouseDownCanMoveWindow {

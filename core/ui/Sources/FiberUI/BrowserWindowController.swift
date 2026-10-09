@@ -226,9 +226,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // Fiber has its own tabs; keep AppKit from merging windows.
     window.tabbingMode = .disallowed
 
-    let content = BrowserContentView()
-    content.popups = extensionPopups
-    window.contentView = content
+    let content = window.contentView!
     contentArea.frame = content.bounds
     contentArea.autoresizingMask = [.width, .height]
     contentArea.wantsLayer = true
@@ -1684,22 +1682,6 @@ private final class BrowserWindow: NSWindow, FiberWindowMenuActions {
       return menuActionTarget
     }
     return super.supplementalTarget(forAction: action, sender: sender)
-  }
-}
-
-/// Its hit testing takes in the extension popups over it in the frame view,
-/// since a page only takes the mouse events that hit test to it through the
-/// window's content view (RenderWidgetHostViewCocoa).
-private final class BrowserContentView: NSView {
-  weak var popups: NSView?
-
-  override func hitTest(_ point: NSPoint) -> NSView? {
-    if let popups, popups.superview === superview,
-      let view = popups.hitTest(point)
-    {
-      return view
-    }
-    return super.hitTest(point)
   }
 }
 
