@@ -1663,11 +1663,8 @@ struct TabOverlayView: View {
       .offset(x: panel.minX, y: panel.minY)
 
       PinGrid(model: model)
-        .frame(
-          width: panel.width + PinGrid.leftRoom, height: max(pins.y, 0),
-          alignment: .bottomLeading
-        )
-        .offset(x: pins.x - PinGrid.leftRoom)
+        .frame(width: panel.width, height: max(pins.y, 0))
+        .offset(x: pins.x)
         // Read before the tabs, as they show.
         .accessibilitySortPriority(1)
     }

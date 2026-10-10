@@ -154,18 +154,12 @@ struct PinGrid: View {
   private static let moveAnimation = Animation.spring(
     duration: 0.3, bounce: 0.15)
   static let expandAnimation = Animation.spring(duration: 0.32, bounce: 0.2)
-  /// Past the grid's left edge, for the first pin's capsule. Without it, the
-  /// stack would grow left for the capsule and shift every pin right.
-  static let leftRoom = PinGridLayout.buttonWidth
 
   var body: some View {
     let width = model.gridWidth
     let shown = model.shownPins
     let span = model.motionSpan
-    ZStack(alignment: .bottomLeading) {
-      // Holds the grid's bottom-left corner, which the rows rise from.
-      Color.clear.frame(width: Self.leftRoom + width, height: 0)
-
+    PinGridStack {
       ForEach(model.pins, id: \.pinID) { pin in
         let isDragged = model.pinDrag?.pinID == pin.pinID
         let index = model.pins.firstIndex { $0.pinID == pin.pinID } ?? 0
@@ -198,9 +192,7 @@ struct PinGrid: View {
         // drag rather than an offset, which would animate apart from the place
         // and swing a dropped pin past it.
         .place(
-          at: CGPoint(
-            x: Self.leftRoom + origin.x + offset.width,
-            y: origin.y + offset.height))
+          at: CGPoint(x: origin.x + offset.width, y: origin.y + offset.height))
         .zIndex(isDragged ? 2 : expansion != nil ? 1 : 0)
         .transition(reduceMotion ? .opacity : .pinPop)
         .accessibilityElement()
@@ -225,8 +217,7 @@ struct PinGrid: View {
 
       if !reduceMotion {
         ForEach(model.pinBursts) { burst in
-          PinBurstView(color: burst.color).place(
-            at: CGPoint(x: Self.leftRoom + burst.origin.x, y: burst.origin.y))
+          PinBurstView(color: burst.color).place(at: burst.origin)
         }
       }
     }
@@ -241,13 +232,38 @@ struct PinGrid: View {
   }
 }
 
+/// Puts each view's top-left corner at its place (see place(at:)), from the
+/// stack's bottom-left corner. Unlike a ZStack, it doesn't grow to hold them,
+/// so a pin dragged or opened past its edges moves none of the others.
+private struct PinGridStack: Layout {
+  func sizeThatFits(
+    proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+  ) -> CGSize {
+    proposal.replacingUnspecifiedDimensions(by: .zero)
+  }
+
+  func placeSubviews(
+    in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews,
+    cache: inout ()
+  ) {
+    for subview in subviews {
+      let origin = subview[PinPlace.self]
+      subview.place(
+        at: CGPoint(x: bounds.minX + origin.x, y: bounds.maxY + origin.y),
+        anchor: .topLeading, proposal: .unspecified)
+    }
+  }
+}
+
+private struct PinPlace: LayoutValueKey {
+  static let defaultValue = CGPoint.zero
+}
+
 extension View {
-  /// Lays the view out with its top-left corner at `origin` from the
-  /// bottom-left corner of a bottom-leading ZStack, so its own effects (a
-  /// transition's scale) center on it.
+  /// Lays the view out with its top-left corner at `origin` in a
+  /// PinGridStack, so its own effects (a transition's scale) center on it.
   fileprivate func place(at origin: CGPoint) -> some View {
-    alignmentGuide(.leading) { _ in -origin.x }
-      .alignmentGuide(.bottom) { _ in -origin.y }
+    layoutValue(key: PinPlace.self, value: origin)
   }
 }
 
