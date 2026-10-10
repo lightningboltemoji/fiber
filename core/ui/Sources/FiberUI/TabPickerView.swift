@@ -217,9 +217,10 @@ private struct TabPreview: View {
           .padding(TabPickerLayout.previewInset)
       }
     }
-    .scaleEffect(isShown ? 1 : 0.94, anchor: .top)
-    .opacity(isShown ? 1 : 0)
-    .animation(Self.spring.slowMotion, value: isShown)
+    .animation(Self.spring.slowMotion) {
+      $0.scaleEffect(isShown ? 1 : 0.94, anchor: .top)
+        .opacity(isShown ? 1 : 0)
+    }
     .frame(width: shown.width, height: shown.height, alignment: .topLeading)
     .offset(x: shown.minX, y: shown.minY)
     .animation(wasShown && isShown ? Self.spring.slowMotion : nil, value: shown)
