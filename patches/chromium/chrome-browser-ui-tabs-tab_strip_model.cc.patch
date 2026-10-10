@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
+index 01f863a9f4..10a883718f 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -118,6 +118,10 @@
+ #include "ui/base/page_transition_types.h"
+ #include "ui/gfx/range/range.h"
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/tab_strip_selection.h"
++#endif
++
+ using base::UserMetricsAction;
+ using content::WebContents;
+ 
+@@ -5793,6 +5797,14 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
+     }
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  // Fiber: past the openers, closing never lands on a pin's tab.
++  if (std::optional<int> fiber_index =
++          fiber::TabToActivateAfterClosing(*this, block_tabs)) {
++    return GetTabIndexAfterClosing(*fiber_index, block_tabs);
++  }
++#endif
++
+   // Fourth preference is a tab that belongs in the same parent collection as
+   // `tab_or_collection`.
+   const tabs::TabCollection* parent_collection_detached_object = nullptr;

@@ -5,7 +5,8 @@
 // `--palette QUERY` (the command palette, open with QUERY typed),
 // `--find QUERY` (the find bar, likewise), `--extension-window` (a window an extension opened, as its bubble),
 // `--incognito` (the first window is Incognito, on the New Tab page),
-// `--pins N` (made-up pinned sites, the first two open),
+// `--pins N` (made-up pinned sites, the first two open, the first away from
+// its pinned page),
 // `--restorables N` (N made-up closed windows and earlier sessions, for the
 // command palette),
 // `--overlay` (the tab overlay, as Command-S opens it),
@@ -75,8 +76,11 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     }
     if let count = launchValue(of: "--pins").flatMap(Int.init), count > 0 {
       setPinCount(count)
-      for pin in pins.pins.prefix(2) {
+      for (index, pin) in pins.pins.prefix(2).enumerated() {
         browsers.last?.openPin(withID: pin.id)
+        if index == 0 {
+          browsers.last?.navigate(toInput: "fiber.example/about", event: nil)
+        }
       }
     }
     NSApp.activate()
@@ -407,6 +411,22 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
         item("Close Window", #selector(NSWindow.performClose(_:)), "W"),
         item("Close Tab", #selector(MockBrowser.closeTab(_:)), "w"),
       ])
+    // Like Fiber's, which adds Command-1 to Command-9 to Chrome's Tab menu.
+    let nextTab = item("Select Next Tab", #selector(MockBrowser.selectNextTab(_:)), "\t")
+    nextTab.keyEquivalentModifierMask = .control
+    let previousTab = item(
+      "Select Previous Tab", #selector(MockBrowser.selectPreviousTab(_:)), "\t")
+    previousTab.keyEquivalentModifierMask = [.control, .shift]
+    let numbered = (1...9).map { number in
+      let numbered = item(
+        "Select Tab \(number)", #selector(MockBrowser.selectNumberedTab(_:)),
+        "\(number)")
+      numbered.tag = number == 9 ? -1 : number - 1
+      numbered.isHidden = true
+      numbered.allowsKeyEquivalentWhenHidden = true
+      return numbered
+    }
+    submenu("Tab", [nextTab, previousTab] + numbered)
     submenu(
       "Edit",
       [

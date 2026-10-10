@@ -33,16 +33,6 @@ enum PinGridLayout {
     return CGFloat(rows) * step - spacing
   }
 
-  /// The circle `point` is on, if any.
-  static func index(at point: CGPoint, count: Int, width: CGFloat) -> Int? {
-    (0..<count).first { index in
-      let origin = origin(of: index, width: width)
-      return hypot(
-        point.x - origin.x - diameter / 2, point.y - origin.y - diameter / 2)
-        <= diameter / 2
-    }
-  }
-
   /// Whether `point` is on a circle or in the gaps between them, rather than
   /// past the last one.
   static func covers(_ point: CGPoint, count: Int, width: CGFloat) -> Bool {
@@ -51,6 +41,56 @@ enum PinGridLayout {
     let row = Int(((spacing / 2 - point.y) / step).rounded(.down))
     return (0..<columns).contains(column) && row >= 0
       && row * columns + column < count
+  }
+
+  /// How far an open pin's capsule reaches past its circle for each of its
+  /// buttons: Back on the left, Close on the right.
+  static let buttonWidth: CGFloat = 30
+
+  /// The circle of the pin at `index`, or its capsule if it's `open`. The open
+  /// pin's icon stays where its circle was, and the rest of its row parts
+  /// around it.
+  static func frame(of index: Int, open: OpenPin?, width: CGFloat) -> CGRect {
+    var frame = CGRect(
+      origin: origin(of: index, width: width),
+      size: CGSize(width: diameter, height: diameter))
+    guard let open else {
+      return frame
+    }
+    let back = open.hasBack ? buttonWidth : 0
+    if index == open.index {
+      frame.origin.x -= back
+      frame.size.width += back + buttonWidth
+    } else if index / columns(width: width) == open.index / columns(width: width)
+    {
+      frame.origin.x += index < open.index ? -back : buttonWidth
+    }
+    return frame
+  }
+
+  /// The pin at `point`, placed as frame(of:open:width:) places it, and which
+  /// part of it.
+  static func hit(at point: CGPoint, count: Int, open: OpenPin?, width: CGFloat)
+    -> (index: Int, part: PinPart)?
+  {
+    let radius = diameter / 2
+    for index in 0..<count {
+      let frame = frame(of: index, open: open, width: width)
+      // Within a radius of the line between its ends' centers.
+      let x = min(max(point.x, frame.minX + radius), frame.maxX - radius)
+      guard hypot(point.x - x, point.y - frame.midY) <= radius else {
+        continue
+      }
+      guard let open, open.index == index else {
+        return (index, .icon)
+      }
+      let icon = frame.minX + (open.hasBack ? buttonWidth : 0)
+      return (
+        index,
+        point.x < icon ? .back : point.x > icon + diameter ? .close : .icon
+      )
+    }
+    return nil
   }
 
   /// The place nearest `center`, for a circle dragged there.
@@ -65,6 +105,27 @@ enum PinGridLayout {
       max(Int(((-center.y - diameter / 2) / step).rounded()), 0), rows - 1)
     return min(row * columns + column, max(count - 1, 0))
   }
+}
+
+/// An open pin grown into a capsule with its buttons, while the pointer is on
+/// it or Option is held with it selected. Back is there only if its tab has
+/// left the pinned page.
+struct PinExpansion: Equatable {
+  let pinID: String
+  let hasBack: Bool
+  /// Whether Option opened it, rather than the pointer.
+  let isFromKeyboard: Bool
+}
+
+/// The open pin, for PinGridLayout.
+struct OpenPin: Equatable {
+  let index: Int
+  let hasBack: Bool
+}
+
+/// A part of a pin: its icon, or one of an open pin's buttons.
+enum PinPart: Equatable {
+  case icon, back, close
 }
 
 /// A pin being dragged to a new place.
@@ -85,12 +146,17 @@ struct PinBurst: Identifiable {
 }
 
 /// Draws the pins; TabOverlay handles their input. While one's dragged, the
-/// rest make room where it would go.
+/// rest make room where it would go, and while one's open into its capsule,
+/// its row parts around it.
 struct PinGrid: View {
   let model: TabOverlayModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private static let moveAnimation = Animation.spring(
     duration: 0.3, bounce: 0.15)
+  static let expandAnimation = Animation.spring(duration: 0.32, bounce: 0.2)
+  /// Past the grid's left edge, for the first pin's capsule. Without it, the
+  /// stack would grow left for the capsule and shift every pin right.
+  static let leftRoom = PinGridLayout.buttonWidth
 
   var body: some View {
     let width = model.gridWidth
@@ -98,19 +164,24 @@ struct PinGrid: View {
     let span = model.motionSpan
     ZStack(alignment: .bottomLeading) {
       // Holds the grid's bottom-left corner, which the rows rise from.
-      Color.clear.frame(width: width, height: 0)
+      Color.clear.frame(width: Self.leftRoom + width, height: 0)
 
       ForEach(model.pins, id: \.pinID) { pin in
         let isDragged = model.pinDrag?.pinID == pin.pinID
         let index = model.pins.firstIndex { $0.pinID == pin.pinID } ?? 0
         let slot = shown.firstIndex { $0.pinID == pin.pinID } ?? index
-        let origin = PinGridLayout.origin(
-          of: isDragged ? index : slot, width: width)
+        let expansion =
+          model.pinExpansion?.pinID == pin.pinID ? model.pinExpansion : nil
+        let origin = PinGridLayout.frame(
+          of: isDragged ? index : slot, open: model.openPin, width: width
+        ).origin
         let offset = isDragged ? model.pinDrag?.offset ?? .zero : .zero
         let delay = model.motionDelay(ofPin: index)
         PinCircle(
           pin: pin, isActive: pin.tabID != 0 && pin.tabID == model.activeTabID,
-          isSelected: model.selection == .pin(pin.pinID) && model.pinDrag == nil
+          isSelected: model.selection == .pin(pin.pinID) && model.pinDrag == nil,
+          expansion: expansion,
+          focusedPart: expansion == nil ? nil : model.focusedPinPart
         )
         // Not animation(_:body:), which doesn't animate an offset.
         .offset(y: model.isOpen || reduceMotion ? 0 : -TabOverlayMotion.travel)
@@ -127,8 +198,10 @@ struct PinGrid: View {
         // drag rather than an offset, which would animate apart from the place
         // and swing a dropped pin past it.
         .place(
-          at: CGPoint(x: origin.x + offset.width, y: origin.y + offset.height))
-        .zIndex(isDragged ? 1 : 0)
+          at: CGPoint(
+            x: Self.leftRoom + origin.x + offset.width,
+            y: origin.y + offset.height))
+        .zIndex(isDragged ? 2 : expansion != nil ? 1 : 0)
         .transition(reduceMotion ? .opacity : .pinPop)
         .accessibilityElement()
         .accessibilityLabel(pin.title.isEmpty ? pin.url : pin.title)
@@ -142,12 +215,18 @@ struct PinGrid: View {
             model.onClose(pin.tabID)
           }
         }
+        .accessibilityAction(named: "Back to Pinned Page") {
+          if pin.tabID != 0 {
+            model.onResetPin(pin.pinID)
+          }
+        }
         .accessibilityAction(named: "Unpin") { model.onUnpin(pin.pinID) }
       }
 
       if !reduceMotion {
         ForEach(model.pinBursts) { burst in
-          PinBurstView(color: burst.color).place(at: burst.origin)
+          PinBurstView(color: burst.color).place(
+            at: CGPoint(x: Self.leftRoom + burst.origin.x, y: burst.origin.y))
         }
       }
     }
@@ -156,6 +235,7 @@ struct PinGrid: View {
     // place animates with the grid's transaction rather than its own.
     .animation(Self.moveAnimation.slowMotion, value: shown.map(\.pinID))
     .animation(Self.moveAnimation.slowMotion, value: model.pinDrag?.pinID)
+    .animation(Self.expandAnimation.slowMotion, value: model.pinExpansion)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Pinned")
   }
@@ -288,34 +368,71 @@ extension NSImage {
   }
 }
 
-/// A pin: its page's icon in a circle of glass, ringed while its tab is the
-/// active one, and dimmed while it isn't open in the window.
+/// A pin: its page's icon in a circle of glass, with a dot under it while it's
+/// open in the window, and ringed while its tab is the active one. Open into
+/// its capsule, it has Back to its left, if its tab has left the pinned page,
+/// and Close to its right.
 private struct PinCircle: View {
-  private static let closedIconOpacity = 0.5
-
   let pin: FiberPinState
   let isActive: Bool
   let isSelected: Bool
+  let expansion: PinExpansion?
+  /// The part the pointer is on, or Option and the arrow keys chose.
+  let focusedPart: PinPart?
 
   var body: some View {
     let rim = GlassCapsule.rimWidth
+    let diameter = PinGridLayout.diameter
+    let back = expansion?.hasBack == true ? PinGridLayout.buttonWidth : 0
+    let close = expansion != nil ? PinGridLayout.buttonWidth : 0
+    let isOpen = pin.tabID != 0
+    let shape = RoundedRectangle(cornerRadius: diameter / 2, style: .continuous)
     ZStack {
-      RimmedGlass(cornerRadius: PinGridLayout.diameter / 2, rimWidth: rim)
-      Circle()
+      RimmedGlass(cornerRadius: diameter / 2, rimWidth: rim)
+      shape
         .inset(by: rim)
         .fill(Color.primary.opacity(0.22))
-        .opacity(isSelected ? 1 : 0)
-      Circle()
+        .opacity(isSelected && expansion == nil ? 1 : 0)
+      shape
         .inset(by: rim)
         .strokeBorder(Color.primary.opacity(0.5), lineWidth: 1.5)
         .opacity(isActive ? 1 : 0)
-      icon
-        .frame(width: 16, height: 16)
-        .opacity(pin.tabID == 0 ? Self.closedIconOpacity : 1)
+      HStack(spacing: 0) {
+        PinButton(
+          symbol: "arrow.counterclockwise", isFocused: focusedPart == .back,
+          turnsBack: true
+        )
+        // Centered in the capsule's round end.
+        .offset(x: 3)
+        .frame(width: back)
+        .opacity(back > 0 ? 1 : 0)
+        ZStack {
+          Circle()
+            .inset(by: rim + 1)
+            .fill(Color.primary.opacity(focusedPart == .icon ? 0.16 : 0))
+          icon
+            .frame(width: 16, height: 16)
+          Circle()
+            .fill(Color.primary.opacity(0.75))
+            .frame(width: 3.5, height: 3.5)
+            .offset(y: 11)
+            .scaleEffect(isOpen ? 1 : 0.2)
+            .opacity(isOpen ? 1 : 0)
+        }
+        .frame(width: diameter)
+        PinButton(symbol: "xmark", isFocused: focusedPart == .close)
+          .offset(x: -3)
+          .frame(width: close)
+          .opacity(close > 0 ? 1 : 0)
+      }
+      .frame(height: diameter)
+      .clipped()
     }
-    .frame(width: PinGridLayout.diameter, height: PinGridLayout.diameter)
+    .frame(width: back + diameter + close, height: diameter)
     .animation(.easeInOut(duration: 0.15).slowMotion, value: isSelected)
     .animation(.easeInOut(duration: 0.15).slowMotion, value: isActive)
+    .animation(.easeInOut(duration: 0.12).slowMotion, value: focusedPart)
+    .animation(.spring(duration: 0.35, bounce: 0.4).slowMotion, value: isOpen)
   }
 
   @ViewBuilder private var icon: some View {
@@ -331,6 +448,29 @@ private struct PinCircle: View {
     } else {
       Image(systemName: "globe")
         .foregroundStyle(.secondary)
+    }
+  }
+}
+
+/// A button at one end of an open pin's capsule. Back's arrow turns back once
+/// as it's focused.
+private struct PinButton: View {
+  let symbol: String
+  let isFocused: Bool
+  var turnsBack = false
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(Color.primary.opacity(isFocused ? 0.14 : 0))
+        .frame(width: 22, height: 22)
+      Image(systemName: symbol)
+        .font(.system(size: 11, weight: .bold))
+        .foregroundStyle(isFocused ? .primary : .secondary)
+        .rotationEffect(.degrees(turnsBack && isFocused ? -360 : 0))
+        .animation(
+          isFocused ? .spring(duration: 0.6, bounce: 0.25).slowMotion : nil,
+          value: isFocused)
     }
   }
 }

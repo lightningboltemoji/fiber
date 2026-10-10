@@ -162,8 +162,9 @@ final class MockBrowser: NSObject, FiberWindowActions {
       return
     }
     // Like Fiber, the last tab leaves a New Tab page, which stays unless the
-    // UI confirms closing the window.
-    let isLast = tabs.count == 1
+    // UI confirms closing the window. Pins' tabs don't count.
+    let unpinned = tabs.filter { !isPinTab($0) }
+    let isLast = unpinned == [tab]
     if isLast && tab.url == Self.newTabURL {
       if ui.confirmClose() {
         windowShouldClose()
@@ -311,7 +312,59 @@ final class MockBrowser: NSObject, FiberWindowActions {
   // MARK: Menu actions (forwarded by the window)
 
   @objc func newTab(_ sender: Any?) {
-    openTab(Self.newTabURL, activate: true)
+    // Like Fiber, the window keeps one blank New Tab page, which Command-T
+    // goes to, moved to where a new tab would open.
+    guard let blank = tabs.first(where: isBlankNewTab) else {
+      openTab(Self.newTabURL, activate: true)
+      return
+    }
+    if blank === activeTab {
+      ui.omnibox.focus(userInitiated: true)
+      return
+    }
+    tabs.removeAll { $0 === blank }
+    let index = activeTab.flatMap { tabs.firstIndex(of: $0) } ?? tabs.count - 1
+    tabs.insert(blank, at: index + 1)
+    activate(blank)
+  }
+
+  /// A New Tab page nothing's been opened from.
+  private func isBlankNewTab(_ tab: MockTab) -> Bool {
+    tab.url == Self.newTabURL && tab.history.count == 1 && !isPinTab(tab)
+  }
+
+  private func isPinTab(_ tab: MockTab) -> Bool {
+    pinTabs.values.contains { $0 === tab }
+  }
+
+  /// Like Fiber, Command-1 to Command-8 (the menu item's tag, from 0) go to
+  /// that tab, not counting pins', and Command-9 (-1) to the last.
+  @objc func selectNumberedTab(_ sender: NSMenuItem) {
+    let unpinned = tabs.filter { !isPinTab($0) }
+    let index = sender.tag < 0 ? unpinned.count - 1 : sender.tag
+    if unpinned.indices.contains(index) {
+      activate(unpinned[index])
+    }
+  }
+
+  /// Like Fiber, through the tabs that aren't pins', round from the last to
+  /// the first. From a pin's tab, the next is the first.
+  @objc func selectNextTab(_ sender: Any?) {
+    selectTab(by: 1)
+  }
+
+  @objc func selectPreviousTab(_ sender: Any?) {
+    selectTab(by: -1)
+  }
+
+  private func selectTab(by step: Int) {
+    let unpinned = tabs.filter { !isPinTab($0) }
+    guard !unpinned.isEmpty else {
+      return
+    }
+    let index =
+      unpinned.firstIndex { $0 === activeTab } ?? (step > 0 ? -1 : 0)
+    activate(unpinned[(index + step + unpinned.count) % unpinned.count])
   }
 
   @objc func closeTab(_ sender: Any?) {
@@ -562,6 +615,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     guard let index = tabs.firstIndex(of: tab) else {
       return
     }
+    let wasPin = isPinTab(tab)
     tab.loadTimer?.invalidate()
     tabs.remove(at: index)
     pinTabs = pinTabs.filter { $0.value !== tab }
@@ -570,10 +624,26 @@ final class MockBrowser: NSObject, FiberWindowActions {
       return
     }
     if tab === activeTab {
-      activate(tabs[min(index, tabs.count - 1)])
+      activate(nextTab(afterClosingPin: wasPin, at: index))
     } else {
       pushTabs()
     }
+  }
+
+  /// Like Fiber, without Chrome's openers: closing never lands on a pin's
+  /// tab. A pin's goes back to the tab used last; a tab to the one after it,
+  /// or before it if it was last; with no tabs left, a New Tab page.
+  private func nextTab(afterClosingPin wasPin: Bool, at index: Int) -> MockTab {
+    let unpinned = tabs.filter { !isPinTab($0) }
+    if wasPin, let recent = unpinned.max(by: { $0.lastActive < $1.lastActive })
+    {
+      return recent
+    }
+    if !wasPin, !unpinned.isEmpty {
+      let pinned = tabs.count - unpinned.count
+      return unpinned[min(max(index - pinned, 0), unpinned.count - 1)]
+    }
+    return openTab(Self.newTabURL, activate: false)
   }
 
   private func open(_ url: String, in tab: MockTab) {
@@ -919,3 +989,4 @@ private final class MockDialogActions: NSObject, FiberJavaScriptDialogActions {
     completion(.dismissed)
   }
 }
+

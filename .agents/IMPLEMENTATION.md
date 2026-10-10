@@ -111,7 +111,7 @@ Each surface Fiber replaces, and where it lives:
 | Surface | Chrome integration | UI |
 |---|---|---|
 | Browser window and load progress, and the status bubble: the hovered link's URL in a glass capsule in the page's bottom-left corner, which moves to the bottom-right when the pointer comes near and shows a long URL whole once the pointer rests on its link | `browser/window/` | `BrowserWindowController.swift`, `StatusBubble.swift` |
-| Tabs: a picker of the 10 most recent in a strip across the window's top edge, opening with the active one under the pointer, and the highlighted one's page hanging below as it was when last switched away from (Chrome's tab previews, which Fiber turns on, and settings' Show tab preview images turns off); and the tab overlay (⌘S): the rest of the tabs in order, in a panel as wide as the command palette's over the dimmed page, with the pins in rows of glass circles rising from its top, all a little above the middle of the window, and beside it the page's address (which opens the omnibar) and the extensions. Its arrow keys, Return and ⌘W move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)); holding Option shows each tab's number in place of its icon, and Option and a number switch to that tab, after a moment if a longer number could start with it, or as soon as Option is let go; one picked is switched to at once, under the overlay as it closes, which plays its opening back, quicker, showing what it closed with until it's gone; the omnibar or command palette opening cuts that short. It keeps the keyboard from the rest of the window until it closes, though not from an extension's popup opened from it, so a New Tab page that becomes active under it opens the omnibar only then; a tab opened in front (⌘T, a link from another app) closes it. A tab opened from the active one, in front of it or behind (a link on its page, ⌘-clicked or not, an extension, the omnibar; not a New Tab page, by Chrome's opener), shows in a notice in the window's top-right corner, below the find bar if it's open: a list like the overlay's of the tab it opened from, which grows to take it in (and the next few opened behind the same tab), and goes after a moment unless the pointer is on it, or when swiped (or dragged) off to the right like a notification | `browser/window/`, `browser/pins/`, `hooks/feature_overrides.cc` | `TabPicker.swift`, `TabPickerView.swift`, `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift`, `OpenedTabNotice.swift` |
+| Tabs: a picker of the 10 most recent in a strip across the window's top edge, opening with the active one under the pointer, and the highlighted one's page hanging below as it was when last switched away from (Chrome's tab previews, which Fiber turns on, and settings' Show tab preview images turns off); and the tab overlay (⌘S): the rest of the tabs in order, in a panel as wide as the command palette's over the dimmed page, with the pins in rows of glass circles rising from its top (a dot under each one open in the window), all a little above the middle of the window, and beside it the page's address (which opens the omnibar) and the extensions. An open pin the pointer rests on, or that's selected while Option is held, grows into a capsule around its icon, its row parting for it, with Close on its right and, once its tab has left the pinned page, Back on its left, whose arrow turns back as it's chosen; Option and the arrow keys choose between them, and Option-Return presses one. Its arrow keys, Return and ⌘W move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)); holding Option shows each tab's number in place of its icon, and Option and a number switch to that tab, after a moment if a longer number could start with it, or as soon as Option is let go; one picked is switched to at once, under the overlay as it closes, which plays its opening back, quicker, showing what it closed with until it's gone; the omnibar or command palette opening cuts that short. It keeps the keyboard from the rest of the window until it closes, though not from an extension's popup opened from it, so a New Tab page that becomes active under it opens the omnibar only then; a tab opened in front (⌘T, a link from another app) closes it. A tab opened from the active one, in front of it or behind (a link on its page, ⌘-clicked or not, an extension, the omnibar; not a New Tab page, by Chrome's opener), shows in a notice in the window's top-right corner, below the find bar if it's open: a list like the overlay's of the tab it opened from, which grows to take it in (and the next few opened behind the same tab), and goes after a moment unless the pointer is on it, or when swiped (or dragged) off to the right like a notification | `browser/window/`, `browser/pins/`, `hooks/feature_overrides.cc` | `TabPicker.swift`, `TabPickerView.swift`, `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift`, `OpenedTabNotice.swift` |
 | Downloads, in place of Chrome's download bubble: in the tab overlay, a glass capsule under the panel at its right, there while the window's profile has downloads from the last day (or any in progress), as Chrome's bubble lists them (an Incognito window, its own). It says how many are in progress with a ring of how far along they are together, or that one needs review, or how many there are with the newest files' icons fanned out; as the last one finishes, the ring fills and turns into a check. Clicked, it grows up and to the left into a panel over the tabs, without moving them, staying as its footer: each download's icon, name, progress and buttons (pause, resume, cancel, retry, show in Finder; delete one that may be harmful, or keep it where Chrome's bubble would offer to), opening the file when it's clicked and dragging out as it; Show All opens the Downloads page, and Clear takes what's finished off the list. Escape or a click off it closes it. A warning Chrome only shows for a while (an insecure download's) starts its clock when the overlay first opens over it. Every download asks where to save it (`hooks/profile_pref_defaults.cc`, the macOS save panel); Chrome's bubble and the service that feeds it don't run (`hooks/download_ui.h`) | `browser/downloads/`, `hooks/download_ui.cc` | `DownloadsBubble.swift`, `Downloads.swift`, `TabOverlay.swift` |
 | Omnibox, as the omnibar, where Option-clicking part of the URL selects the URL up to and including it, and Shift-Option-clicking selects it and the rest, as does pressing those and the number shown under that part | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
 | Command palette, in place of Tab Search: every tab, found by name or page text, and commands (see [PALETTE.md](PALETTE.md)) | `browser/palette/` | `CommandPalette.swift`, `PaletteSearch.swift`, `PageTextIndex.swift` |
@@ -174,9 +174,13 @@ While a page, DevTools or an extension window has focus, that runs the main
 menu item itself for:
 
 - Chrome's reserved commands (`IsReservedCommandOrKey()`): ⌘W, ⌘T, ⌘N, ⌘Q,
-  ⇧⌘T, switching tabs.
+  ⇧⌘T, switching tabs (⌃Tab, ⇧⌘], ⌥⌘→ and their reverses).
 - Fiber's ⌘S, ⌘P and ⌘L (Show Tabs, Command Palette, Open Location), unless
   the tab has key passthrough.
+
+Chrome's tab-switching shortcuts that its main menu doesn't have (⇧⌘], ⌥⌘→,
+⌘1–⌘9…) are hidden items in its Tab menu (`window/fiber_main_menu.mm`), since
+without views only a menu item runs a shortcut.
 
 A disabled item's shortcut still goes to the page, as does every key while a
 fullscreen page holds the keyboard lock. Other shortcuts (⌘F, ⌘R…) go to the
@@ -196,14 +200,22 @@ ring around its keyboard fills. A tap of Escape still goes to the page.
 Each Fiber window is one Chrome `Browser`, and the UI shows its
 `TabStripModel`, with the profile's pins above it.
 
-Closing tabs doesn't close the window: when the user closes the last one (⌘W,
-or from the tab overlay, picker or menu), a New Tab page opens in its place.
-Closing a lone New Tab page shows a notice, where a tab opened from the active
-one shows and in its glass but over the omnibar, that ⌘W again closes the
-window; closing it again while that's up does, though a held ⌘W's repeats
-don't (`FiberBrowserWindow::WillCloseTabs()`, `CloseWindowNotice.swift`).
-Otherwise only ⇧⌘W, the close button or ⌘Q close it. A page, an extension or
-a drag that takes the last tab still closes the window, as Chrome does.
+Closing tabs doesn't close the window: when the user closes the last one that
+isn't a pin's (⌘W, or from the tab overlay, picker or menu), a New Tab page
+opens in its place. Closing a lone New Tab page shows a notice, where a tab
+opened from the active one shows and in its glass but over the omnibar, that
+⌘W again closes the window, pins' tabs and all; closing it again while that's
+up does, though a held ⌘W's repeats don't
+(`FiberBrowserWindow::WillCloseTabs()`, `CloseWindowNotice.swift`). Otherwise
+only ⇧⌘W, the close button or ⌘Q close it. A page, an extension or a drag that
+takes the last tab still closes the window, as Chrome does; one that takes the
+last that isn't a pin's leaves a New Tab page, a moment after Chrome has gone
+to a pin's tab (`FiberBrowserWindow::KeepTab()`).
+
+⌘T goes to the window's blank New Tab page (one that's shown nothing else), if
+it has one, moved to the end as if it had just opened, rather than opening
+another (`FiberBrowserWindow::ShowBlankNewTab()`). An extension's new tab is
+always new.
 
 Arc-style spaces are coming. Chrome has no concept of them, so Fiber owns a
 per-profile model alongside Chrome's. It lives in `browser/`, since it has to
@@ -229,7 +241,20 @@ profile shows whether or not it has the pin open:
   closed-tab restore (`hooks/tab_extra_data.h`). A tab restored for a pin
   that's gone, or already open in its window, is unpinned.
 - Chrome's own pinned-tab persistence (`PinnedTabService`, and pinned tabs
-  reopened at startup) is cut: pins open only when clicked.
+  reopened at startup) is cut: pins open only when clicked. A closed pin
+  opens on its pinned page; ⇧⌘T brings its tab back as it was.
+- The user goes to a pin and leaves it, but never passes through one
+  (`pins/tab_sequence.h`). Closing a tab goes, once Chrome's openers have had
+  their say (a tab opened from a pin's page goes back to it), to the next tab,
+  or the one before if it was last, never a pin's; closing a pin's tab goes
+  back to the tab used last (`hooks/tab_strip_selection.h`, from
+  `TabStripModel::DetermineNewSelectedIndex()`). ⌃Tab and the other
+  tab-switching shortcuts go round the window's other tabs, and ⌘1–⌘9 count
+  them as the tab overlay numbers them.
+- Opening a pin's page from the omnibar (in the tab, or a new one in front) or
+  from another app goes to the pin instead, bringing its tab back to the page
+  if it has left it (`hooks/pin_urls.h`). Typed over a blank New Tab page,
+  the page then goes, as with Chrome's Switch to Tab.
 
 ## Sessions
 

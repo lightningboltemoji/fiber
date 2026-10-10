@@ -29,6 +29,10 @@
 @protocol FiberExtensionWindowActions;
 @protocol FiberWindow;
 
+namespace tabs {
+class TabInterface;
+}
+
 namespace fiber {
 
 class DownloadsWait;
@@ -314,11 +318,16 @@ class FiberBrowserWindow : public BrowserWindow,
   // Sends the UI the tab list, in tab strip order, and the pins.
   void UpdateTabs();
   void UpdatePins();
-  // Before the user closes `count` of the window's tabs. Closing them all
-  // leaves a browser window open on a New Tab page, and a lone New Tab page
-  // stays, unless the UI confirms closing the window instead. Returns whether
-  // to go ahead.
-  bool WillCloseTabs(size_t count);
+  // Before the user closes `closing`. Closing the last of the window's tabs
+  // that aren't pins' leaves a New Tab page in its place, and a lone New Tab
+  // page stays, unless the UI confirms closing the window instead. Returns
+  // whether to go ahead.
+  bool WillCloseTabs(const std::vector<tabs::TabInterface*>& closing);
+  // Command-T: goes to the window's blank New Tab page, if it has one, as if
+  // it had just opened. Returns whether there was one.
+  bool ShowBlankNewTab();
+  // Opens a New Tab page if the window has no tab that isn't a pin's.
+  void KeepTab();
 
   const raw_ptr<BrowserWindowInterface> browser_;
   FiberBrowserWindowActions* __strong actions_;

@@ -38,6 +38,14 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
   // What the window shows of the pins, in order.
   NSArray<FiberPinState*>* GetPinStates() const;
 
+  // The pin whose page `url` is, fragments aside, if any.
+  const Pin* PinForURL(const GURL& url) const;
+  // The pin whose page the tab is, if it's still pinned.
+  const Pin* PinForTab(tabs::TabInterface* tab) const;
+  // Goes to the pin as Open() does, bringing its tab back to its page if it
+  // has left it.
+  void Show(std::string_view pin_id);
+
   // What the user does with the window's pins (see FiberWindowActions).
   void PinTab(int32_t tab_id);
   void Open(std::string_view pin_id);
@@ -62,8 +70,6 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
   TabStripModel* model() const;
   // The pin's tab here, if it's open.
   tabs::TabInterface* TabForPin(std::string_view pin_id) const;
-  // The pin whose page the tab is, if it's still pinned.
-  const Pin* PinForTab(tabs::TabInterface* tab) const;
   // Makes the pinned tab a new pin's page.
   void Adopt(tabs::TabInterface* tab);
   void TabInserted(tabs::TabInterface* tab);

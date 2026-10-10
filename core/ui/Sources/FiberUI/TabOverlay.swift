@@ -19,6 +19,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Called with a pin to open, never the active tab's. Its owner closes the
   /// overlay.
   var onOpenPin: (String) -> Void = { _ in }
+  /// Called with a pin whose tab should go back to its pinned page. Its owner
+  /// closes the overlay.
+  var onResetPin: (String) -> Void = { _ in }
   /// Called with a pin dropped in a new place, and its index there.
   var onMovePin: (String, Int) -> Void = { _, _ in }
   var onUnpin: (String) -> Void = { _ in }
@@ -51,6 +54,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// How long the pool under the glass takes to follow a new measure of the
   /// page.
   private static let relightDuration: TimeInterval = 0.2
+  /// How long the pointer rests on an open pin before it opens into its
+  /// capsule.
+  private static let pinDwell: TimeInterval = 0.12
   /// How long a typed tab number waits for another digit, when one could
   /// follow it.
   private static let numberTimeout: TimeInterval = 0.6
@@ -69,7 +75,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var dragOffset: CGFloat = 0
   private var pressedTabID: Int?
   private var pressedCloseButtonTabID: Int?
-  private var pressedPin: (pinID: String, point: CGPoint)?
+  private var pressedPin: (pinID: String, point: CGPoint, part: PinPart)?
+  /// Opens the open pin under the pointer into its capsule, once the pointer
+  /// has rested on it, so that sweeping across a row doesn't ripple it.
+  private var pendingExpansion: DispatchWorkItem?
+  private var pendingExpansionPinID: String?
   /// Where the pointer was as the overlay opened, in screen coordinates,
   /// until it moves. What opened under it wasn't pointed at.
   private var restingPointer: CGPoint?
@@ -139,6 +149,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     model.onClose = { [weak self] tabID in self?.onClose(tabID) }
     model.onOpenPin = { [weak self] pinID in self?.openPin(pinID) }
     model.onUnpin = { [weak self] pinID in self?.onUnpin(pinID) }
+    model.onResetPin = { [weak self] pinID in self?.onResetPin(pinID) }
     addTrackingArea(
       NSTrackingArea(
         rect: .zero,
@@ -171,7 +182,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
     model.selection = initialSelection
     model.closeButton = nil
+    collapsePin()
     model.showsNumbers = Self.isOptionOnly(NSEvent.modifierFlags)
+    optionDidChange(isHeld: model.showsNumbers)
     restingPointer = NSEvent.mouseLocation
     heldTop = nil
     layoutPanel()
@@ -199,6 +212,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       moveBubbles()
       pressedPin = nil
       model.pinDrag = nil
+      collapsePin()
       cancelTypedNumber()
       model.showsNumbers = false
       if window?.firstResponder === self {
@@ -358,6 +372,19 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     hasPins = true
     let arePinsLeaving = pins.count < model.pins.count
     model.pins = pins
+    // A pin open into its capsule closes with its tab, and gains or loses
+    // Back as its tab leaves or comes back to the pinned page.
+    if let expansion = model.pinExpansion {
+      if let pin = pins.first(where: { $0.pinID == expansion.pinID }),
+        pin.tabID != 0
+      {
+        if pin.isAtPinnedURL == expansion.hasBack {
+          expand(pin, fromKeyboard: expansion.isFromKeyboard)
+        }
+      } else {
+        collapsePin()
+      }
+    }
     if case .pin(let pinID)? = model.selection,
       !pins.contains(where: { $0.pinID == pinID })
     {
@@ -612,16 +639,25 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   /// The pin at `point`, as it's shown.
   private func pin(at point: CGPoint) -> FiberPinState? {
-    PinGridLayout.index(
-      at: inPins(point), count: model.pins.count, width: model.gridWidth
-    ).map { model.pins[$0] }
+    pinHit(at: point)?.pin
   }
 
-  /// Whether `point` is on the panel, or on or between the pins.
+  /// The pin at `point`, as it's shown, and which part of it.
+  private func pinHit(at point: CGPoint) -> (pin: FiberPinState, part: PinPart)?
+  {
+    PinGridLayout.hit(
+      at: inPins(point), count: model.pins.count, open: model.openPin,
+      width: model.gridWidth
+    ).map { (model.pins[$0.index], $0.part) }
+  }
+
+  /// Whether `point` is on the panel, or on or between the pins. An open
+  /// pin's capsule can reach past the grid's ends.
   private func isOnPanelOrPins(_ point: CGPoint) -> Bool {
     model.panelFrame.contains(point)
       || PinGridLayout.covers(
         inPins(point), count: model.pins.count, width: model.gridWidth)
+      || pinHit(at: point) != nil
   }
 
   /// The tab at `point`, where the list is scrolled to now.
@@ -697,12 +733,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     removeAllToolTips()
     let pins = model.pinsOrigin
     for index in model.pins.indices {
-      let origin = PinGridLayout.origin(of: index, width: model.gridWidth)
+      let frame = PinGridLayout.frame(
+        of: index, open: model.openPin, width: model.gridWidth)
       addToolTip(
-        NSRect(
-          x: pins.x + origin.x, y: pins.y + origin.y,
-          width: PinGridLayout.diameter, height: PinGridLayout.diameter),
-        owner: self, userData: nil)
+        frame.offsetBy(dx: pins.x, dy: pins.y), owner: self, userData: nil)
     }
   }
 
@@ -710,10 +744,17 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     _ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint,
     userData data: UnsafeMutableRawPointer?
   ) -> String {
-    guard let pin = pin(at: point) else {
+    guard let (pin, part) = pinHit(at: point) else {
       return ""
     }
-    return pin.title.isEmpty ? pin.url : pin.title
+    switch part {
+    case .back:
+      return "Back to \(pin.url)"
+    case .close:
+      return "Close tab"
+    case .icon:
+      return pin.title.isEmpty ? pin.url : pin.title
+    }
   }
 
   // MARK: Keyboard
@@ -758,6 +799,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       pickTypedNumber()
     }
     model.showsNumbers = showsNumbers
+    optionDidChange(isHeld: showsNumbers)
   }
 
   /// Switches to the tab whose number `digit` completes. While a longer
@@ -836,6 +878,37 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func moveRight(_ sender: Any?) {
     moveSelection(.right)
+  }
+
+  /// Option and the arrow keys move between the icon and buttons of the pin
+  /// Option opened, and Option-Return presses the one chosen.
+  override func moveWordLeft(_ sender: Any?) {
+    moveInCapsule(by: -1)
+  }
+
+  override func moveWordRight(_ sender: Any?) {
+    moveInCapsule(by: 1)
+  }
+
+  override func insertNewlineIgnoringFieldEditor(_ sender: Any?) {
+    guard let expansion = model.pinExpansion, expansion.isFromKeyboard,
+      let pin = model.pins.first(where: { $0.pinID == expansion.pinID })
+    else {
+      insertNewline(sender)
+      return
+    }
+    press(model.focusedPinPart ?? .icon, of: pin)
+  }
+
+  private func moveInCapsule(by step: Int) {
+    guard let expansion = model.pinExpansion, expansion.isFromKeyboard else {
+      return
+    }
+    let parts: [PinPart] =
+      expansion.hasBack ? [.back, .icon, .close] : [.icon, .close]
+    let current = parts.firstIndex(of: model.focusedPinPart ?? .icon) ?? 0
+    let next = min(max(current + step, 0), parts.count - 1)
+    model.focusedPinPart = parts[next]
   }
 
   override func insertTab(_ sender: Any?) {
@@ -1012,6 +1085,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     hover(at: nil)
     cancelTypedNumber()
     model.showsNumbers = false
+    optionDidChange(isHeld: false)
   }
 
   override func mouseMoved(with event: NSEvent) {
@@ -1044,8 +1118,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       showMenu(for: event)
       return
     }
-    if let pin = pin(at: point) {
-      pressedPin = (pin.pinID, point)
+    if let (pin, part) = pinHit(at: point) {
+      pressedPin = (pin.pinID, point, part)
       return
     }
     pressedCloseButtonTabID = closeButtonTab(at: point)
@@ -1055,7 +1129,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   override func mouseDragged(with event: NSEvent) {
-    guard let pressedPin,
+    guard let pressedPin, pressedPin.part == .icon,
       let from = model.pins.firstIndex(where: { $0.pinID == pressedPin.pinID })
     else {
       return
@@ -1069,6 +1143,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         || hypot(offset.width, offset.height) >= Self.dragThreshold
     else {
       return
+    }
+    if model.pinDrag == nil {
+      collapsePin()
     }
     let origin = PinGridLayout.origin(of: from, width: model.gridWidth)
     let center = CGPoint(
@@ -1100,8 +1177,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       return
     }
     if let pressedPin {
-      if pin(at: point)?.pinID == pressedPin.pinID {
-        openPin(pressedPin.pinID)
+      if let (pin, part) = pinHit(at: point), pin.pinID == pressedPin.pinID,
+        part == pressedPin.part
+      {
+        press(part, of: pin)
       }
       return
     }
@@ -1141,16 +1220,108 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let point = point.flatMap {
       downloadsBubble.glassFrame.contains($0) ? nil : $0
     }
+    let hit = point.flatMap { model.pinDrag == nil ? pinHit(at: $0) : nil }
     if let point, model.pinDrag == nil {
-      if let pin = pin(at: point) {
+      if let (pin, _) = hit {
         model.selection = .pin(pin.pinID)
       } else if let tab = tab(at: point) {
         model.selection = .tab(tab.tabID)
       }
     }
+    hoverPin(hit)
     let button = point.flatMap(closeButton(near:))
     if button != model.closeButton {
       model.closeButton = button
+    }
+  }
+
+  /// An open pin the pointer rests on opens into its capsule, which closes
+  /// as soon as the pointer leaves it. One Option opened stays while it's held.
+  private func hoverPin(_ hit: (pin: FiberPinState, part: PinPart)?) {
+    if let expansion = model.pinExpansion,
+      expansion.pinID == hit?.pin.pinID || expansion.isFromKeyboard
+    {
+      if let hit, expansion.pinID == hit.pin.pinID,
+        model.focusedPinPart != hit.part
+      {
+        model.focusedPinPart = hit.part
+      }
+      return
+    }
+    guard let pin = hit?.pin, pin.tabID != 0 else {
+      collapsePin()
+      return
+    }
+    guard pendingExpansion == nil || pendingExpansionPinID != pin.pinID else {
+      return
+    }
+    collapsePin()
+    let expand = DispatchWorkItem { [weak self] in
+      MainActor.assumeIsolated {
+        self?.expand(pin, fromKeyboard: false)
+      }
+    }
+    pendingExpansion = expand
+    pendingExpansionPinID = pin.pinID
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + SlowMotion.duration(Self.pinDwell), execute: expand)
+  }
+
+  /// Opens `pin` into its capsule, or updates its open capsule.
+  private func expand(_ pin: FiberPinState, fromKeyboard: Bool) {
+    pendingExpansion?.cancel()
+    pendingExpansion = nil
+    let expansion = PinExpansion(
+      pinID: pin.pinID, hasBack: !pin.isAtPinnedURL,
+      isFromKeyboard: fromKeyboard)
+    guard expansion != model.pinExpansion else {
+      return
+    }
+    withAnimation(PinGrid.expandAnimation.slowMotion) {
+      if model.pinExpansion?.pinID != pin.pinID
+        || (!expansion.hasBack && model.focusedPinPart == .back)
+      {
+        model.focusedPinPart = .icon
+      }
+      model.pinExpansion = expansion
+    }
+    updatePinToolTips()
+  }
+
+  private func collapsePin() {
+    pendingExpansion?.cancel()
+    pendingExpansion = nil
+    guard model.pinExpansion != nil else {
+      return
+    }
+    withAnimation(PinGrid.expandAnimation.slowMotion) {
+      model.pinExpansion = nil
+      model.focusedPinPart = nil
+    }
+    updatePinToolTips()
+  }
+
+  /// Holding Option opens the selected pin into its capsule, if its tab is
+  /// open; letting go closes it.
+  private func optionDidChange(isHeld: Bool) {
+    if isHeld, case .pin(let pinID)? = model.selection,
+      let pin = model.pins.first(where: { $0.pinID == pinID }), pin.tabID != 0
+    {
+      expand(pin, fromKeyboard: true)
+    } else if !isHeld, model.pinExpansion?.isFromKeyboard == true {
+      collapsePin()
+    }
+  }
+
+  private func press(_ part: PinPart, of pin: FiberPinState) {
+    switch part {
+    case .icon:
+      openPin(pin.pinID)
+    case .back:
+      collapsePin()
+      onResetPin(pin.pinID)
+    case .close:
+      onClose(pin.tabID)
     }
   }
 
@@ -1225,6 +1396,10 @@ final class TabOverlayModel {
   /// Whether the tabs show their numbers, while Option is held.
   var showsNumbers = false
   var pinDrag: PinDrag?
+  var pinExpansion: PinExpansion?
+  /// The part of the open pin the pointer is on, or Option and the arrow keys
+  /// chose.
+  var focusedPinPart: PinPart?
   var pinBursts: [PinBurst] = []
   /// How many pins the list is below (see TabOverlay.panelPins).
   var panelPinCount = 0
@@ -1247,6 +1422,7 @@ final class TabOverlayModel {
   @ObservationIgnored var onClose: (Int) -> Void = { _ in }
   @ObservationIgnored var onOpenPin: (String) -> Void = { _ in }
   @ObservationIgnored var onUnpin: (String) -> Void = { _ in }
+  @ObservationIgnored var onResetPin: (String) -> Void = { _ in }
 
   var gridWidth: CGFloat { panelFrame.width }
 
@@ -1273,6 +1449,15 @@ final class TabOverlayModel {
     let pin = shown.remove(at: from)
     shown.insert(pin, at: min(pinDrag.targetIndex, shown.count))
     return shown
+  }
+
+  /// The pin open into its capsule, for PinGridLayout.
+  var openPin: OpenPin? {
+    pinExpansion.flatMap { expansion in
+      pins.firstIndex { $0.pinID == expansion.pinID }.map {
+        OpenPin(index: $0, hasBack: expansion.hasBack)
+      }
+    }
   }
 
   /// How long after the overlay starts to open the address or extensions at
@@ -1348,7 +1533,12 @@ final class TabOverlayModel {
     for start in stride(from: 0, to: pins.count, by: columns) {
       let count = min(pins.count - start, columns)
       var row = pinFrame(start)
-      row.size.width = CGFloat(count) * PinGridLayout.step - PinGridLayout.spacing
+      // As wide as an open pin's capsule makes it.
+      let first = PinGridLayout.frame(of: start, open: openPin, width: gridWidth)
+      let last = PinGridLayout.frame(
+        of: start + count - 1, open: openPin, width: gridWidth)
+      row.origin.x = pinsOrigin.x + first.minX
+      row.size.width = last.maxX - first.minX
       shapes.append(
         DimmingPool.Shape(
           id: "pins\(start / columns)", frame: row,
@@ -1474,9 +1664,10 @@ struct TabOverlayView: View {
 
       PinGrid(model: model)
         .frame(
-          width: panel.width, height: max(pins.y, 0), alignment: .bottomLeading
+          width: panel.width + PinGrid.leftRoom, height: max(pins.y, 0),
+          alignment: .bottomLeading
         )
-        .offset(x: pins.x)
+        .offset(x: pins.x - PinGrid.leftRoom)
         // Read before the tabs, as they show.
         .accessibilitySortPriority(1)
     }

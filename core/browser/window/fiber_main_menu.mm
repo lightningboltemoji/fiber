@@ -2,6 +2,8 @@
 
 #import <AppKit/AppKit.h>
 
+#include <vector>
+
 #import "FiberBridge/FiberWindow.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "fiber/browser/sessions/previous_sessions_menu.h"
@@ -63,6 +65,51 @@ void InstallMainMenuItems() {
   [view_menu insertItem:command_palette atIndex:1];
   [view_menu insertItem:key_passthrough atIndex:2];
   [view_menu insertItem:NSMenuItem.separatorItem atIndex:3];
+
+  // Chrome's shortcuts for switching tabs that its main menu doesn't have
+  // (global_keyboard_shortcuts_mac.mm), which without views only a menu item
+  // runs. The window takes them through its tabs that aren't pins'.
+  if (NSMenu* tab_menu = [NSApp.mainMenu itemWithTag:IDC_TAB_MENU].submenu) {
+    struct Shortcut {
+      NSString* key;
+      NSEventModifierFlags modifiers;
+      int command;
+    };
+    const unichar right = NSRightArrowFunctionKey;
+    const unichar left = NSLeftArrowFunctionKey;
+    const unichar page_down = NSPageDownFunctionKey;
+    const unichar page_up = NSPageUpFunctionKey;
+    constexpr NSEventModifierFlags kCommandOption =
+        NSEventModifierFlagCommand | NSEventModifierFlagOption;
+    std::vector<Shortcut> shortcuts = {
+        {@"}", NSEventModifierFlagCommand, IDC_SELECT_NEXT_TAB},
+        {@"{", NSEventModifierFlagCommand, IDC_SELECT_PREVIOUS_TAB},
+        {[NSString stringWithCharacters:&right length:1], kCommandOption,
+         IDC_SELECT_NEXT_TAB},
+        {[NSString stringWithCharacters:&left length:1], kCommandOption,
+         IDC_SELECT_PREVIOUS_TAB},
+        {[NSString stringWithCharacters:&page_down length:1],
+         NSEventModifierFlagControl, IDC_SELECT_NEXT_TAB},
+        {[NSString stringWithCharacters:&page_up length:1],
+         NSEventModifierFlagControl, IDC_SELECT_PREVIOUS_TAB},
+        {@"9", NSEventModifierFlagCommand, IDC_SELECT_LAST_TAB},
+    };
+    for (int i = 0; i < 8; ++i) {
+      shortcuts.push_back({[NSString stringWithFormat:@"%d", i + 1],
+                           NSEventModifierFlagCommand, IDC_SELECT_TAB_0 + i});
+    }
+    for (const Shortcut& shortcut : shortcuts) {
+      NSMenuItem* item =
+          [[NSMenuItem alloc] initWithTitle:@""
+                                     action:@selector(commandDispatch:)
+                              keyEquivalent:shortcut.key];
+      item.keyEquivalentModifierMask = shortcut.modifiers;
+      item.tag = shortcut.command;
+      item.hidden = YES;
+      item.allowsKeyEquivalentWhenHidden = YES;
+      [tab_menu addItem:item];
+    }
+  }
 
   if (NSMenu* history_menu =
           [NSApp.mainMenu itemWithTag:IDC_HISTORY_MENU].submenu) {

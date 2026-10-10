@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/app_controller_mac.mm b/chrome/browser/app_controller_mac.mm
-index cb1b5aa8be..6df5faa91e 100644
+index cb1b5aa8be..1f4bd32ed0 100644
 --- a/chrome/browser/app_controller_mac.mm
 +++ b/chrome/browser/app_controller_mac.mm
 @@ -88,7 +88,6 @@
@@ -10,15 +10,16 @@ index cb1b5aa8be..6df5faa91e 100644
  #include "chrome/browser/ui/cocoa/handoff_observer.h"
  #import "chrome/browser/ui/cocoa/history_menu_bridge.h"
  #import "chrome/browser/ui/cocoa/profiles/profile_menu_controller.h"
-@@ -137,6 +136,7 @@
+@@ -137,6 +136,8 @@
  #include "extensions/browser/extension_registry.h"
  #include "extensions/browser/extension_system.h"
  #include "extensions/buildflags/buildflags.h"
 +#include "fiber/browser/hooks/confirm_quit.h"
++#include "fiber/browser/hooks/pin_urls.h"
  #include "net/base/apple/url_conversions.h"
  #include "net/base/filename_util.h"
  #include "ui/base/base_window.h"
-@@ -544,7 +544,6 @@ Profile* GetLastProfileMac() {
+@@ -544,7 +545,6 @@ Profile* GetLastProfileMac() {
  - (void)cancelConfirmQuitPanel;
  - (void)registerServicesMenuTypesTo:(NSApplication*)app;
  - (void)checkForAnyKeyWindows;
@@ -26,7 +27,7 @@ index cb1b5aa8be..6df5faa91e 100644
  - (BOOL)shouldQuitWithInProgressDownloads;
  - (void)profileWasRemoved:(const base::FilePath&)profilePath
               forIncognito:(bool)isIncognito;
-@@ -784,10 +783,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -784,10 +784,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
    // WeakPtr self-nulls on browser destruction.
    base::WeakPtr<BrowserWindowInterface> _lastActiveBrowser;
  
@@ -37,7 +38,7 @@ index cb1b5aa8be..6df5faa91e 100644
  }
  
  @synthesize startupComplete = _startupComplete;
-@@ -987,8 +982,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -987,8 +983,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
  }
  
  - (void)cancelConfirmQuitPanel {
@@ -48,7 +49,7 @@ index cb1b5aa8be..6df5faa91e 100644
  }
  
  - (void)stopTryingToTerminateApplication {
-@@ -1026,24 +1021,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -1026,24 +1022,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
      return ConfirmQuitResultNotPrompted;
    }
  
@@ -76,7 +77,7 @@ index cb1b5aa8be..6df5faa91e 100644
  }
  
  // Handles the NSApplicationWillTerminateNotification notification. (Note to
-@@ -1386,35 +1366,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -1386,35 +1367,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
    }
  }
  
@@ -112,7 +113,7 @@ index cb1b5aa8be..6df5faa91e 100644
  // Check all profiles for in progress downloads, and if we find any, prompt the
  // user to see if we should continue to exit (and thus cancel the downloads), or
  // if we should wait.
-@@ -1470,40 +1421,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -1470,40 +1422,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
      return YES;
    }
  
@@ -156,7 +157,7 @@ index cb1b5aa8be..6df5faa91e 100644
    return NO;
  }
  
-@@ -1882,15 +1802,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -1882,15 +1803,9 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
    base::FilePath lastProfilePath = GetStartupProfilePathMac();
    DCHECK_NE(lastProfilePath, ProfileManager::GetSystemProfilePath());
  
@@ -175,7 +176,7 @@ index cb1b5aa8be..6df5faa91e 100644
  
    // If the profile is locked or was off-the-record, open the profile picker.
    if (lastProfilePath == ProfileManager::GetGuestProfilePath() ||
-@@ -1986,7 +1900,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -1986,7 +1901,8 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
  // display of that item depending on the preference state.
  - (void)updateConfirmToQuitPrefMenuItem:(NSMenuItem*)item {
    // Format the string so that the correct key equivalent is displayed.
@@ -185,7 +186,7 @@ index cb1b5aa8be..6df5faa91e 100644
    NSString* title = l10n_util::GetNSStringF(IDS_CONFIRM_TO_QUIT_OPTION,
        base::SysNSStringToUTF16(acceleratorString));
    [item setTitle:title];
-@@ -2593,13 +2508,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+@@ -2593,13 +2509,6 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
    });
  }
  
@@ -199,3 +200,31 @@ index cb1b5aa8be..6df5faa91e 100644
  - (void)setCmdWMenuItemForTesting:(NSMenuItem*)menuItem {
    _cmdWMenuItemForTesting = menuItem;
  }
+@@ -2671,15 +2580,24 @@ void OpenStartupTabsInBrowserWithProfile(const StartupTabs& tabs,
+       first_run::IsChromeFirstRun() ? chrome::startup::IsFirstRun::kYes
+                                     : chrome::startup::IsFirstRun::kNo;
+   StartupBrowserCreatorImpl launch(base::FilePath(), dummy, first_run);
++  // Fiber: pins' pages go to their pins, leaving the New Tab page if nothing
++  // else opens.
++  const StartupTabs other_tabs = fiber::OpenStartupTabsInPins(browser, tabs);
++  if (other_tabs.empty()) {
++    return;
++  }
+   launch.OpenTabsInBrowser(browser, chrome::startup::IsProcessStartup::kNo,
+-                           tabs, StartupBrowserCreatorImpl::TabOverWrite::kNo);
++                           other_tabs,
++                           StartupBrowserCreatorImpl::TabOverWrite::kNo);
+ 
+   // This NTP check should be replaced once https://crbug.com/41261582 is fixed.
+   if (startupIndex != TabStripModel::kNoTab &&
+       (startupContent->GetVisibleURL() == chrome::kChromeUINewTabURL ||
+        startupContent->GetVisibleURL() == chrome::kChromeUINewTabPageURL)) {
+-    browser->GetTabStripModel()->CloseWebContentsAt(startupIndex,
+-                                                    TabCloseTypes::CLOSE_NONE);
++    // Fiber: by its tab, which a pin's opening before it moves.
++    browser->GetTabStripModel()->CloseWebContentsAt(
++        browser->GetTabStripModel()->GetIndexOfWebContents(startupContent),
++        TabCloseTypes::CLOSE_NONE);
+   }
+ }
+ 

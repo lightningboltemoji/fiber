@@ -97,6 +97,26 @@ NSArray<FiberPinState*>* PinnedTabs::GetPinStates() const {
   return states;
 }
 
+const Pin* PinnedTabs::PinForURL(const GURL& url) const {
+  const GURL page = url.GetWithoutRef();
+  for (const Pin& pin : store_->pins()) {
+    if (pin.url.GetWithoutRef() == page) {
+      return &pin;
+    }
+  }
+  return nullptr;
+}
+
+void PinnedTabs::Show(std::string_view pin_id) {
+  tabs::TabInterface* tab = TabForPin(pin_id);
+  const Pin* pin = store_->Find(pin_id);
+  if (tab && pin && !IsOnPage(tab->GetContents(), pin->url)) {
+    Reset(pin_id);
+  } else {
+    Open(pin_id);
+  }
+}
+
 void PinnedTabs::PinTab(int32_t tab_id) {
   const int index = model()->GetIndexOfTab(tabs::TabHandle(tab_id).Get());
   if (index != TabStripModel::kNoTab) {

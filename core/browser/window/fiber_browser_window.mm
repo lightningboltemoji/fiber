@@ -3,6 +3,7 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 
+#include <algorithm>
 #include <utility>
 
 #import "FiberBridge/FiberBridge.h"
@@ -14,6 +15,7 @@
 #include "base/notimplemented.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
@@ -55,9 +57,12 @@
 #include "fiber/browser/extensions/fiber_extensions_toolbar.h"
 #include "fiber/browser/find_bar/fiber_find_bar.h"
 #include "fiber/browser/hooks/startup_window.h"
+#include "fiber/browser/new_tab/new_tab_page.h"
 #include "fiber/browser/palette/tab_index_source.h"
 #include "fiber/browser/pins/pin_store.h"
+#include "fiber/browser/pins/pinned_tab_data.h"
 #include "fiber/browser/pins/pinned_tabs.h"
+#include "fiber/browser/pins/tab_sequence.h"
 #include "fiber/browser/profiles/profile_switcher.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
 #include "fiber/browser/swipe/page_snapshots.h"
@@ -123,13 +128,6 @@ bool IsNewTabPage(content::WebContents* contents) {
          entry->GetURL().host() == chrome::kChromeUINewTabHost;
 }
 
-// Whether `contents` shows a New Tab page, Fiber's or an extension's.
-bool ShowsNewTabPage(content::WebContents* contents) {
-  content::NavigationEntry* entry = contents->GetController().GetVisibleEntry();
-  const GURL url = entry ? entry->GetVirtualURL() : GURL();
-  return url.SchemeIs(content::kChromeUIScheme) &&
-         url.host() == chrome::kChromeUINewTabHost;
-}
 
 }  // namespace
 
@@ -334,9 +332,43 @@ void FiberBrowserWindow::ExecuteCommand(int command,
   if (!IsCommandEnabled(command)) {
     return;
   }
-  if (command == IDC_CLOSE_TAB &&
-      !WillCloseTabs(browser_->GetTabStripModel()->selection_model().size())) {
-    return;
+  TabStripModel* model = browser_->GetTabStripModel();
+  switch (command) {
+    case IDC_CLOSE_TAB: {
+      const auto& selected = model->selection_model().selected_tabs();
+      if (!WillCloseTabs({selected.begin(), selected.end()})) {
+        return;
+      }
+      break;
+    }
+    case IDC_NEW_TAB:
+      if (ShowBlankNewTab()) {
+        return;
+      }
+      break;
+    // The keyboard goes through the tabs that aren't pins' (see
+    // tab_sequence.h).
+    case IDC_SELECT_NEXT_TAB:
+    case IDC_CYCLE_TO_NEXT_TAB:
+      SelectAdjacentTab(model, 1);
+      return;
+    case IDC_SELECT_PREVIOUS_TAB:
+    case IDC_CYCLE_TO_PREV_TAB:
+      SelectAdjacentTab(model, -1);
+      return;
+    case IDC_SELECT_TAB_0:
+    case IDC_SELECT_TAB_1:
+    case IDC_SELECT_TAB_2:
+    case IDC_SELECT_TAB_3:
+    case IDC_SELECT_TAB_4:
+    case IDC_SELECT_TAB_5:
+    case IDC_SELECT_TAB_6:
+    case IDC_SELECT_TAB_7:
+      SelectTabAt(model, command - IDC_SELECT_TAB_0);
+      return;
+    case IDC_SELECT_LAST_TAB:
+      SelectTabAt(model, -1);
+      return;
   }
   chrome::ExecuteCommandWithDisposition(browser_, command, disposition);
 }
@@ -403,7 +435,7 @@ void FiberBrowserWindow::CloseTab(int32_t tab_id) {
   TabStripModel* model = browser_->GetTabStripModel();
   tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
   if (model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
-      !WillCloseTabs(1)) {
+      !WillCloseTabs({tab})) {
     return;
   }
   model->CloseWebContentsAt(model->GetIndexOfTab(tab),
@@ -420,13 +452,25 @@ NSImage* FiberBrowserWindow::TabPreview(int32_t tab_id) const {
   return fiber::TabPreview(tab);
 }
 
-bool FiberBrowserWindow::WillCloseTabs(size_t count) {
+bool FiberBrowserWindow::WillCloseTabs(
+    const std::vector<tabs::TabInterface*>& closing) {
   TabStripModel* model = browser_->GetTabStripModel();
-  if (browser_->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL ||
-      count < static_cast<size_t>(model->count())) {
+  if (browser_->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL) {
     return true;
   }
-  if (model->count() == 1 && ShowsNewTabPage(model->GetWebContentsAt(0))) {
+  // Pins' tabs don't count: the window keeps a tab that isn't one, unless
+  // they're all it has.
+  const int first = model->IndexOfFirstNonPinnedTab();
+  const size_t tab_count = model->count() - first;
+  const size_t closing_tab_count = std::ranges::count_if(
+      closing, [](tabs::TabInterface* tab) { return !tab->IsPinned(); });
+  const bool closes_all = closing.size() >= static_cast<size_t>(model->count());
+  if (!closes_all &&
+      (closing_tab_count == 0 || closing_tab_count < tab_count)) {
+    return true;
+  }
+  if (tab_count == 1 && closing_tab_count == 1 &&
+      ShowsNewTabPage(model->GetWebContentsAt(first))) {
     if ([ui_ confirmCloseWindow]) {
       chrome::CloseWindow(browser_);
     }
@@ -438,6 +482,38 @@ bool FiberBrowserWindow::WillCloseTabs(size_t count) {
       chrome::AddAndReturnTabAt(browser_, GURL(), -1, /*foreground=*/false);
   last_tab_replacement_ = replacement ? replacement->GetWeakPtr() : nullptr;
   return true;
+}
+
+bool FiberBrowserWindow::ShowBlankNewTab() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  for (int i = model->IndexOfFirstNonPinnedTab(); i < model->count(); ++i) {
+    if (!IsBlankNewTabPage(model->GetWebContentsAt(i))) {
+      continue;
+    }
+    if (i == model->active_index()) {
+      SetFocusToLocationBar(/*is_user_initiated=*/true);
+      return true;
+    }
+    // Where Command-T opens a tab, with the active tab its opener, as Chrome
+    // makes it (see TabStripModel::AddTab()).
+    tabs::TabInterface* opener = model->GetActiveTab();
+    const int index = model->MoveWebContentsAt(i, model->count() - 1,
+                                               /*select_after_move=*/false);
+    model->ActivateTabAt(index,
+                         TabStripUserGestureDetails(
+                             TabStripUserGestureDetails::GestureType::kOther));
+    model->SetOpenerOfTabAt(index, opener);
+    return true;
+  }
+  return false;
+}
+
+void FiberBrowserWindow::KeepTab() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  if (!model->empty() && !model->closing_all() &&
+      model->IndexOfFirstNonPinnedTab() == model->count()) {
+    chrome::AddTabAt(browser_, GURL(), -1, /*foreground=*/true);
+  }
 }
 
 void FiberBrowserWindow::OnCommandPaletteOpened() {
@@ -1243,6 +1319,22 @@ void FiberBrowserWindow::OnTabStripModelChanged(
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
   UpdateTabs();
+  // A page or an extension took the window's last tab that wasn't a pin's,
+  // and Chrome went to a pin's: a New Tab page takes its place, as when the
+  // user closes it (see WillCloseTabs()), once the tab strip can change.
+  if (change.type() == TabStripModelChange::kRemoved &&
+      browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL &&
+      tab_strip_model->IndexOfFirstNonPinnedTab() ==
+          tab_strip_model->count() &&
+      std::ranges::any_of(
+          change.GetRemove()->contents,
+          [](const TabStripModelChange::RemovedTab& removed) {
+            return PinIDForTab(removed.contents).empty();
+          })) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&FiberBrowserWindow::KeepTab, GetWeakPtr()));
+  }
   if (change.type() != TabStripModelChange::kInserted) {
     return;
   }
