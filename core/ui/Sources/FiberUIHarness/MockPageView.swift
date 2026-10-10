@@ -52,6 +52,23 @@ final class MockPageView: NSView {
     return image
   }
 
+  /// What it looks like now, at the size of Chrome's tab thumbnails (see
+  /// ThumbnailTabHelper::GetInitialCaptureInfo()), which a window's tab
+  /// previews show.
+  func preview() -> NSImage? {
+    guard let snapshot = snapshot(), !bounds.isEmpty else {
+      return nil
+    }
+    let scale = max(240 / bounds.width, 175 / bounds.height)
+    let size = NSSize(
+      width: (bounds.width * scale).rounded(),
+      height: (bounds.height * scale).rounded())
+    return NSImage(size: size, flipped: false) { rect in
+      snapshot.draw(in: rect)
+      return true
+    }
+  }
+
   /// What it looks like now, 32 pixels on its longer side, as //fiber/browser
   /// captures pages for the window's dimming.
   func thumbnail() -> CGImage? {
@@ -124,7 +141,13 @@ final class MockPageView: NSView {
     stack.setCustomSpacing(24, after: urlLabel)
     stack.setCustomSpacing(24, after: links.last!)
     stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.isHidden = DemoSites.isEnabled
     addSubview(stack)
+    if DemoSites.isEnabled {
+      NotificationCenter.default.addObserver(
+        self, selector: #selector(demoSitesDidRender(_:)),
+        name: DemoSites.didRender, object: nil)
+    }
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 48),
       stack.topAnchor.constraint(equalTo: topAnchor, constant: 48),
@@ -149,6 +172,19 @@ final class MockPageView: NSView {
   override func draw(_ dirtyRect: NSRect) {
     NSColor.textBackgroundColor.setFill()
     dirtyRect.fill()
+    if let image = DemoSites.image(for: urlLabel.stringValue) {
+      // Filling the page from its top, should the window have changed size.
+      let scale = max(
+        bounds.width / image.size.width, bounds.height / image.size.height)
+      let width = image.size.width * scale
+      image.draw(
+        in: NSRect(
+          x: (bounds.width - width) / 2, y: 0, width: width,
+          height: image.size.height * scale),
+        from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true,
+        hints: nil)
+      return
+    }
     let host = URL(string: urlLabel.stringValue)?.host() ?? ""
     let hue = CGFloat(host.unicodeScalars.reduce(7) { ($0 &* 31 &+ Int($1.value)) % 360 }) / 360
     let isDark = effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
@@ -167,13 +203,18 @@ final class MockPageView: NSView {
     let path = URL(string: url)?.path() ?? ""
     return url == MockBrowser.newTabURL
       ? "New Tab"
-      : MockPages.page(for: url)?.title ?? "\(host)\(path == "/" ? "" : path)"
+      : DemoSites.title(for: url) ?? MockPages.page(for: url)?.title
+        ?? "\(host)\(path == "/" ? "" : path)"
   }
 
   func show(url: String, loaded: Bool) {
     title = Self.title(for: url)
     titleLabel.stringValue = loaded ? title : "Loading…"
     urlLabel.stringValue = url
+    needsDisplay = true
+  }
+
+  @objc private func demoSitesDidRender(_ notification: Notification) {
     needsDisplay = true
   }
 

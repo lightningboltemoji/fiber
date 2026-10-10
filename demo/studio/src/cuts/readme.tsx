@@ -43,8 +43,8 @@ const shots: Shot[] = [
 	{at: {marker: 'found', offset: -0.4}, frame: ['palette', 'found'], fill: 0.75, duration: 0.7, ease: 'smooth', drift: 0.015},
 	{at: {marker: 'casa', offset: -0.15}, fill: 0.8, duration: 0.7, ease: 'whip'},
 	{at: {marker: 'address', offset: -0.1}, frame: 'address', fill: 0.5, duration: 0.9, ease: 'smooth', drift: 0.015},
-	// Over to the window's edge as the picker opens.
-	{at: {marker: 'picker', offset: -1}, frame: 'picker', fill: 0.7, tilt: [0, -12, 0], duration: 0.8, ease: 'smooth'},
+	// Up to the window's top edge as the picker opens.
+	{at: {marker: 'picker', offset: -1}, frame: 'picker', fill: 0.7, duration: 0.8, ease: 'smooth'},
 	// Back in the reply for the paste, and the reply as it's sent.
 	{at: {marker: 'back', offset: -0.15}, frame: 'draft', fill: 0.62, tilt: [0, 6, 0], duration: 0.8, ease: 'smooth', drift: 0.01},
 	{at: {marker: 'sent', offset: -0.3}, frame: ['message', 'sent'], fill: 0.62, duration: 1, ease: 'smooth', drift: 0.006},

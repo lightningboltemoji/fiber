@@ -294,7 +294,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     controlsView.frame = content.bounds
     controlsView.autoresizingMask = [.width, .height]
     controlsView.wantsLayer = true
-    // The tab picker's bump straddles the edge, and stays off DevTools.
+    // The tab picker's lip straddles the edge, and stays off DevTools.
     controlsView.layer?.masksToBounds = true
     content.addSubview(controlsView)
 
@@ -329,9 +329,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     controlsView.addSubview(openedTabNotice)
 
     tabPicker.frame = NSRect(
-      x: content.bounds.width - TabPicker.width, y: 0, width: TabPicker.width,
-      height: content.bounds.height)
-    tabPicker.autoresizingMask = [.height, .minXMargin]
+      x: 0, y: content.bounds.height - TabPicker.height,
+      width: content.bounds.width, height: TabPicker.height)
+    tabPicker.autoresizingMask = [.width, .minYMargin]
     tabPicker.onSelect = { [weak self] tabID in
       self?.actions?.selectTab(withID: tabID)
     }
@@ -340,6 +340,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     tabPicker.onMenu = { [weak self] tabID, event in
       self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabPicker)
+    }
+    tabPicker.preview = { [weak self] tabID in
+      self?.actions?.previewOfTab(withID: tabID)
     }
     controlsView.addSubview(tabPicker)
 

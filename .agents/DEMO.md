@@ -155,7 +155,7 @@ Lisbon trip they share, Monday the 12th to Friday the 16th, "today" being
 Wednesday, October 14) and work offline: no outside requests, only macOS's own
 fonts, imagery in CSS and SVG, and a `favicon.svg` each. Titles are short and
 distinct, as tabs show them, and pages keep clear of the window's top center
-(the omnibar) and right edge (the tab picker). Text the command palette should
+(the omnibar, and the tab picker on its edge). Text the command palette should
 find has to be on the page, and nowhere else in the tape's tabs, or it's found
 there too. `kestrel.so` is the search engine `readme.tape` makes the default;
 its results page answers any query with the same results, for coffee in

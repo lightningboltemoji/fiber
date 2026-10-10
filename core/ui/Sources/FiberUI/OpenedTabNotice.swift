@@ -3,7 +3,7 @@ import FiberBridge
 import SwiftUI
 
 /// In the window's top-right corner, after a tab opens from the one the user
-/// is on: a list like the tab picker's of that tab, which grows to take in
+/// is on: a list like the tab overlay's of that tab, which grows to take in
 /// the new one, in front of it (so it doesn't pass for the same tab gone
 /// somewhere new) or behind it (so it's seen to exist). It goes after a
 /// moment, unless the pointer is on it, or when swiped away to the right,

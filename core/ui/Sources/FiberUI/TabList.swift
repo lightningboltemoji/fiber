@@ -1,10 +1,10 @@
 import FiberBridge
 import SwiftUI
 
-/// The layout of a glass panel listing the tabs, the tab picker's or the tab
-/// overlay's, shared by their hit testing and drawing.
+/// The layout of a glass panel listing the tabs, the tab overlay's or a
+/// notice's, shared by their hit testing and drawing.
 enum TabListLayout {
-  /// The tab picker's.
+  /// The notices'.
   static let panelWidth: CGFloat = 264
   static let cornerRadius: CGFloat = 22
   static let rimWidth: CGFloat = 5

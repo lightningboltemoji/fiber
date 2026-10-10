@@ -51,7 +51,7 @@ enum MockPages {
       title: "Tab picker — Design spec",
       text: """
         Tab picker
-        The tab picker lives on the window's right edge. Moving the pointer to the edge reveals a glass panel listing the window's tabs.
+        The tab picker lives on the window's top edge. Moving the pointer to the edge reveals a glass strip of the window's recent tabs.
         Scrolling
         The list scrolls with two fingers and rubber-bands past either end. A flick coasts and stops at the last tab.
         Selecting

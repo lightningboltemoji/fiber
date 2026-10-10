@@ -61,6 +61,9 @@ enum MockFavicon {
     guard let host = URL(string: url)?.host(), !host.isEmpty else {
       return nil
     }
+    if let favicon = DemoSites.favicon(for: url) {
+      return favicon
+    }
     if let image = cache[host] {
       return image
     }

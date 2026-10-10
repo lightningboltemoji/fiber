@@ -90,8 +90,8 @@ Sleep 450ms
 Key cmd+c
 Sleep 700ms
 
-# The window's edge keeps the recent tabs: back to the reply.
-Move @1596,520 900ms
+# The window's top edge keeps the recent tabs: back to the reply.
+Move @800,3 900ms
 Wait AXButton "Lettera"
 Sleep 150ms
 Mark picker AXButton "Tabs"

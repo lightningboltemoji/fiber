@@ -13,8 +13,10 @@
 // `--profiles` (the profile switcher), `--new-profile` (its New Profile page),
 // `--prompt KIND` (a prompt on the active tab, or the window's: see
 // PromptSample for the kinds),
-// `--slow-motion N` (animations N times slower). Its own controls (see
-// HarnessControls) sit beside the window last used.
+// `--slow-motion N` (animations N times slower),
+// `--demo-sites` (the demo video's sites in place of made-up ones, drawn by
+// WebKit, each tab looked at once so the tab picker has its preview). Its own
+// controls (see HarnessControls) sit beside the window last used.
 
 import AppKit
 import FiberBridge
@@ -78,6 +80,13 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       }
     }
     NSApp.activate()
+    if DemoSites.isEnabled {
+      // At the window's size once it has settled, which a window manager may
+      // change.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+        MainActor.assumeIsolated { self?.renderDemoSites() }
+      }
+    }
     if CommandLine.arguments.contains("--overlay") {
       browsers.last?.window.toggleToolbarShown(nil)
     }
@@ -117,6 +126,22 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
       DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
         MainActor.assumeIsolated {
           self?.browsers.last?.openFindBar(typing: query)
+        }
+      }
+    }
+  }
+
+  private func renderDemoSites() {
+    guard let browser = browsers.last else {
+      return
+    }
+    DemoSites.render(at: browser.window.contentView?.bounds.size ?? .zero) {
+      [weak self] in
+      // As if each tab had been looked at, last to first, so each has a
+      // preview and they're in order of recency.
+      for browser in self?.browsers ?? [] {
+        for tab in browser.tabs.reversed() {
+          browser.selectTab(withID: tab.id)
         }
       }
     }

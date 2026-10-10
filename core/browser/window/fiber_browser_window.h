@@ -22,6 +22,7 @@
 
 @class FiberBrowserWindowActions;
 @class NSEvent;
+@class NSImage;
 @class NSView;
 @class NSWindow;
 @protocol FiberExtensionWindow;
@@ -93,6 +94,9 @@ class FiberBrowserWindow : public BrowserWindow,
   // Closes one of this window's tabs as the user would, so its page can ask
   // first and it can be reopened (see WillCloseTabs()).
   void CloseTab(int32_t tab_id);
+  // What one of the window's tabs showed when it was last switched away from
+  // (see page_thumbnail.h).
+  NSImage* TabPreview(int32_t tab_id) const;
   // The window's pins and their tabs; null if its profile has none.
   PinnedTabs* pinned_tabs() const { return pinned_tabs_.get(); }
   void OnCommandPaletteOpened();

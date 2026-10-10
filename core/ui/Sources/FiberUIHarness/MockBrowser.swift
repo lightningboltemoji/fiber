@@ -22,7 +22,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   /// `count` URLs: home, then made-up sites.
   static func sampleURLs(count: Int) -> [String] {
-    [homeURL]
+    if DemoSites.isEnabled {
+      return (0..<count).map { DemoSites.urls[$0 % DemoSites.urls.count] }
+    }
+    return [homeURL]
       + (0..<max(count - 1, 0)).map {
         "https://\(sampleSites[$0 % sampleSites.count])"
       }
@@ -280,6 +283,10 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   func commandPaletteDidOpen() {}
 
+  func previewOfTab(withID tabID: Int) -> NSImage? {
+    tabs.first { $0.id == tabID }?.preview
+  }
+
   func capturePageThumbnail(_ completion: @escaping (CGImage?) -> Void) {
     let thumbnail = activeTab.page.thumbnail()
     DispatchQueue.main.async { completion(thumbnail) }
@@ -532,6 +539,9 @@ final class MockBrowser: NSObject, FiberWindowActions {
     guard tab !== activeTab else {
       return
     }
+    // As Chrome's TabStripModel has the tab being left captured for its
+    // preview, while it still shows.
+    activeTab?.preview = activeTab?.page.preview()
     // Switching tabs dismisses the page's dialog, as in Chrome.
     dialog?.close()
     activeTab = tab
@@ -854,6 +864,8 @@ final class MockTab: Equatable {
   var index = -1
   /// What each page in `history` looked like when it was left.
   var snapshots: [Int: NSImage] = [:]
+  /// What the tab showed when it was last switched away from.
+  var preview: NSImage?
   var loadStart: Date?
   var loadTimer: Timer?
   var lastActive = Date()
