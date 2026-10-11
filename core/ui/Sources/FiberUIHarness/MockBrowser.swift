@@ -209,10 +209,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   func resetPin(withID pinID: String) {
     guard let tab = pinTabs[pinID], let pin = pins?.pin(withID: pinID) else {
-      openPin(withID: pinID)
       return
     }
-    activate(tab)
     open(pin.url, in: tab)
   }
 

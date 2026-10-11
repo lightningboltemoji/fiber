@@ -43,54 +43,73 @@ enum PinGridLayout {
       && row * columns + column < count
   }
 
-  /// How far an open pin's capsule reaches past its circle for each of its
-  /// buttons: Back on the left, Close on the right.
-  static let buttonWidth: CGFloat = 30
-
-  /// The circle of the pin at `index`, or its capsule if it's `open`. The open
-  /// pin's icon stays where its circle was, and the rest of its row parts
-  /// around it.
-  static func frame(of index: Int, open: OpenPin?, width: CGFloat) -> CGRect {
-    var frame = CGRect(
+  /// The circle of the pin at `index`.
+  static func frame(of index: Int, width: CGFloat) -> CGRect {
+    CGRect(
       origin: origin(of: index, width: width),
       size: CGSize(width: diameter, height: diameter))
-    guard let open else {
-      return frame
-    }
-    let back = open.hasBack ? buttonWidth : 0
-    if index == open.index {
-      frame.origin.x -= back
-      frame.size.width += back + buttonWidth
-    } else if index / columns(width: width) == open.index / columns(width: width)
-    {
-      frame.origin.x += index < open.index ? -back : buttonWidth
-    }
-    return frame
   }
 
-  /// The pin at `point`, placed as frame(of:open:width:) places it, and which
+  static let beadDiameter: CGFloat = 18
+  /// How far around its glass the bead takes the pointer, short of the pins
+  /// around it.
+  static let beadReach: CGFloat = 11
+  /// How close the bead and its pin's glass come before they blend. Less than
+  /// the gap between them in the pocket, so it breaks away.
+  static let beadBlend: CGFloat = 15
+
+  /// The center of an open pin's bead, in the pocket at the pin's top-left
+  /// where it and three others meet: the most room between pins, and on no
+  /// straight line from one to another.
+  static func beadCenter(of index: Int, width: CGFloat) -> CGPoint {
+    let frame = frame(of: index, width: width)
+    return CGPoint(x: frame.midX - step / 2, y: frame.midY - step / 2)
+  }
+
+  static func beadFrame(of index: Int, width: CGFloat) -> CGRect {
+    let center = beadCenter(of: index, width: width)
+    return CGRect(
+      x: center.x - beadReach, y: center.y - beadReach,
+      width: 2 * beadReach, height: 2 * beadReach)
+  }
+
+  /// The pin at `point`, with the bead of the pin at `bead` out, and which
   /// part of it.
-  static func hit(at point: CGPoint, count: Int, open: OpenPin?, width: CGFloat)
+  static func hit(at point: CGPoint, count: Int, bead: Int?, width: CGFloat)
     -> (index: Int, part: PinPart)?
   {
-    let radius = diameter / 2
     for index in 0..<count {
-      let frame = frame(of: index, open: open, width: width)
-      // Within a radius of the line between its ends' centers.
-      let x = min(max(point.x, frame.minX + radius), frame.maxX - radius)
-      guard hypot(point.x - x, point.y - frame.midY) <= radius else {
-        continue
-      }
-      guard let open, open.index == index else {
+      let frame = frame(of: index, width: width)
+      let center = CGPoint(x: frame.midX, y: frame.midY)
+      if hypot(point.x - center.x, point.y - center.y) <= diameter / 2 {
         return (index, .icon)
       }
-      let icon = frame.minX + (open.hasBack ? buttonWidth : 0)
-      return (
-        index,
-        point.x < icon ? .back : point.x > icon + diameter ? .close : .icon
-      )
+      guard index == bead else {
+        continue
+      }
+      let beadCenter = beadCenter(of: index, width: width)
+      if hypot(point.x - beadCenter.x, point.y - beadCenter.y) <= beadReach {
+        return (index, .bead)
+      }
+      if distance(from: point, toSegmentFrom: center, to: beadCenter)
+        <= beadReach
+      {
+        return (index, .bridge)
+      }
     }
     return nil
+  }
+
+  private static func distance(
+    from point: CGPoint, toSegmentFrom start: CGPoint, to end: CGPoint
+  ) -> CGFloat {
+    let dx = end.x - start.x
+    let dy = end.y - start.y
+    let t = min(
+      max(
+        ((point.x - start.x) * dx + (point.y - start.y) * dy)
+          / (dx * dx + dy * dy), 0), 1)
+    return hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy))
   }
 
   /// The place nearest `center`, for a circle dragged there.
@@ -107,25 +126,24 @@ enum PinGridLayout {
   }
 }
 
-/// An open pin grown into a capsule with its buttons, while the pointer is on
-/// it or Option is held with it selected. Back is there only if its tab has
-/// left the pinned page.
-struct PinExpansion: Equatable {
+/// An open pin's bead, out while the pointer is on the pin or Option is held
+/// with it selected. It takes the pin's tab back to the pinned page, and once
+/// the tab is there, closes it.
+struct PinBead: Equatable {
   let pinID: String
-  let hasBack: Bool
-  /// Whether Option opened it, rather than the pointer.
+  var action: PinBeadAction
+  /// Whether Option brought it out, rather than the pointer.
   let isFromKeyboard: Bool
 }
 
-/// The open pin, for PinGridLayout.
-struct OpenPin: Equatable {
-  let index: Int
-  let hasBack: Bool
+enum PinBeadAction: Equatable {
+  case reset, close
 }
 
-/// A part of a pin: its icon, or one of an open pin's buttons.
+/// A part of a pin: its circle, its bead, or the space between them, which
+/// keeps the bead out but presses nothing.
 enum PinPart: Equatable {
-  case icon, back, close
+  case icon, bead, bridge
 }
 
 /// A pin being dragged to a new place.
@@ -146,14 +164,12 @@ struct PinBurst: Identifiable {
 }
 
 /// Draws the pins; TabOverlay handles their input. While one's dragged, the
-/// rest make room where it would go, and while one's open into its capsule,
-/// its row parts around it.
+/// rest make room where it would go.
 struct PinGrid: View {
   let model: TabOverlayModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   private static let moveAnimation = Animation.spring(
     duration: 0.3, bounce: 0.15)
-  static let expandAnimation = Animation.spring(duration: 0.32, bounce: 0.2)
 
   var body: some View {
     let width = model.gridWidth
@@ -164,18 +180,18 @@ struct PinGrid: View {
         let isDragged = model.pinDrag?.pinID == pin.pinID
         let index = model.pins.firstIndex { $0.pinID == pin.pinID } ?? 0
         let slot = shown.firstIndex { $0.pinID == pin.pinID } ?? index
-        let expansion =
-          model.pinExpansion?.pinID == pin.pinID ? model.pinExpansion : nil
-        let origin = PinGridLayout.frame(
-          of: isDragged ? index : slot, open: model.openPin, width: width
-        ).origin
+        let bead = model.pinBead?.pinID == pin.pinID ? model.pinBead : nil
+        let origin = PinGridLayout.origin(
+          of: isDragged ? index : slot, width: width)
         let offset = isDragged ? model.pinDrag?.offset ?? .zero : .zero
         let delay = model.motionDelay(ofPin: index)
         PinCircle(
           pin: pin, isActive: pin.tabID != 0 && pin.tabID == model.activeTabID,
           isSelected: model.selection == .pin(pin.pinID) && model.pinDrag == nil,
-          expansion: expansion,
-          focusedPart: expansion == nil ? nil : model.focusedPinPart
+          bead: bead?.action,
+          isBeadFocused: bead.map {
+            $0.isFromKeyboard || model.focusedPinPart == .bead
+          } ?? false
         )
         // Not animation(_:body:), which doesn't animate an offset.
         .offset(y: model.isOpen || reduceMotion ? 0 : -TabOverlayMotion.travel)
@@ -193,7 +209,7 @@ struct PinGrid: View {
         // and swing a dropped pin past it.
         .place(
           at: CGPoint(x: origin.x + offset.width, y: origin.y + offset.height))
-        .zIndex(isDragged ? 2 : expansion != nil ? 1 : 0)
+        .zIndex(isDragged ? 2 : bead != nil ? 1 : 0)
         .transition(reduceMotion ? .opacity : .pinPop)
         .accessibilityElement()
         .accessibilityLabel(pin.title.isEmpty ? pin.url : pin.title)
@@ -226,7 +242,6 @@ struct PinGrid: View {
     // place animates with the grid's transaction rather than its own.
     .animation(Self.moveAnimation.slowMotion, value: shown.map(\.pinID))
     .animation(Self.moveAnimation.slowMotion, value: model.pinDrag?.pinID)
-    .animation(Self.expandAnimation.slowMotion, value: model.pinExpansion)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("Pinned")
   }
@@ -385,69 +400,80 @@ extension NSImage {
 }
 
 /// A pin: its page's icon in a circle of glass, with a dot under it while it's
-/// open in the window, and ringed while its tab is the active one. Open into
-/// its capsule, it has Back to its left, if its tab has left the pinned page,
-/// and Close to its right.
+/// open in the window, and ringed while its tab is the active one. Its bead
+/// buds off its glass into the pocket at its top-left, and breaks away.
 private struct PinCircle: View {
   let pin: FiberPinState
   let isActive: Bool
   let isSelected: Bool
-  let expansion: PinExpansion?
-  /// The part the pointer is on, or Option and the arrow keys chose.
-  let focusedPart: PinPart?
+  /// What its bead does, while it's out.
+  let bead: PinBeadAction?
+  let isBeadFocused: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     let rim = GlassCapsule.rimWidth
     let diameter = PinGridLayout.diameter
-    let back = expansion?.hasBack == true ? PinGridLayout.buttonWidth : 0
-    let close = expansion != nil ? PinGridLayout.buttonWidth : 0
     let isOpen = pin.tabID != 0
-    let shape = RoundedRectangle(cornerRadius: diameter / 2, style: .continuous)
+    let outer = RoundedRectangle(cornerRadius: diameter / 2, style: .continuous)
+    let inner = outer.inset(by: rim)
     ZStack {
-      RimmedGlass(cornerRadius: diameter / 2, rimWidth: rim)
-      shape
-        .inset(by: rim)
+      // RimmedGlass's inner glass. Its outer glass is in the bead's container.
+      Color.clear
+        .glassEffect(
+          .regular,
+          in: RoundedRectangle(
+            cornerRadius: diameter / 2 - rim, style: .continuous)
+        )
+        .padding(rim)
+      inner
         .fill(Color.primary.opacity(0.22))
-        .opacity(isSelected && expansion == nil ? 1 : 0)
-      shape
-        .inset(by: rim)
+        .opacity(isSelected ? 1 : 0)
+      inner
         .strokeBorder(Color.primary.opacity(0.5), lineWidth: 1.5)
         .opacity(isActive ? 1 : 0)
-      HStack(spacing: 0) {
-        PinButton(
-          symbol: "arrow.counterclockwise", isFocused: focusedPart == .back,
-          turnsBack: true
-        )
-        // Centered in the capsule's round end.
-        .offset(x: 3)
-        .frame(width: back)
-        .opacity(back > 0 ? 1 : 0)
-        ZStack {
-          Circle()
-            .inset(by: rim + 1)
-            .fill(Color.primary.opacity(focusedPart == .icon ? 0.16 : 0))
-          icon
-            .frame(width: 16, height: 16)
-          Circle()
-            .fill(Color.primary.opacity(0.75))
-            .frame(width: 3.5, height: 3.5)
-            .offset(y: 11)
-            .scaleEffect(isOpen ? 1 : 0.2)
-            .opacity(isOpen ? 1 : 0)
-        }
-        .frame(width: diameter)
-        PinButton(symbol: "xmark", isFocused: focusedPart == .close)
-          .offset(x: -3)
-          .frame(width: close)
-          .opacity(close > 0 ? 1 : 0)
-      }
-      .frame(height: diameter)
-      .clipped()
+      icon
+        .frame(width: 16, height: 16)
+      Circle()
+        .fill(Color.primary.opacity(0.75))
+        .frame(width: 3.5, height: 3.5)
+        .offset(y: 11)
+        .scaleEffect(isOpen ? 1 : 0.2)
+        .opacity(isOpen ? 1 : 0)
     }
-    .frame(width: back + diameter + close, height: diameter)
+    .frame(width: diameter, height: diameter)
+    // Glass in one container blends where it comes close, so the bead leaves
+    // the pin as a drop drawn out of its glass.
+    .background {
+      GlassEffectContainer(spacing: PinGridLayout.beadBlend) {
+        ZStack {
+          Color.clear
+            .frame(width: diameter, height: diameter)
+            .glassEffect(.regular, in: outer)
+          // The symbol is the glass's content, which a container draws over.
+          ZStack {
+            Color.clear
+            if let bead {
+              PinBeadGlyph(action: bead, isFocused: isBeadFocused)
+                .transition(.beadGlyph)
+            }
+          }
+          .glassEffect(.regular, in: Circle())
+          .modifier(BeadBud(progress: bead != nil ? 1 : 0))
+            .animation(
+              reduceMotion
+                ? nil
+                : bead != nil
+                  ? .spring(duration: 0.5, bounce: 0.35).slowMotion
+                  : .spring(duration: 0.3, bounce: 0).slowMotion,
+              value: bead != nil)
+        }
+        // Centered on the pin, reaching its pocket.
+        .frame(width: 2 * PinGridLayout.step, height: 2 * PinGridLayout.step)
+      }
+    }
     .animation(.easeInOut(duration: 0.15).slowMotion, value: isSelected)
     .animation(.easeInOut(duration: 0.15).slowMotion, value: isActive)
-    .animation(.easeInOut(duration: 0.12).slowMotion, value: focusedPart)
     .animation(.spring(duration: 0.35, bounce: 0.4).slowMotion, value: isOpen)
   }
 
@@ -468,25 +494,79 @@ private struct PinCircle: View {
   }
 }
 
-/// A button at one end of an open pin's capsule. Back's arrow turns back once
-/// as it's focused.
-private struct PinButton: View {
-  let symbol: String
+/// The bead's symbol, over its glass. Back's arrow turns back once as the
+/// pointer comes onto it, and pressed, spins on round into Close's cross.
+private struct PinBeadGlyph: View {
+  let action: PinBeadAction
   let isFocused: Bool
-  var turnsBack = false
 
   var body: some View {
+    let isReset = action == .reset
     ZStack {
       Circle()
-        .fill(Color.primary.opacity(isFocused ? 0.14 : 0))
-        .frame(width: 22, height: 22)
-      Image(systemName: symbol)
-        .font(.system(size: 11, weight: .bold))
-        .foregroundStyle(isFocused ? .primary : .secondary)
-        .rotationEffect(.degrees(turnsBack && isFocused ? -360 : 0))
+        .fill(Color.primary.opacity(isFocused ? 0.16 : 0))
+        .padding(2)
+      Image(systemName: "arrow.counterclockwise")
+        .rotationEffect(.degrees(isFocused ? -360 : 0))
         .animation(
           isFocused ? .spring(duration: 0.6, bounce: 0.25).slowMotion : nil,
-          value: isFocused)
+          value: isFocused
+        )
+        .scaleEffect(isReset ? 1 : 0.3)
+        .opacity(isReset ? 1 : 0)
+      Image(systemName: "xmark")
+        .scaleEffect(isReset ? 0.3 : 1)
+        .opacity(isReset ? 0 : 1)
     }
+    .font(.system(size: 9, weight: .bold))
+    .foregroundStyle(isFocused ? .primary : .secondary)
+    .rotationEffect(.degrees(isReset ? 0 : -360))
+    .animation(.spring(duration: 0.55, bounce: 0.3).slowMotion, value: action)
+    .animation(.easeInOut(duration: 0.12).slowMotion, value: isFocused)
+  }
+}
+
+/// A bead on its way out of its pin's glass: at 0, small at the pin's center
+/// and lost in its glass, and at 1, out in its pocket. Laid out afresh each
+/// frame, since an offset here doesn't animate.
+private struct BeadBud: ViewModifier, Animatable {
+  var progress: CGFloat
+
+  nonisolated var animatableData: CGFloat {
+    get { progress }
+    set { progress = newValue }
+  }
+
+  func body(content: Content) -> some View {
+    let size = PinGridLayout.beadDiameter * (0.4 + 0.6 * progress)
+    let center = PinGridLayout.step * (1 - progress / 2)
+    content
+      .frame(width: size, height: size)
+      .position(x: center, y: center)
+  }
+}
+
+private struct BeadFade: ViewModifier {
+  let opacity: Double
+  let scale: CGFloat
+
+  func body(content: Content) -> some View {
+    content.opacity(opacity).scaleEffect(scale)
+  }
+}
+
+extension AnyTransition {
+  /// Its symbol shows as the bead breaks away, and goes at once as it's drawn
+  /// back, since a symbol on its way out stays where the bead was.
+  @MainActor fileprivate static var beadGlyph: AnyTransition {
+    .asymmetric(
+      insertion: .modifier(
+        active: BeadFade(opacity: 0, scale: 0.4),
+        identity: BeadFade(opacity: 1, scale: 1)
+      ).animation(.spring(duration: 0.35, bounce: 0.4).delay(0.15).slowMotion),
+      removal: .modifier(
+        active: BeadFade(opacity: 0, scale: 0.6),
+        identity: BeadFade(opacity: 1, scale: 1)
+      ).animation(.easeIn(duration: 0.06).slowMotion))
   }
 }

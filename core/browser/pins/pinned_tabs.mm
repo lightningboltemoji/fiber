@@ -112,9 +112,8 @@ void PinnedTabs::Show(std::string_view pin_id) {
   const Pin* pin = store_->Find(pin_id);
   if (tab && pin && !IsOnPage(tab->GetContents(), pin->url)) {
     Reset(pin_id);
-  } else {
-    Open(pin_id);
   }
+  Open(pin_id);
 }
 
 void PinnedTabs::PinTab(int32_t tab_id) {
@@ -159,16 +158,12 @@ void PinnedTabs::Open(std::string_view pin_id) {
 void PinnedTabs::Reset(std::string_view pin_id) {
   tabs::TabInterface* tab = TabForPin(pin_id);
   const Pin* pin = store_->Find(pin_id);
-  if (!pin) {
+  if (!tab || !pin) {
     return;
   }
-  const GURL url = pin->url;
-  Open(pin_id);
-  if (tab) {
-    tab->GetContents()->GetController().LoadURL(
-        url, content::Referrer(), ui::PAGE_TRANSITION_AUTO_BOOKMARK,
-        std::string());
-  }
+  tab->GetContents()->GetController().LoadURL(
+      pin->url, content::Referrer(), ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+      std::string());
 }
 
 void PinnedTabs::UpdateURL(std::string_view pin_id) {

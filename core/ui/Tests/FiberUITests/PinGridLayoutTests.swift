@@ -38,55 +38,64 @@ struct PinGridLayoutTests {
     #expect(
       PinGridLayout.hit(
         at: CGPoint(x: second.x + center, y: second.y + center), count: 3,
-        open: nil, width: Self.width)?.index == 1)
+        bead: nil, width: Self.width)?.index == 1)
     #expect(
       PinGridLayout.hit(
         at: CGPoint(x: second.x - 2, y: second.y + center), count: 3,
-        open: nil, width: Self.width) == nil)
+        bead: nil, width: Self.width) == nil)
     #expect(
       PinGridLayout.hit(
-        at: CGPoint(x: 1, y: second.y + 1), count: 3, open: nil,
+        at: CGPoint(x: 1, y: second.y + 1), count: 3, bead: nil,
         width: Self.width) == nil)
   }
 
-  @Test func opensAPinAroundItsIconAndPartsItsRow() {
+  @Test func putsTheBeadInThePocketClearOfEveryPin() {
     let columns = PinGridLayout.columns(width: Self.width)
-    let button = PinGridLayout.buttonWidth
-    let open = OpenPin(index: 1, hasBack: true)
-    func frame(_ index: Int, _ open: OpenPin?) -> CGRect {
-      PinGridLayout.frame(of: index, open: open, width: Self.width)
+    let count = 3 * columns
+    let open = columns + 1
+    let bead = PinGridLayout.beadCenter(of: open, width: Self.width)
+    for index in 0..<count {
+      let frame = PinGridLayout.frame(of: index, width: Self.width)
+      let distance = hypot(bead.x - frame.midX, bead.y - frame.midY)
+      #expect(distance - PinGridLayout.diameter / 2 > PinGridLayout.beadReach)
+      // Its glass ends farther from its pin than glass blends.
+      #expect(
+        distance - PinGridLayout.diameter / 2 - PinGridLayout.beadDiameter / 2
+          > PinGridLayout.beadBlend)
     }
-    // The icon stays put, with a button either side.
-    #expect(frame(1, open).minX == frame(1, nil).minX - button)
-    #expect(frame(1, open).width == PinGridLayout.diameter + 2 * button)
-    #expect(frame(0, open).minX == frame(0, nil).minX - button)
-    #expect(frame(2, open).minX == frame(2, nil).minX + button)
-    // Other rows stay.
-    #expect(frame(columns + 1, open) == frame(columns + 1, nil))
-    // At its pinned page, it has only Close, and grows only right.
-    let home = OpenPin(index: 1, hasBack: false)
-    #expect(frame(1, home).minX == frame(1, nil).minX)
-    #expect(frame(0, home) == frame(0, nil))
+    // Up and to the left of its pin, between the rows.
+    let pin = PinGridLayout.frame(of: open, width: Self.width)
+    #expect(bead.x < pin.minX && bead.y < pin.minY)
+    #expect(
+      bead.y > PinGridLayout.frame(of: open + columns, width: Self.width).maxY)
   }
 
-  @Test func hitsAnOpenPinsButtons() {
-    let open = OpenPin(index: 0, hasBack: true)
-    let capsule = PinGridLayout.frame(of: 0, open: open, width: Self.width)
-    func part(atX x: CGFloat) -> PinPart? {
-      PinGridLayout.hit(
-        at: CGPoint(x: x, y: capsule.midY), count: 3, open: open,
-        width: Self.width)?.part
+  @Test func hitsTheBeadAndTheBridgeToIt() {
+    let columns = PinGridLayout.columns(width: Self.width)
+    let count = 3 * columns
+    let open = columns + 1
+    func part(at point: CGPoint, bead: Int? = open)
+      -> (index: Int, part: PinPart)?
+    {
+      PinGridLayout.hit(at: point, count: count, bead: bead, width: Self.width)
     }
-    // Back reaches past the grid's left edge.
-    #expect(capsule.minX < 0)
-    #expect(part(atX: capsule.minX + 10) == .back)
-    #expect(part(atX: capsule.midX) == .icon)
-    #expect(part(atX: capsule.maxX - 10) == .close)
-    let next = PinGridLayout.frame(of: 1, open: open, width: Self.width)
-    #expect(
-      PinGridLayout.hit(
-        at: CGPoint(x: next.midX, y: next.midY), count: 3, open: open,
-        width: Self.width)?.index == 1)
+    let pin = PinGridLayout.frame(of: open, width: Self.width)
+    let center = PinGridLayout.beadCenter(of: open, width: Self.width)
+    #expect(part(at: center)?.part == .bead)
+    #expect(part(at: center)?.index == open)
+    #expect(part(at: CGPoint(x: pin.midX, y: pin.midY))?.part == .icon)
+    // Just past the pin's glass, toward the bead.
+    let past = (PinGridLayout.diameter / 2 + 1) / 2.squareRoot()
+    let bridge = CGPoint(x: pin.midX - past, y: pin.midY - past)
+    #expect(part(at: bridge)?.part == .bridge)
+    // Nothing there with the bead in.
+    #expect(part(at: center, bead: nil) == nil)
+    #expect(part(at: bridge, bead: nil) == nil)
+    // The pins around the pocket are still theirs.
+    for index in [open - 1, open + columns - 1, open + columns] {
+      let frame = PinGridLayout.frame(of: index, width: Self.width)
+      #expect(part(at: CGPoint(x: frame.midX, y: frame.midY))?.index == index)
+    }
   }
 
   @Test func coversTheGapsButNotPastTheLastCircle() {

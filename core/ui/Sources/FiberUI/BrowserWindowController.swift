@@ -536,7 +536,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
       self?.actions?.openPin(withID: pinID)
     }
     tabOverlay.onResetPin = { [weak self] pinID in
-      self?.closeTabOverlay(restoringFocus: false)
       self?.actions?.resetPin(withID: pinID)
     }
     tabOverlay.onMovePin = { [weak self] pinID, index in
