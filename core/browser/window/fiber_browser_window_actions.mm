@@ -248,6 +248,51 @@ int CommandID(FiberCommand command) {
   }
 }
 
+// FiberShelvesActions:
+
+- (NSString*)addShelfNamed:(NSString*)name {
+  fiber::PinnedTabs* pinned_tabs = [self pinnedTabs];
+  return pinned_tabs ? base::SysUTF8ToNSString(pinned_tabs->AddShelf(
+                           base::SysNSStringToUTF16(name)))
+                     : @"";
+}
+
+- (void)renameShelfWithID:(NSString*)shelfID to:(NSString*)name {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->RenameShelf(base::SysNSStringToUTF8(shelfID),
+                             base::SysNSStringToUTF16(name));
+  }
+}
+
+- (void)removeShelfWithID:(NSString*)shelfID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->RemoveShelf(base::SysNSStringToUTF8(shelfID));
+  }
+}
+
+- (void)openShelfPageWithID:(NSString*)pageID {
+  [self openPinWithID:pageID];
+}
+
+- (void)moveTabWithID:(NSInteger)tabID toShelfWithID:(NSString*)shelfID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->KeepTab(static_cast<int32_t>(tabID),
+                         base::SysNSStringToUTF8(shelfID));
+  }
+}
+
+- (void)moveShelfPageWithID:(NSString*)pageID
+              toShelfWithID:(NSString*)shelfID {
+  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
+    pinned_tabs->MoveToShelf(base::SysNSStringToUTF8(pageID),
+                             base::SysNSStringToUTF8(shelfID));
+  }
+}
+
+- (void)removeShelfPageWithID:(NSString*)pageID {
+  [self unpinPinWithID:pageID];
+}
+
 // Chrome's main menu commands:
 
 - (void)commandDispatch:(id)sender {

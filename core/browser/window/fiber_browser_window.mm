@@ -265,6 +265,7 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
         browser_, pin_store,
         base::BindRepeating(&FiberBrowserWindow::UpdatePins,
                             base::Unretained(this)));
+    ui_.shelves.actions = actions_;
     UpdatePins();
   }
   browser_->GetTabStripModel()->AddObserver(this);
@@ -692,6 +693,7 @@ void FiberBrowserWindow::UpdateTabs() {
 void FiberBrowserWindow::UpdatePins() {
   if (pinned_tabs_) {
     [ui_ setPins:pinned_tabs_->GetPinStates()];
+    [ui_.shelves setShelves:pinned_tabs_->GetShelfStates()];
   }
 }
 

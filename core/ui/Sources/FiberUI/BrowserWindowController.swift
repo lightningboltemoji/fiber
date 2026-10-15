@@ -53,6 +53,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   var omnibox: any FiberOmnibox { omnibar }
   var extensions: any FiberExtensions { extensionsController }
   var downloads: any FiberDownloads { windowDownloads }
+  var shelves: any FiberShelves { windowShelves }
   var findBar: any FiberFindBar { madeFindBar ?? makeFindBar() }
 
   private let browserWindow: BrowserWindow
@@ -88,6 +89,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private var pins: [FiberPinState] = []
   /// Whether the window has pins at all, which Incognito's don't.
   private var canPin = false
+  private var shelfStates: [FiberShelfState] = []
   private lazy var extensionsController = ExtensionsController(
     bar: tabOverlay.extensionsBar, bubbles: extensionBubbles,
     popupLayer: extensionPopups,
@@ -109,6 +111,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       )
     })
   private let windowDownloads = WindowDownloads()
+  private let windowShelves = WindowShelves()
   private let newTabView: NewTabView
   private let sadTabView = SadTabView()
   /// Over the page, under the tab picker.
@@ -563,6 +566,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowDownloads.onChange = { [weak self] downloads in
       self?.tabOverlay.setDownloads(downloads)
     }
+    configureShelves()
     tabOverlay.onDismiss = { [weak self] in self?.closeTabOverlay() }
     tabOverlay.onShowOrHide = { [weak self] in
       self?.schedulePanelDimmingUpdate()
@@ -572,6 +576,64 @@ final class BrowserWindowController: NSObject, FiberWindow {
     panelDimming.autoresizingMask = [.width, .height]
     content.addSubview(panelDimming)
     content.addSubview(tabOverlay)
+  }
+
+  private func configureShelves() {
+    let shelves = windowShelves
+    windowShelves.onChange = { [weak self] states in
+      self?.shelfStates = states
+      self?.tabOverlay.setShelves(states)
+    }
+    tabOverlay.onOpenShelfPage = { [weak self] pageID in
+      self?.closeTabOverlay(restoringFocus: false)
+      shelves.actions?.openShelfPage(withID: pageID)
+    }
+    tabOverlay.onRemoveShelfPage = { pageID in
+      shelves.actions?.removeShelfPage(withID: pageID)
+    }
+    tabOverlay.onMoveTabToShelf = { tabID, shelfID in
+      shelves.actions?.moveTab(withID: tabID, toShelfWithID: shelfID)
+    }
+    tabOverlay.onMoveShelfPage = { pageID, shelfID in
+      shelves.actions?.moveShelfPage(withID: pageID, toShelfWithID: shelfID)
+    }
+    tabOverlay.onAddShelf = { shelves.actions?.addShelfNamed("Untitled") }
+    tabOverlay.onRenameShelf = { shelfID, name in
+      shelves.actions?.renameShelf(withID: shelfID, to: name)
+    }
+    tabOverlay.onRemoveShelf = { shelfID in
+      shelves.actions?.removeShelf(withID: shelfID)
+    }
+    tabOverlay.onShelfMenu = { [weak self] shelf, event in
+      guard let self else {
+        return
+      }
+      let overlay = self.tabOverlay
+      let menu = TabMenus.menu(
+        for: shelf,
+        rename: { [weak overlay] in overlay?.beginRename(shelf.shelfID) },
+        delete: { [weak overlay] in overlay?.deleteShelf(shelf.shelfID) })
+      NSMenu.popUpContextMenu(menu, with: event, for: overlay)
+    }
+    tabOverlay.onShelfPageMenu = { [weak self] page, shelf, event in
+      self?.showMenu(for: page, on: shelf, event: event, in: self?.tabOverlay)
+    }
+  }
+
+  /// A shelf page's, in the tab overlay, or for its tab in the tab picker.
+  private func showMenu(
+    for page: FiberPinState, on shelf: FiberShelfState, event: NSEvent,
+    in view: NSView?
+  ) {
+    guard let actions, let shelvesActions = windowShelves.actions, let view
+    else {
+      return
+    }
+    NSMenu.popUpContextMenu(
+      TabMenus.menu(
+        for: page, on: shelf, shelves: shelfStates, actions: actions,
+        shelvesActions: shelvesActions),
+      with: event, for: view)
   }
 
   /// Once what's opening in place of what closed has opened, so switching
@@ -873,18 +935,27 @@ final class BrowserWindowController: NSObject, FiberWindow {
       TabMenus.menu(for: pin, actions: actions), with: event, for: tabOverlay)
   }
 
-  /// A pin's tab, in the tab picker, has its pin's menu.
+  /// A pin's tab, in the tab picker, has its pin's menu, and a shelf page's
+  /// its page's.
   private func showMenu(
     forTabWithID tabID: Int, event: NSEvent, in view: NSView?
   ) {
     guard let actions, let view else {
       return
     }
+    for shelf in shelfStates {
+      if let page = shelf.pages.first(where: { $0.tabID == tabID }) {
+        showMenu(for: page, on: shelf, event: event, in: view)
+        return
+      }
+    }
     let menu =
       pins.first { $0.tabID == tabID }.map {
         TabMenus.menu(for: $0, actions: actions)
       }
-      ?? TabMenus.menu(forTabWithID: tabID, canPin: canPin, actions: actions)
+      ?? TabMenus.menu(
+        forTabWithID: tabID, canPin: canPin, shelves: shelfStates,
+        actions: actions, shelvesActions: windowShelves.actions)
     NSMenu.popUpContextMenu(menu, with: event, for: view)
   }
 

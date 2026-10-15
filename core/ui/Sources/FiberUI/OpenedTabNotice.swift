@@ -452,7 +452,7 @@ final class OpenedTabNotice: NSView {
     }
     return TabListLayout.closeButton(
       near: CGPoint(x: point.x - panel.minX, y: point.y - panel.minY),
-      in: model.tabs, width: panel.width)
+      in: model.tabs.map { .tab($0.tabID) }, width: panel.width)
   }
 
   /// The tab whose close button is at `point`, if it's showing.
@@ -605,10 +605,12 @@ struct OpenedTabNoticeView: View {
       )
       .accessibilityHidden(true)
       TabList(
-        width: panel.width, tabs: model.tabs, activeTabID: model.activeTabID,
-        highlightedTabID: model.highlightedTabID,
-        closeButton: model.closeButton, onSelect: model.onSelect,
-        onClose: model.onClose
+        width: panel.width, rows: model.tabs.map(TabListRow.init(tab:)),
+        activeRowID: .tab(model.activeTabID),
+        highlightedRowID: model.highlightedTabID.map { .tab($0) },
+        closeButton: model.closeButton,
+        onSelect: { if case .tab(let tabID) = $0 { model.onSelect(tabID) } },
+        onClose: { if case .tab(let tabID) = $0 { model.onClose(tabID) } }
       )
       .frame(width: panel.width, height: panel.height, alignment: .top)
       .clipShape(shape)

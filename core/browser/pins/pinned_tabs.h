@@ -16,14 +16,16 @@
 #include "fiber/browser/pins/pin_store.h"
 
 @class FiberPinState;
+@class FiberShelfState;
 
 class BrowserWindowInterface;
 
 namespace fiber {
 
-// Keeps a window's pinned tabs in step with its profile's pins: one tab per
-// pin, in the pins' order. A tab Chrome pins (the Tab menu, an extension)
-// becomes a new pin's; unpinning a pin's tab unpins its page everywhere.
+// Keeps a window's pinned tabs in step with its profile's pins and shelves'
+// pages: one tab per page, in the store's order. A tab Chrome pins (the Tab
+// menu, an extension) becomes a new pin's; unpinning a pin's tab unpins its
+// page everywhere, or takes it off its shelf.
 class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
  public:
   // `on_changed` is called when the pins change; the window observes its tab
@@ -37,8 +39,10 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
 
   // What the window shows of the pins, in order.
   NSArray<FiberPinState*>* GetPinStates() const;
+  // What it shows of the shelves and their pages, in order.
+  NSArray<FiberShelfState*>* GetShelfStates() const;
 
-  // The pin whose page `url` is, fragments aside, if any.
+  // The pin or shelf page whose page `url` is, fragments aside, if any.
   const Pin* PinForURL(const GURL& url) const;
   // The pin whose page the tab is, if it's still pinned.
   const Pin* PinForTab(tabs::TabInterface* tab) const;
@@ -54,6 +58,16 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
   void Unpin(std::string_view pin_id);
   void Move(std::string_view pin_id, size_t index);
 
+  // What the user does with the shelves (see FiberShelvesActions).
+  std::string AddShelf(const std::u16string& name);
+  void RenameShelf(std::string_view shelf_id, const std::u16string& name);
+  void RemoveShelf(std::string_view shelf_id);
+  // Keeps the tab's page on the shelf, the tab becoming its page's.
+  void KeepTab(int32_t tab_id, std::string_view shelf_id);
+  // Moves a page to the end of another shelf. To none, it's no longer kept,
+  // its tab staying, or opening behind the active one if it isn't open here.
+  void MoveToShelf(std::string_view pin_id, std::string_view shelf_id);
+
   // PinStore::Observer:
   void OnPinsChanged() override;
 
@@ -68,6 +82,7 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
 
  private:
   TabStripModel* model() const;
+  FiberPinState* PinState(const Pin& pin) const;
   // The pin's tab here, if it's open.
   tabs::TabInterface* TabForPin(std::string_view pin_id) const;
   // Makes the pinned tab a new pin's page.
@@ -77,8 +92,8 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
   void Release(tabs::TabInterface* tab);
   // Keeps the pin's title and icon those of its page while the tab is on it.
   void UpdatePinFromTab(tabs::TabInterface* tab);
-  // A pin's tab moved: the pin goes before the next pin open here, or after
-  // the one before it.
+  // A pin's tab moved: the pin goes before the next pin on its shelf open
+  // here, or after the one before it.
   void TabMoved(tabs::TabInterface* tab);
 
   // The tab strip can't change while it tells its observers of a change, so
@@ -92,6 +107,8 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
   const base::RepeatingClosure on_changed_;
   // The pin whose tab Open() is adding.
   std::string opening_pin_id_;
+  // The shelf KeepTab() is keeping a tab's page on.
+  std::string keeping_shelf_id_;
   std::vector<tabs::TabHandle> tabs_to_unpin_;
   bool is_arranging_ = false;
   bool is_arrange_pending_ = false;

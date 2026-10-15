@@ -3,6 +3,7 @@
 #include <utility>
 
 #import "FiberBridge/FiberPinState.h"
+#import "FiberBridge/FiberShelves.h"
 #include "base/auto_reset.h"
 #include "base/functional/bind.h"
 #include "base/strings/escape.h"
@@ -72,29 +73,45 @@ PinnedTabs::~PinnedTabs() = default;
 
 NSArray<FiberPinState*>* PinnedTabs::GetPinStates() const {
   NSMutableArray<FiberPinState*>* states = [NSMutableArray array];
-  for (const Pin& pin : store_->pins()) {
-    tabs::TabInterface* tab = TabForPin(pin.id);
-    content::WebContents* contents = tab ? tab->GetContents() : nullptr;
-    gfx::Image favicon = contents ? TabFavicon(contents) : gfx::Image();
-    const GURL& favicon_page =
-        favicon.IsEmpty() ? pin.url : contents->GetLastCommittedURL();
-    if (favicon.IsEmpty()) {
-      favicon = pin.icon;
-    }
-    [states
-        addObject:[[FiberPinState alloc]
-                       initWithID:base::SysUTF8ToNSString(pin.id)
-                            title:base::SysUTF16ToNSString(pin.title)
-                              url:DisplayURL(pin.url)
-                          favicon:favicon.IsEmpty()
-                                      ? nil
-                                      : FaviconImage(favicon, favicon_page)
-                            tabID:tab ? tab->GetHandle().raw_value()
-                                      : tabs::TabHandle::NullValue
-                          loading:contents && contents->ShouldShowLoadingUI()
-                      atPinnedURL:contents && IsOnPage(contents, pin.url)]];
+  for (const Pin* pin : store_->PinsOn(std::string_view())) {
+    [states addObject:PinState(*pin)];
   }
   return states;
+}
+
+NSArray<FiberShelfState*>* PinnedTabs::GetShelfStates() const {
+  NSMutableArray<FiberShelfState*>* states = [NSMutableArray array];
+  for (const Shelf& shelf : store_->shelves()) {
+    NSMutableArray<FiberPinState*>* pages = [NSMutableArray array];
+    for (const Pin* pin : store_->PinsOn(shelf.id)) {
+      [pages addObject:PinState(*pin)];
+    }
+    [states addObject:[[FiberShelfState alloc]
+                          initWithID:base::SysUTF8ToNSString(shelf.id)
+                                name:base::SysUTF16ToNSString(shelf.name)
+                               pages:pages]];
+  }
+  return states;
+}
+
+FiberPinState* PinnedTabs::PinState(const Pin& pin) const {
+  tabs::TabInterface* tab = TabForPin(pin.id);
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  gfx::Image favicon = contents ? TabFavicon(contents) : gfx::Image();
+  const GURL& favicon_page =
+      favicon.IsEmpty() ? pin.url : contents->GetLastCommittedURL();
+  if (favicon.IsEmpty()) {
+    favicon = pin.icon;
+  }
+  return [[FiberPinState alloc]
+       initWithID:base::SysUTF8ToNSString(pin.id)
+            title:base::SysUTF16ToNSString(pin.title)
+              url:DisplayURL(pin.url)
+          favicon:favicon.IsEmpty() ? nil : FaviconImage(favicon, favicon_page)
+            tabID:tab ? tab->GetHandle().raw_value()
+                      : tabs::TabHandle::NullValue
+          loading:contents && contents->ShouldShowLoadingUI()
+      atPinnedURL:contents && IsOnPage(contents, pin.url)];
 }
 
 const Pin* PinnedTabs::PinForURL(const GURL& url) const {
@@ -185,6 +202,56 @@ void PinnedTabs::Move(std::string_view pin_id, size_t index) {
   store_->Move(pin_id, index);
 }
 
+std::string PinnedTabs::AddShelf(const std::u16string& name) {
+  return store_->AddShelf(name);
+}
+
+void PinnedTabs::RenameShelf(std::string_view shelf_id,
+                             const std::u16string& name) {
+  store_->RenameShelf(shelf_id, name);
+}
+
+void PinnedTabs::RemoveShelf(std::string_view shelf_id) {
+  // Each window lets go of its pages' tabs in OnPinsChanged().
+  store_->RemoveShelf(shelf_id);
+}
+
+void PinnedTabs::KeepTab(int32_t tab_id, std::string_view shelf_id) {
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  const int index = tab ? model()->GetIndexOfTab(tab) : TabStripModel::kNoTab;
+  if (index == TabStripModel::kNoTab || !store_->FindShelf(shelf_id)) {
+    return;
+  }
+  if (const Pin* pin = PinForTab(tab)) {
+    store_->MoveToShelf(pin->id, shelf_id);
+    return;
+  }
+  // OnTabPinnedStateChanged() makes it a new page of the shelf's.
+  base::AutoReset<std::string> keeping(&keeping_shelf_id_,
+                                       std::string(shelf_id));
+  model()->SetTabPinned(index, true);
+}
+
+void PinnedTabs::MoveToShelf(std::string_view pin_id,
+                             std::string_view shelf_id) {
+  const Pin* pin = store_->Find(pin_id);
+  if (!pin) {
+    return;
+  }
+  if (!shelf_id.empty()) {
+    store_->MoveToShelf(pin_id, shelf_id);
+    return;
+  }
+  if (!TabForPin(pin_id)) {
+    NavigateParams params(browser_, pin->url,
+                          ui::PAGE_TRANSITION_AUTO_BOOKMARK);
+    params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    Navigate(&params);
+  }
+  // Each window lets go of its tab in OnPinsChanged().
+  store_->Remove(pin_id);
+}
+
 void PinnedTabs::OnPinsChanged() {
   TabStripModel* model = this->model();
   for (int i = 0; i < model->IndexOfFirstNonPinnedTab(); ++i) {
@@ -272,21 +339,24 @@ void PinnedTabs::Adopt(tabs::TabInterface* tab) {
   content::WebContents* contents = tab->GetContents();
   Pin pin;
   pin.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+  pin.shelf_id = keeping_shelf_id_;
   pin.url = contents->GetVisibleURL();
   pin.title = contents->GetTitle();
   pin.icon = TabFavicon(contents);
-  // Before the next pin open here, or last: Chrome pins a tab at the end.
-  size_t index = store_->pins().size();
+  // Before the next pin on its shelf open here, or last: Chrome pins a tab at
+  // the end.
+  size_t position = store_->PinsOn(pin.shelf_id).size();
   TabStripModel* model = this->model();
   for (int i = model->GetIndexOfTab(tab) + 1;
        i < model->IndexOfFirstNonPinnedTab(); ++i) {
-    if (const Pin* next = PinForTab(model->GetTabAtIndex(i))) {
-      index = *store_->IndexOf(next->id);
+    const Pin* next = PinForTab(model->GetTabAtIndex(i));
+    if (next && next->shelf_id == pin.shelf_id) {
+      position = *store_->PositionOf(next->id);
       break;
     }
   }
   SetPinIDForTab(contents, pin.id);
-  store_->Add(std::move(pin), index);
+  store_->Add(std::move(pin), position);
 }
 
 void PinnedTabs::TabInserted(tabs::TabInterface* tab) {
@@ -346,19 +416,24 @@ void PinnedTabs::TabMoved(tabs::TabInterface* tab) {
     return;
   }
   const std::string pin_id = pin->id;
-  const size_t from = *store_->IndexOf(pin_id);
+  const std::string shelf_id = pin->shelf_id;
+  const size_t from = *store_->PositionOf(pin_id);
+  // Moved among another shelf's tabs, it goes back among its own's.
+  ScheduleArrange();
   TabStripModel* model = this->model();
   const int index = model->GetIndexOfTab(tab);
   for (int i = index + 1; i < model->IndexOfFirstNonPinnedTab(); ++i) {
-    if (const Pin* next = PinForTab(model->GetTabAtIndex(i))) {
-      const size_t to = *store_->IndexOf(next->id);
+    const Pin* next = PinForTab(model->GetTabAtIndex(i));
+    if (next && next->shelf_id == shelf_id) {
+      const size_t to = *store_->PositionOf(next->id);
       store_->Move(pin_id, to > from ? to - 1 : to);
       return;
     }
   }
   for (int i = index - 1; i >= 0; --i) {
-    if (const Pin* previous = PinForTab(model->GetTabAtIndex(i))) {
-      const size_t to = *store_->IndexOf(previous->id);
+    const Pin* previous = PinForTab(model->GetTabAtIndex(i));
+    if (previous && previous->shelf_id == shelf_id) {
+      const size_t to = *store_->PositionOf(previous->id);
       store_->Move(pin_id, to < from ? to + 1 : to);
       return;
     }

@@ -5,7 +5,8 @@ import SwiftUI
 /// The window's tabs, over the dimmed page with Command-S: those that aren't
 /// pins', in the tab strip's order, in a panel as wide as the command
 /// palette's, with the pins (PinGrid) in rows above it, the page's address
-/// and the extensions beside it, and the downloads (DownloadsBubble) under it.
+/// and the extensions beside it, and under it the shelves (ShelfBar), whose
+/// lists it shows in place of the tabs, and the downloads (DownloadsBubble).
 /// The arrow keys, Return and Command-W move through, switch to and close
 /// them, and holding Option numbers the tabs, for Option and a number to switch
 /// to one. This view takes the events and keeps the model; TabOverlayView draws.
@@ -29,6 +30,25 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   var onPinMenu: (FiberPinState, NSEvent) -> Void = { _, _ in }
   var onTabMenu: (Int, NSEvent) -> Void = { _, _ in }
   var onAddressClick: () -> Void = {}
+  /// Called with a shelf's page whose tab isn't open here. Its owner closes
+  /// the overlay.
+  var onOpenShelfPage: (String) -> Void = { _ in }
+  var onRemoveShelfPage: (String) -> Void = { _ in }
+  /// Called with a tab dropped on a shelf's segment, and the shelf.
+  var onMoveTabToShelf: (Int, String) -> Void = { _, _ in }
+  /// Called with a shelf's page dropped on another segment, and its shelf, or
+  /// "" for Home.
+  var onMoveShelfPage: (String, String) -> Void = { _, _ in }
+  /// Returns the ID of the shelf it added.
+  var onAddShelf: () -> String? = { nil }
+  var onRenameShelf: (String, String) -> Void = { _, _ in }
+  /// Called once a shelf the user deleted can no longer be undone.
+  var onRemoveShelf: (String) -> Void = { _ in }
+  /// Right-clicks on a shelf's segment, or on a shelf's page.
+  var onShelfMenu: (FiberShelfState, NSEvent) -> Void = { _, _ in }
+  var onShelfPageMenu: (FiberPinState, FiberShelfState, NSEvent) -> Void = {
+    _, _, _ in
+  }
   var onDownloadAction: (DownloadAction) -> Void = { _ in }
   /// Called as the overlay opens over downloads.
   var onDownloadsShown: () -> Void = {}
@@ -59,6 +79,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// How long a typed tab number waits for another digit, when one could
   /// follow it.
   private static let numberTimeout: TimeInterval = 0.6
+  /// How long a deleted shelf can be undone.
+  private static let undoDuration: TimeInterval = 5
 
   private let model = TabOverlayModel()
   private let hostingView: NSHostingView<TabOverlayView>
@@ -67,13 +89,27 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private let extensionsBubble = RimmedGlassView(
     rimWidth: GlassCapsule.rimWidth)
   private let downloadsBubble = DownloadsBubble()
+  private let shelfBar = ShelfBar()
+  /// Over everything, for a row dragged to the shelf bar.
+  private let dragHostingView: TabDragHostingView
   private let isIncognito: Bool
   /// All the window's tabs; the panel lists those that aren't pins'.
   private var tabs: [FiberTabState] = []
   /// Where the fingers have scrolled the list to, before rubber-banding.
   private var dragOffset: CGFloat = 0
-  private var pressedTabID: Int?
-  private var pressedCloseButtonTabID: Int?
+  private var pressedRowID: TabListRow.ID?
+  private var pressedRowPoint: CGPoint?
+  private var pressedCloseButtonRowID: TabListRow.ID?
+  /// Set once the window has shelves, which an Incognito window never does.
+  private var hasShelves = false
+  /// The profile's shelves; the bar and list leave out one being deleted.
+  private var shelves: [FiberShelfState] = []
+  /// A shelf the user deleted, which the bar's button can undo for a while
+  /// before the browser hears of it.
+  private var pendingShelfRemoval: (shelfID: String, removal: DispatchWorkItem)?
+  /// The page whose tab its row's button just closed. The button, a trash can
+  /// now, doesn't take a click until the pointer has left it.
+  private var disarmedPageID: String?
   private var pressedPin: (pinID: String, point: CGPoint, part: PinPart)?
   /// Brings out the bead of the open pin under the pointer, once the pointer
   /// has rested on it, so that sweeping across a row doesn't ripple it.
@@ -92,9 +128,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// change.
   private var panelPins: [FiberPinState] = []
   private var isPanelCatchUpPending = false
-  /// The panel's top as it opened, kept while it fits so that closing a tab
-  /// brings the next under the pointer rather than recentering the panel.
-  private var heldTop: CGFloat?
+  /// What stays put while the overlay is open, so that what the pointer just
+  /// acted on doesn't move (see PanelHold).
+  private var hold: PanelHold?
   /// From when it starts to close until it has faded out, it shows the tabs,
   /// pins and address it closed with, and the window's wait here.
   private var isClosing = false
@@ -102,6 +138,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var heldTabs: (tabs: [FiberTabState], activeTabID: Int)?
   private var heldPins: [FiberPinState]?
   private var heldDownloads: [FiberDownloadState]?
+  private var heldShelves: [FiberShelfState]?
   /// Its fade out as it closes, which waits for what's on it to leave.
   private var pendingFadeOut: DispatchWorkItem?
   /// Counts its closings, so that a fade out from one cut short does nothing.
@@ -114,6 +151,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   init(isIncognito: Bool) {
     self.isIncognito = isIncognito
     hostingView = NSHostingView(rootView: TabOverlayView(model: model))
+    dragHostingView = TabDragHostingView(rootView: TabDragView(model: model))
     super.init(frame: .zero)
     wantsLayer = true
     isHidden = true
@@ -139,6 +177,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       self?.onDownloadAction(action)
     }
     downloadsBubble.onResize = { [weak self] in self?.layoutPanel() }
+    configureShelfBar()
+    dragHostingView.sizingOptions = []
+    dragHostingView.safeAreaRegions = []
+    addSubview(dragHostingView)
     downloadsBubble.onGlassChange = { [weak self] in
       guard let self else {
         return
@@ -147,8 +189,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       self.model.downloadsCornerRadius = self.downloadsBubble.glassCornerRadius
     }
     setAddress("")
-    model.onSelect = { [weak self] tabID in self?.pick(tabID) }
-    model.onClose = { [weak self] tabID in self?.onClose(tabID) }
+    model.onSelect = { [weak self] rowID in self?.pick(rowID) }
+    model.onClose = { [weak self] rowID in self?.closeRow(rowID) }
+    model.onCloseTab = { [weak self] tabID in self?.onClose(tabID) }
     model.onOpenPin = { [weak self] pinID in self?.openPin(pinID) }
     model.onUnpin = { [weak self] pinID in self?.onUnpin(pinID) }
     model.onResetPin = { [weak self] pinID in self?.onResetPin(pinID) }
@@ -182,13 +225,20 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     if downloadsBubble.isShown {
       onDownloadsShown()
     }
+    // On the active tab's list, which it shows as it fades in.
+    var transaction = Transaction(animation: nil)
+    transaction.disablesAnimations = true
+    withTransaction(transaction) {
+      shelfBar.select(segment(ofTabWithID: model.activeTabID), animated: false)
+      updateListedTabs()
+    }
     model.selection = initialSelection
     model.closeButton = nil
     hideBead()
     model.showsNumbers = Self.isOptionOnly(NSEvent.modifierFlags)
     optionDidChange(isHeld: model.showsNumbers)
     restingPointer = NSEvent.mouseLocation
-    heldTop = nil
+    hold = nil
     layoutPanel()
     revealSelection(animated: false)
     isHidden = false
@@ -214,6 +264,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       moveBubbles()
       pressedPin = nil
       model.pinDrag = nil
+      model.tabDrag = nil
+      shelfBar.setDropTarget(nil)
+      shelfBar.endRename(keep: true)
+      commitShelfRemoval()
       hideBead()
       cancelTypedNumber()
       model.showsNumbers = false
@@ -284,11 +338,16 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       heldDownloads = nil
       setDownloads(downloads)
     }
+    if let shelves = heldShelves {
+      heldShelves = nil
+      setShelves(shelves)
+    }
   }
 
   /// The address and extensions come and go with the pins (see
   /// TabOverlayMotion), from the left beside the panel, or from above like
-  /// the pins when above them; the downloads with the panel's wave.
+  /// the pins when above them; the downloads and shelves with the panel's
+  /// wave.
   private func moveBubbles() {
     let offset =
       model.areBubblesBeside
@@ -304,6 +363,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       downloadsBubble, from: CGSize(width: 0, height: -TabOverlayMotion.travel),
       isOpening: isOpen,
       delay: model.motionDelay(belowPanel: model.downloadsFrame),
+      span: model.motionSpan)
+    TabOverlayMotion.move(
+      shelfBar, from: CGSize(width: 0, height: -TabOverlayMotion.travel),
+      isOpening: isOpen,
+      delay: model.motionDelay(belowPanel: model.shelfBarFrame),
       span: model.motionSpan)
   }
 
@@ -415,6 +479,227 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     downloadsBubble.setDownloads(downloads)
   }
 
+  func setShelves(_ shelves: [FiberShelfState]) {
+    guard !isClosing else {
+      heldShelves = shelves
+      return
+    }
+    hasShelves = true
+    self.shelves = shelves
+    updateShelves()
+  }
+
+  // MARK: Shelves
+
+  private func configureShelfBar() {
+    addSubview(shelfBar)
+    shelfBar.onSelect = { [weak self] segment in self?.showSegment(segment) }
+    shelfBar.onAdd = { [weak self] in self?.addShelf() }
+    shelfBar.onUndo = { [weak self] in self?.undoShelfRemoval() }
+    shelfBar.onRename = { [weak self] shelfID, name in
+      self?.onRenameShelf(shelfID, name)
+    }
+    shelfBar.onMenu = { [weak self] shelf, event in
+      self?.onShelfMenu(shelf, event)
+    }
+    shelfBar.onResize = { [weak self] in self?.layoutPanel() }
+    shelfBar.onRenameEnd = { [weak self] in
+      guard let self, self.isOpen else {
+        return
+      }
+      self.window?.makeFirstResponder(self)
+    }
+  }
+
+  /// The bar and list show the shelves but one being deleted.
+  private func updateShelves() {
+    shelfBar.setShelves(
+      shelves.filter { $0.shelfID != pendingShelfRemoval?.shelfID })
+    updateListedTabs()
+  }
+
+  /// The list the tab is in: its shelf's, if it's a shelf page's, or Home.
+  private func segment(ofTabWithID tabID: Int) -> ShelfSegment {
+    shelfBar.shelves.first { shelf in
+      shelf.pages.contains { $0.tabID != 0 && $0.tabID == tabID }
+    }.map { .shelf($0.shelfID) } ?? .home
+  }
+
+  /// Lists `segment`'s tabs, with the active one selected if it's among
+  /// them, or else the first.
+  private func showSegment(_ segment: ShelfSegment) {
+    guard segment != shelfBar.segment else {
+      return
+    }
+    holdShelfBar()
+    shelfBar.select(segment, animated: true)
+    disarmedPageID = nil
+    setScrollOffset(0)
+    updateListedTabs()
+    model.selection = model.rows.isEmpty ? nil : initialSelection
+    revealSelection(animated: false)
+  }
+
+  /// Left and Right go through the segments, from a row or none, not a pin.
+  private func stepSegment(by step: Int) -> Bool {
+    guard hasShelves, !(model.selection?.isPin ?? false),
+      let index = shelfBar.segments.firstIndex(of: shelfBar.segment)
+    else {
+      return false
+    }
+    let next = index + step
+    if shelfBar.segments.indices.contains(next) {
+      showSegment(shelfBar.segments[next])
+    }
+    return true
+  }
+
+  /// Switching shelves, or dropping a row on one, keeps the bar where it is,
+  /// and the list fills up from it.
+  private func holdShelfBar() {
+    if !model.shelfBarFrame.isEmpty {
+      hold = .bar(model.shelfBarFrame.minY)
+    }
+  }
+
+  /// Closing from the list keeps the rows where they are instead.
+  private func holdPanelTop() {
+    if hold?.barTop != nil {
+      hold = .top(model.panelFrame.minY)
+    }
+  }
+
+  private func addShelf() {
+    commitShelfRemoval()
+    guard let shelfID = onAddShelf() else {
+      return
+    }
+    showSegment(.shelf(shelfID))
+    shelfBar.beginRename(shelfID)
+  }
+
+  /// Puts a field over the shelf's segment, with its name selected.
+  func beginRename(_ shelfID: String) {
+    if isOpen {
+      shelfBar.beginRename(shelfID)
+    }
+  }
+
+  /// Hides the shelf, and deletes it once the bar's button can no longer
+  /// undo it: after a while, or as the overlay closes.
+  func deleteShelf(_ shelfID: String) {
+    commitShelfRemoval()
+    guard let shelf = shelves.first(where: { $0.shelfID == shelfID }) else {
+      return
+    }
+    holdShelfBar()
+    let removal = DispatchWorkItem { [weak self] in
+      MainActor.assumeIsolated { self?.commitShelfRemoval() }
+    }
+    pendingShelfRemoval = (shelfID, removal)
+    shelfBar.setUndoName(shelf.name)
+    updateShelves()
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + Self.undoDuration, execute: removal)
+  }
+
+  private func commitShelfRemoval() {
+    guard let (shelfID, removal) = pendingShelfRemoval else {
+      return
+    }
+    removal.cancel()
+    pendingShelfRemoval = nil
+    shelfBar.setUndoName(nil)
+    onRemoveShelf(shelfID)
+  }
+
+  /// Edit › Undo (Command-Z) brings back a shelf just deleted.
+  @objc func undo(_ sender: Any?) {
+    undoShelfRemoval()
+  }
+
+  private func undoShelfRemoval() {
+    guard let (_, removal) = pendingShelfRemoval else {
+      return
+    }
+    removal.cancel()
+    pendingShelfRemoval = nil
+    shelfBar.setUndoName(nil)
+    holdShelfBar()
+    updateShelves()
+  }
+
+  /// A row's close button: a tab closes, a shelf page's leaving its row, and
+  /// a shelf page without a tab is removed.
+  private func closeRow(_ rowID: TabListRow.ID) {
+    guard let row = model.rows.first(where: { $0.id == rowID }) else {
+      return
+    }
+    holdPanelTop()
+    switch (row.tabID, rowID) {
+    case (let tabID?, .page(let pageID)):
+      disarmedPageID = pageID
+      onClose(tabID)
+    case (let tabID?, .tab):
+      onClose(tabID)
+    case (nil, .page(let pageID)):
+      onRemoveShelfPage(pageID)
+    case (nil, .tab):
+      break
+    }
+  }
+
+  private func removeSelectedPage() {
+    guard case .row(.page(let pageID))? = model.selection else {
+      NSSound.beep()
+      return
+    }
+    holdPanelTop()
+    onRemoveShelfPage(pageID)
+  }
+
+  private func drop(_ drag: TabDrag) {
+    guard let target = drag.target else {
+      return
+    }
+    holdShelfBar()
+    let shelfID: String
+    if case .shelf(let id) = target {
+      shelfID = id
+    } else {
+      shelfID = ""
+    }
+    switch drag.rowID {
+    case .page(let pageID):
+      onMoveShelfPage(pageID, shelfID)
+    case .tab(let tabID) where !shelfID.isEmpty:
+      onMoveTabToShelf(tabID, shelfID)
+    case .tab:
+      break
+    }
+  }
+
+  /// A pressed row dragged far enough lifts off the list, for the shelf bar.
+  private func dragRow(to point: CGPoint) -> Bool {
+    guard hasShelves, let rowID = pressedRowID, let start = pressedRowPoint
+    else {
+      return false
+    }
+    guard
+      model.tabDrag != nil
+        || hypot(point.x - start.x, point.y - start.y) >= Self.dragThreshold
+    else {
+      return true
+    }
+    let target = shelfBar.segment(forDropAt: point).flatMap {
+      $0 == shelfBar.segment ? nil : $0
+    }
+    model.closeButton = nil
+    model.tabDrag = TabDrag(rowID: rowID, point: point, target: target)
+    shelfBar.setDropTarget(target)
+    return true
+  }
+
   /// A flourish where each pin that came or went is, or was.
   private func burst(from old: [FiberPinState], to new: [FiberPinState]) {
     let oldIDs = Set(old.map(\.pinID))
@@ -462,29 +747,55 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     updateListedTabs()
   }
 
+  /// Home's tabs are those that aren't pins' or shelf pages'; a shelf lists
+  /// its pages, as their tabs are if they're open.
   private func updateListedTabs() {
     let pinTabIDs = Set(panelPins.map(\.tabID))
-    let previous = model.tabs
-    model.tabs = tabs.filter { !pinTabIDs.contains($0.tabID) }
-    // A selected tab that's gone, closed say, leaves the selection to the one
-    // in its place.
-    if case .tab(let tabID)? = model.selection,
-      !model.tabs.contains(where: { $0.tabID == tabID })
+    let previous = model.rows
+    switch shelfBar.segment {
+    case .home:
+      let pageTabIDs = Set(shelfBar.shelves.flatMap(\.pages).map(\.tabID))
+      model.rows =
+        tabs
+        .filter {
+          !pinTabIDs.contains($0.tabID) && !pageTabIDs.contains($0.tabID)
+        }
+        .map(TabListRow.init(tab:))
+      model.listedShelfName = nil
+    case .shelf(let shelfID):
+      let shelf = shelfBar.shelves.first { $0.shelfID == shelfID }
+      model.rows = (shelf?.pages ?? []).map { page in
+        TabListRow(
+          page: page,
+          tab: page.tabID == 0 ? nil : tabs.first { $0.tabID == page.tabID })
+      }
+      model.listedShelfName = shelf?.name
+    }
+    model.activeRowID = model.rows.first { $0.tabID == model.activeTabID }?.id
+    if let pageID = disarmedPageID,
+      !model.rows.contains(where: { $0.id == .page(pageID) })
     {
-      let row = previous.firstIndex { $0.tabID == tabID } ?? 0
+      disarmedPageID = nil
+    }
+    // A selected row that's gone, closed say, leaves the selection to the one
+    // in its place.
+    if case .row(let rowID)? = model.selection,
+      !model.rows.contains(where: { $0.id == rowID })
+    {
+      let index = previous.firstIndex { $0.id == rowID } ?? 0
       model.selection =
-        model.tabs.isEmpty
+        model.rows.isEmpty
         ? model.pins.first.map { .pin($0.pinID) }
-        : .tab(model.tabs[min(row, model.tabs.count - 1)].tabID)
+        : .row(model.rows[min(index, model.rows.count - 1)].id)
     }
     layoutPanel()
-    // Clicking a close button moves the tabs under the pointer.
+    // Clicking a close button moves the rows under the pointer.
     if model.closeButton != nil, let window {
       hover(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
   }
 
-  /// The active tab's pin, or the active tab.
+  /// The active tab's pin, or the active tab's row.
   private var initialSelection: TabOverlaySelection? {
     let activeTabID = model.activeTabID
     if let pin = model.pins.first(where: {
@@ -492,10 +803,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }) {
       return .pin(pin.pinID)
     }
-    if model.tabs.contains(where: { $0.tabID == activeTabID }) {
-      return .tab(activeTabID)
+    if let rowID = model.activeRowID {
+      return .row(rowID)
     }
-    return (model.tabs.first?.tabID).map { .tab($0) }
+    return (model.rows.first?.id).map { .row($0) }
       ?? (model.pins.first?.pinID).map { .pin($0) }
   }
 
@@ -506,7 +817,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   override func resizeSubviews(withOldSize oldSize: NSSize) {
     hostingView.frame = bounds
     downloadsBubble.frame = bounds
-    heldTop = nil
+    shelfBar.frame = bounds
+    dragHostingView.frame = bounds
+    hold = nil
     layoutPanel(animated: false)
   }
 
@@ -531,20 +844,29 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let footerHeight = TabOverlayModel.footerHeight
     let below =
       footerHeight
-      + (downloadsBubble.isShown
+      + (downloadsBubble.isShown || hasShelves
         ? DownloadsLayout.spacing + GlassCapsule.height : 0)
     let highest = PaletteView.minTop + above
-    let listHeight = min(
+    var listHeight = min(
       model.listContentHeight,
       max(bounds.height - PaletteView.bottomMargin - below - highest, 0))
-    let lowest = max(
-      bounds.height - PaletteView.bottomMargin - below - listHeight, highest)
-    let placed =
-      ((bounds.height - above - below - listHeight) * Self.topShare)
-      .rounded() + above
-    let top = min(max(heldTop ?? placed, highest), lowest)
-    if isOpen {
-      heldTop = top
+    let top: CGFloat
+    if let barTop = hold?.barTop,
+      barTop - DownloadsLayout.spacing - footerHeight >= highest
+    {
+      listHeight = min(
+        listHeight, barTop - DownloadsLayout.spacing - footerHeight - highest)
+      top = barTop - DownloadsLayout.spacing - footerHeight - listHeight
+    } else {
+      let lowest = max(
+        bounds.height - PaletteView.bottomMargin - below - listHeight, highest)
+      let placed =
+        ((bounds.height - above - below - listHeight) * Self.topShare)
+        .rounded() + above
+      top = min(max(hold?.top ?? placed, highest), lowest)
+      if isOpen {
+        hold = .top(top)
+      }
     }
     model.areBubblesBeside = isBeside
     if isBeside {
@@ -582,6 +904,29 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         x: frame.maxX - downloadsWidth, y: frame.maxY + DownloadsLayout.spacing,
         width: downloadsWidth, height: GlassCapsule.height),
       animated: animated && isOpen)
+    layoutShelfBar(
+      under: frame, downloadsWidth: downloadsBubble.isShown ? downloadsWidth : 0)
+  }
+
+  /// The shelf bar as wide as its segments, or as fits short of the
+  /// downloads with its button after it, scrolling across if narrower.
+  private func layoutShelfBar(under panel: CGRect, downloadsWidth: CGFloat) {
+    guard hasShelves else {
+      return
+    }
+    let room =
+      panel.width - shelfBar.buttonWidth - GlassCapsule.spacing
+      - (downloadsWidth > 0
+        ? downloadsWidth + ShelfBarLayout.downloadsClearance : 0)
+    shelfBar.place(
+      at: CGPoint(x: panel.minX, y: panel.maxY + DownloadsLayout.spacing),
+      width: max(min(shelfBar.contentWidth, room), ShelfBarLayout.height))
+    if shelfBar.barFrame != model.shelfBarFrame
+      || shelfBar.buttonFrame != model.shelfButtonFrame
+    {
+      model.shelfBarFrame = shelfBar.barFrame
+      model.shelfButtonFrame = shelfBar.buttonFrame
+    }
   }
 
   /// `view` in the middle of a capsule's glass, as wide as its ends allow if
@@ -667,8 +1012,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       || pinHit(at: point) != nil
   }
 
-  /// The tab at `point`, where the list is scrolled to now.
-  private func tab(at point: CGPoint) -> FiberTabState? {
+  /// The row at `point`, where the list is scrolled to now.
+  private func row(at point: CGPoint) -> TabListRow? {
     let point = inPanel(point)
     let list = model.listRect
     guard list.contains(point) else {
@@ -679,8 +1024,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     guard offset >= 0 else {
       return nil
     }
-    let row = Int(offset / TabListLayout.rowStep)
-    return model.tabs.indices.contains(row) ? model.tabs[row] : nil
+    let index = Int(offset / TabListLayout.rowStep)
+    return model.rows.indices.contains(index) ? model.rows[index] : nil
   }
 
   /// The close button `point` is within reach of, where the list is scrolled
@@ -693,23 +1038,25 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
     return TabListLayout.closeButton(
       near: CGPoint(x: point.x, y: point.y - list.minY + model.scrollOffset),
-      in: model.tabs, width: list.width)
+      in: model.rows.map(\.id), width: list.width)
   }
 
-  /// The tab whose close button is at `point`, if it's showing.
-  private func closeButtonTab(at point: CGPoint) -> Int? {
+  /// The row whose close button is at `point`, if it's showing and takes a
+  /// click.
+  private func closeButtonRow(at point: CGPoint) -> TabListRow.ID? {
     guard let button = closeButton(near: point), button.isHovered,
-      button.tabID == model.closeButton?.tabID
+      button.rowID == model.closeButton?.rowID,
+      disarmedPageID.map({ button.rowID != .page($0) }) ?? true
     else {
       return nil
     }
-    return button.tabID
+    return button.rowID
   }
 
-  /// Scrolls the least that shows the selected tab whole.
+  /// Scrolls the least that shows the selected row whole.
   private func revealSelection(animated: Bool) {
-    guard let tabID = model.selectedTabID,
-      let row = model.tabs.firstIndex(where: { $0.tabID == tabID })
+    guard let rowID = model.selectedRowID,
+      let row = model.rows.firstIndex(where: { $0.id == rowID })
     else {
       return
     }
@@ -821,7 +1168,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     pendingNumberPick = nil
     guard
       let (number, isComplete) = Self.tabNumber(
-        typing: digit, after: typedNumber, count: model.tabs.count)
+        typing: digit, after: typedNumber, count: model.rows.count)
     else {
       typedNumber = nil
       NSSound.beep()
@@ -832,7 +1179,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       pickTypedNumber()
       return
     }
-    select(.tab(model.tabs[number - 1].tabID))
+    select(.row(model.rows[number - 1].id))
     let pick = DispatchWorkItem { [weak self] in
       MainActor.assumeIsolated {
         self?.pickTypedNumber()
@@ -861,8 +1208,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       return
     }
     cancelTypedNumber()
-    if model.tabs.indices.contains(number - 1) {
-      pick(model.tabs[number - 1].tabID)
+    if model.rows.indices.contains(number - 1) {
+      pick(model.rows[number - 1].id)
     }
   }
 
@@ -885,11 +1232,23 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   override func moveLeft(_ sender: Any?) {
-    moveSelection(.left)
+    if !stepSegment(by: -1) {
+      moveSelection(.left)
+    }
   }
 
   override func moveRight(_ sender: Any?) {
-    moveSelection(.right)
+    if !stepSegment(by: 1) {
+      moveSelection(.right)
+    }
+  }
+
+  override func deleteBackward(_ sender: Any?) {
+    removeSelectedPage()
+  }
+
+  override func deleteForward(_ sender: Any?) {
+    removeSelectedPage()
   }
 
   /// With Option held, the arrow keys still move across the pins, the bead
@@ -927,8 +1286,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     switch model.selection {
     case .pin(let pinID)?:
       openPin(pinID)
-    case .tab(let tabID)?:
-      pick(tabID)
+    case .row(let rowID)?:
+      pick(rowID)
     case nil:
       onDismiss()
     }
@@ -954,13 +1313,13 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     select(next)
   }
 
-  /// Through the pins as a grid whose rows rise from the tabs, then the tabs
-  /// as a column.
+  /// Through the pins as a grid whose rows rise from the list, then the list's
+  /// rows as a column.
   private func selection(
     after selection: TabOverlaySelection?, moving direction: Direction
   ) -> TabOverlaySelection? {
     let pins = model.pins
-    let tabs = model.tabs
+    let rows = model.rows
     let columns = PinGridLayout.columns(width: model.gridWidth)
     let topRowStart = (max(pins.count, 1) - 1) / columns * columns
     switch selection {
@@ -977,19 +1336,19 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
           ? nil : .pin(pins[min(index + columns, pins.count - 1)].pinID)
       case .down:
         return index < columns
-          ? tabs.first.map { .tab($0.tabID) } : .pin(pins[index - columns].pinID)
+          ? rows.first.map { .row($0.id) } : .pin(pins[index - columns].pinID)
       }
-    case .tab(let tabID)?:
-      guard let index = tabs.firstIndex(where: { $0.tabID == tabID }) else {
+    case .row(let rowID)?:
+      guard let index = rows.firstIndex(where: { $0.id == rowID }) else {
         return initialSelection
       }
       switch direction {
       case .up where index == 0:
         return pins.first.map { .pin($0.pinID) }
       case .up:
-        return .tab(tabs[index - 1].tabID)
+        return .row(rows[index - 1].id)
       case .down:
-        return index + 1 < tabs.count ? .tab(tabs[index + 1].tabID) : nil
+        return index + 1 < rows.count ? .row(rows[index + 1].id) : nil
       case .left, .right:
         return nil
       }
@@ -998,11 +1357,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
   }
 
-  /// Tab and Shift-Tab go through the pins and tabs in reading order.
+  /// Tab and Shift-Tab go through the pins and rows in reading order.
   private func stepSelection(by step: Int) {
     let items =
       model.pins.map { TabOverlaySelection.pin($0.pinID) }
-      + model.tabs.map { .tab($0.tabID) }
+      + model.rows.map { .row($0.id) }
     guard let current = model.selection.flatMap(items.firstIndex(of:)) else {
       select(initialSelection)
       return
@@ -1022,8 +1381,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     revealSelection(animated: true)
   }
 
-  /// A pin's tab, if it's open, or the tab.
+  /// A pin's tab, if it's open, or the row's.
   private func closeSelection() {
+    holdPanelTop()
     switch model.selection {
     case .pin(let pinID)?:
       if let pin = model.pins.first(where: { $0.pinID == pinID }),
@@ -1031,14 +1391,24 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       {
         onClose(pin.tabID)
       }
-    case .tab(let tabID)?:
-      onClose(tabID)
+    case .row(let rowID)?:
+      // A shelf page without a tab is removed only with Delete.
+      if let tabID = model.rows.first(where: { $0.id == rowID })?.tabID {
+        onClose(tabID)
+      }
     case nil:
       break
     }
   }
 
-  private func pick(_ tabID: Int) {
+  /// A row's tab, or its shelf page's, opened.
+  private func pick(_ rowID: TabListRow.ID) {
+    guard let tabID = model.rows.first(where: { $0.id == rowID })?.tabID else {
+      if case .page(let pageID) = rowID {
+        onOpenShelfPage(pageID)
+      }
+      return
+    }
     if tabID == model.activeTabID {
       onDismiss()
     } else {
@@ -1059,13 +1429,13 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   // MARK: Pointer
 
-  /// Everything but the address, extensions and downloads, which take their
-  /// own clicks. The page under it takes none.
+  /// Everything but the address, extensions, downloads and shelves, which
+  /// take their own clicks. The page under it takes none.
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard isOpen, let view = super.hitTest(point) else {
       return nil
     }
-    let isInBubble = [addressBubble, extensionsBubble, downloadsBubble]
+    let isInBubble = [addressBubble, extensionsBubble, downloadsBubble, shelfBar]
       .contains { view.isDescendant(of: $0) }
     return isInBubble ? view : self
   }
@@ -1107,6 +1477,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func mouseDown(with event: NSEvent) {
     let point = location(of: event)
+    shelfBar.endRename(keep: true)
     // A click off the downloads' list closes it; on nothing else, that's all
     // it does.
     if downloadsBubble.isExpanded {
@@ -1131,13 +1502,17 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       }
       return
     }
-    pressedCloseButtonTabID = closeButtonTab(at: point)
-    if pressedCloseButtonTabID == nil {
-      pressedTabID = tab(at: point)?.tabID
+    pressedCloseButtonRowID = closeButtonRow(at: point)
+    if pressedCloseButtonRowID == nil {
+      pressedRowID = row(at: point)?.id
+      pressedRowPoint = point
     }
   }
 
   override func mouseDragged(with event: NSEvent) {
+    if dragRow(to: location(of: event)) {
+      return
+    }
     guard let pressedPin, pressedPin.part == .icon,
       let from = model.pins.firstIndex(where: { $0.pinID == pressedPin.pinID })
     else {
@@ -1168,11 +1543,19 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func mouseUp(with event: NSEvent) {
     defer {
-      pressedTabID = nil
-      pressedCloseButtonTabID = nil
+      pressedRowID = nil
+      pressedRowPoint = nil
+      pressedCloseButtonRowID = nil
       pressedPin = nil
     }
     let point = location(of: event)
+    if let drag = model.tabDrag {
+      model.tabDrag = nil
+      shelfBar.setDropTarget(nil)
+      drop(drag)
+      hover(at: point)
+      return
+    }
     if let drag = model.pinDrag {
       // The browser reorders the pins before this returns, so the pin settles
       // into its new place from where it was dropped.
@@ -1193,16 +1576,16 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       }
       return
     }
-    if let tabID = pressedCloseButtonTabID {
-      if closeButtonTab(at: point) == tabID {
-        onClose(tabID)
+    if let rowID = pressedCloseButtonRowID {
+      if closeButtonRow(at: point) == rowID {
+        closeRow(rowID)
       }
       return
     }
-    guard let tabID = tab(at: point)?.tabID, tabID == pressedTabID else {
+    guard let rowID = row(at: point)?.id, rowID == pressedRowID else {
       return
     }
-    pick(tabID)
+    pick(rowID)
   }
 
   override func rightMouseDown(with event: NSEvent) {
@@ -1214,13 +1597,24 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let point = location(of: event)
     if let pin = pin(at: point) {
       onPinMenu(pin, event)
-    } else if let tab = tab(at: point) {
-      onTabMenu(tab.tabID, event)
+      return
+    }
+    switch row(at: point)?.id {
+    case .tab(let tabID)?:
+      onTabMenu(tabID, event)
+    case .page(let pageID)?:
+      if let shelf = shelfBar.shelves.first(where: {
+        $0.pages.contains { $0.pinID == pageID }
+      }), let page = shelf.pages.first(where: { $0.pinID == pageID }) {
+        onShelfPageMenu(page, shelf, event)
+      }
+    case nil:
+      break
     }
   }
 
-  /// The selection follows the pointer onto a pin or a tab, once it has
-  /// moved. Nil for the pointer gone, or on the downloads over the tabs.
+  /// The selection follows the pointer onto a pin or a row, once it has
+  /// moved. Nil for the pointer gone, or on the downloads over the rows.
   private func hover(at point: CGPoint?) {
     guard isOpen, restingPointer != NSEvent.mouseLocation else {
       return
@@ -1229,16 +1623,22 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let point = point.flatMap {
       downloadsBubble.glassFrame.contains($0) ? nil : $0
     }
-    let hit = point.flatMap { model.pinDrag == nil ? pinHit(at: $0) : nil }
-    if let point, model.pinDrag == nil {
+    let isDragging = model.pinDrag != nil || model.tabDrag != nil
+    let hit = point.flatMap { isDragging ? nil : pinHit(at: $0) }
+    if let point, !isDragging {
       if let (pin, _) = hit {
         model.selection = .pin(pin.pinID)
-      } else if let tab = tab(at: point) {
-        model.selection = .tab(tab.tabID)
+      } else if let row = row(at: point) {
+        model.selection = .row(row.id)
       }
     }
     hoverPin(hit)
-    let button = point.flatMap(closeButton(near:))
+    let button = isDragging ? nil : point.flatMap(closeButton(near:))
+    if let pageID = disarmedPageID,
+      button?.isHovered != true || button?.rowID != .page(pageID)
+    {
+      disarmedPageID = nil
+    }
     if button != model.closeButton {
       model.closeButton = button
     }
@@ -1390,10 +1790,49 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 }
 
+extension TabOverlay: NSMenuItemValidation {
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    item.action == #selector(undo(_:)) ? pendingShelfRemoval != nil : true
+  }
+}
+
+/// What the tab overlay keeps in place as what it shows changes, until it
+/// closes or the window resizes.
+private enum PanelHold {
+  /// The panel's top, as it opened, while it fits: closing a tab brings the
+  /// next under the pointer rather than recentering the panel.
+  case top(CGFloat)
+  /// The shelf bar's top, once the user has switched shelves: the list grows
+  /// and shrinks above it, scrolling past what fits rather than pushing the
+  /// bar down.
+  case bar(CGFloat)
+
+  var top: CGFloat? {
+    if case .top(let top) = self {
+      return top
+    }
+    return nil
+  }
+
+  var barTop: CGFloat? {
+    if case .bar(let top) = self {
+      return top
+    }
+    return nil
+  }
+}
+
 /// What Return and Command-W act on in the tab overlay.
 enum TabOverlaySelection: Equatable {
   case pin(String)
-  case tab(Int)
+  case row(TabListRow.ID)
+
+  var isPin: Bool {
+    if case .pin = self {
+      return true
+    }
+    return false
+  }
 }
 
 @MainActor
@@ -1402,10 +1841,20 @@ final class TabOverlayModel {
   /// The hints under the list, and the rim below them.
   static let footerHeight = PaletteView.footerHeight + PaletteView.rimWidth
 
-  /// The tabs the list shows: those that aren't pins'.
-  var tabs: [FiberTabState] = []
+  /// The rows the list shows: Home's tabs (those that aren't pins' or shelf
+  /// pages'), or a shelf's pages.
+  var rows: [TabListRow] = []
   var pins: [FiberPinState] = []
   var activeTabID = 0
+  /// The active tab's row, if the list has it.
+  var activeRowID: TabListRow.ID?
+  /// The shelf whose pages the list shows, or nil for Home.
+  var listedShelfName: String?
+  /// The shelf bar's capsule and the button after it (see ShelfBar). Empty
+  /// in a window without shelves.
+  var shelfBarFrame: CGRect = .zero
+  var shelfButtonFrame: CGRect = .zero
+  var tabDrag: TabDrag?
   /// What the pins and the panel come and go with (see TabOverlayMotion).
   var isOpen = false
   var selection: TabOverlaySelection?
@@ -1433,22 +1882,33 @@ final class TabOverlayModel {
   var downloadsCornerRadius: CGFloat = 0
   /// The page's, in CIE L* (see TabOverlay.setPageLightness(_:)).
   var pageLightness: Double = 100
-  @ObservationIgnored var onSelect: (Int) -> Void = { _ in }
-  @ObservationIgnored var onClose: (Int) -> Void = { _ in }
+  @ObservationIgnored var onSelect: (TabListRow.ID) -> Void = { _ in }
+  @ObservationIgnored var onClose: (TabListRow.ID) -> Void = { _ in }
+  /// For a pin's tab.
+  @ObservationIgnored var onCloseTab: (Int) -> Void = { _ in }
   @ObservationIgnored var onOpenPin: (String) -> Void = { _ in }
   @ObservationIgnored var onUnpin: (String) -> Void = { _ in }
   @ObservationIgnored var onResetPin: (String) -> Void = { _ in }
 
   var gridWidth: CGFloat { panelFrame.width }
 
+  /// How many rows aren't wholly in sight below the list's bottom edge.
+  var rowsBelow: Int {
+    let bottom = scrollOffset + listRect.height
+    return rows.indices.filter {
+      TabListLayout.contentInset + CGFloat($0) * TabListLayout.rowStep
+        + TabListLayout.rowHeight > bottom + 0.5
+    }.count
+  }
+
   /// The bottom-left corner of the pins' grid, just above the panel.
   var pinsOrigin: CGPoint {
     CGPoint(x: panelFrame.minX, y: panelFrame.minY - PinGridLayout.spacing)
   }
 
-  var selectedTabID: Int? {
-    if case .tab(let tabID)? = selection {
-      return tabID
+  var selectedRowID: TabListRow.ID? {
+    if case .row(let rowID)? = selection {
+      return rowID
     }
     return nil
   }
@@ -1507,7 +1967,8 @@ final class TabOverlayModel {
       } ?? 0
     let bubblesDelay = max(
       bubbleFrames.map(motionDelay(ofBubble:)).max() ?? 0,
-      motionDelay(belowPanel: downloadsFrame))
+      motionDelay(belowPanel: downloadsFrame),
+      motionDelay(belowPanel: shelfButtonFrame))
     return TabOverlayMotion.span(
       lastDelay: max(pinsDelay, bubblesDelay),
       panelReach: PanelWave.reach(of: panelFrame.size))
@@ -1558,6 +2019,12 @@ final class TabOverlayModel {
       DimmingPool.Shape(
         id: "downloads", frame: downloadsFrame,
         cornerRadius: downloadsCornerRadius))
+    for (id, frame) in [
+      ("shelves", shelfBarFrame), ("shelfButton", shelfButtonFrame),
+    ] {
+      shapes.append(
+        DimmingPool.Shape(id: id, frame: frame, cornerRadius: frame.height / 2))
+    }
     return shapes.filter { !$0.frame.isEmpty }
   }
 
@@ -1586,10 +2053,10 @@ final class TabOverlayModel {
   }
 
   /// With no tabs, the top rim's, so the hints sit as far from the panel's top
-  /// as from its bottom.
+  /// as from its bottom; an empty shelf's, a row for what to do with it.
   var listContentHeight: CGFloat {
-    tabs.isEmpty
-      ? PaletteView.rimWidth : TabListLayout.panelHeight(rows: tabs.count)
+    rows.isEmpty && listedShelfName == nil
+      ? PaletteView.rimWidth : TabListLayout.panelHeight(rows: rows.count)
   }
 
   /// From the panel's top-left corner.
@@ -1632,20 +2099,40 @@ struct TabOverlayView: View {
 
         TabList(
           width: panel.width, showsURL: true,
-          showsNumbers: model.showsNumbers, tabs: model.tabs,
-          activeTabID: model.activeTabID,
-          highlightedTabID: model.selectedTabID,
-          closeButton: model.closeButton, onSelect: model.onSelect,
-          onClose: model.onClose
+          showsNumbers: model.showsNumbers, rows: model.rows,
+          activeRowID: model.activeRowID,
+          highlightedRowID: model.tabDrag == nil ? model.selectedRowID : nil,
+          closeButton: model.closeButton, draggedRowID: model.tabDrag?.rowID,
+          onSelect: model.onSelect, onClose: model.onClose
         )
         .fixedSize(horizontal: false, vertical: true)
         .offset(y: -model.scrollOffset)
         .frame(width: panel.width, height: list.height, alignment: .top)
         .clipped()
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Tabs")
+        .accessibilityLabel(model.listedShelfName ?? "Tabs")
 
-        HintsView()
+        // A list that goes on past the panel says how much further.
+        if model.rowsBelow > 0 {
+          MoreBelow(count: model.rowsBelow)
+            .frame(height: PaletteView.footerHeight)
+            .offset(
+              x: rim + PaletteView.horizontalInset,
+              y: panel.height - TabOverlayModel.footerHeight)
+            .transition(.opacity)
+        }
+
+        if let name = model.listedShelfName, model.rows.isEmpty {
+          Text("Drag tabs onto “\(name)” to keep them here")
+            .font(.system(size: 13))
+            .foregroundStyle(.tertiary)
+            .frame(width: panel.width, height: list.height)
+            .transition(.opacity)
+        }
+
+        HintsView(
+          kind: model.listedShelfName == nil
+            ? .home : model.rows.isEmpty ? .emptyShelf : .shelf)
           .frame(
             width: max(
               panel.width - 2 * (rim + PaletteView.horizontalInset), 0),
@@ -1672,12 +2159,13 @@ struct TabOverlayView: View {
         .offset(x: pins.x)
         // Read before the tabs, as they show.
         .accessibilitySortPriority(1)
+
     }
     // Tabs opening and closing grow and shrink the panel, and rows of pins
     // coming and going can move it.
     .animation(
       .spring(duration: 0.3, bounce: 0).slowMotion,
-      value: model.tabs.map(\.tabID))
+      value: model.rows.map(\.id))
     .animation(
       .spring(duration: 0.3, bounce: 0).slowMotion, value: model.panelPinCount)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1719,15 +2207,84 @@ private struct PanelWave: View, Animatable {
   }
 }
 
+/// A row dragged to the shelf bar, over everything in the overlay.
+private struct TabDragView: View {
+  let model: TabOverlayModel
+
+  var body: some View {
+    ZStack(alignment: .topLeading) {
+      if let drag = model.tabDrag,
+        let row = model.rows.first(where: { $0.id == drag.rowID })
+      {
+        let isOverTarget = drag.target != nil
+        DraggedRow(row: row, isOverTarget: isOverTarget)
+          .position(
+            DraggedRow.center(for: drag.point, isOverTarget: isOverTarget))
+          .animation(
+            .spring(duration: 0.3, bounce: 0.25).slowMotion,
+            value: isOverTarget)
+          .transition(.scale(scale: 0.9).combined(with: .opacity))
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .animation(
+      .spring(duration: 0.25, bounce: 0.2).slowMotion,
+      value: model.tabDrag == nil)
+  }
+}
+
+/// Lets the pointer through to what's under the dragged row.
+private final class TabDragHostingView: NSHostingView<TabDragView> {
+  override func hitTest(_ point: NSPoint) -> NSView? {
+    nil
+  }
+}
+
+/// How many rows are past the list's bottom edge, at the footer's left, in
+/// the hints' style.
+private struct MoreBelow: View {
+  let count: Int
+
+  var body: some View {
+    HStack(spacing: PaletteView.hintInnerSpacing) {
+      Text("\(count) more")
+        .foregroundStyle(.secondary)
+        .contentTransition(.numericText(value: Double(count)))
+      Image(systemName: "chevron.down")
+        .fontWeight(.medium)
+        .foregroundStyle(.tertiary)
+    }
+    .font(.system(size: 11))
+    .animation(.easeInOut(duration: 0.2).slowMotion, value: count)
+  }
+}
+
 /// The keys, like the command palette's.
 private struct HintsView: View {
   private static let hints = [
     ("Switch to Tab", "↩"), ("Close Tab", "⌘W"), ("Close", "esc"),
   ]
+  private static let shelfHints = [
+    ("Open", "↩"), ("Close Tab", "⌘W"), ("Remove", "⌫"), ("Close", "esc"),
+  ]
+
+  enum Kind {
+    case home, shelf, emptyShelf
+  }
+
+  let kind: Kind
+
+  private var hints: [(String, String)] {
+    switch kind {
+    case .home: Self.hints
+    case .shelf: Self.shelfHints
+    case .emptyShelf: [("Close", "esc")]
+    }
+  }
 
   var body: some View {
     HStack(spacing: PaletteView.hintSpacing) {
-      ForEach(Self.hints, id: \.0) { action, key in
+      ForEach(hints, id: \.0) { action, key in
         HStack(spacing: PaletteView.hintInnerSpacing) {
           Text(action)
             .foregroundStyle(.secondary)

@@ -7,6 +7,7 @@
 // `--incognito` (the first window is Incognito, on the New Tab page),
 // `--pins N` (made-up pinned sites, the first two open, the first away from
 // its pinned page),
+// `--shelves N` (made-up shelves, Later's and Research's first pages open),
 // `--restorables N` (N made-up closed windows and earlier sessions, for the
 // command palette),
 // `--overlay` (the tab overlay, as Command-S opens it),
@@ -71,12 +72,24 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     } else {
       openWindow(urls: MockBrowser.sampleURLs(count: launchTabCount))
     }
+    if let count = launchValue(of: "--shelves").flatMap(Int.init), count > 0,
+      let browser = browsers.last
+    {
+      pins.addSampleShelves(count)
+      let active = browser.activeTabID
+      for shelf in pins.shelves.prefix(2) {
+        if let page = pins.pins(on: shelf.id).first {
+          browser.openShelfPage(withID: page.id)
+        }
+      }
+      browser.selectTab(withID: active)
+    }
     if let count = launchValue(of: "--restorables").flatMap(Int.init) {
       restorables.addSamples(count)
     }
     if let count = launchValue(of: "--pins").flatMap(Int.init), count > 0 {
       setPinCount(count)
-      for (index, pin) in pins.pins.prefix(2).enumerated() {
+      for (index, pin) in pins.pins(on: nil).prefix(2).enumerated() {
         browsers.last?.openPin(withID: pin.id)
         if index == 0 {
           browsers.last?.navigate(toInput: "fiber.example/about", event: nil)
@@ -255,12 +268,16 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
   }
 
   /// Adds made-up pins, or unpins from the end, until there are `count`.
+  /// The pins themselves; shelves' pages stay.
   private func setPinCount(_ count: Int) {
-    while pins.pins.count < count {
-      let url = MockBrowser.sampleURLs(count: pins.pins.count + 6).last!
+    while pins.pins(on: nil).count < count {
+      let url = MockBrowser.sampleURLs(count: pins.pins(on: nil).count + 6)
+        .last!
       pins.add(url: url, title: URL(string: url)?.host() ?? url)
     }
-    while pins.pins.count > max(count, 0), let pin = pins.pins.last {
+    while pins.pins(on: nil).count > max(count, 0),
+      let pin = pins.pins(on: nil).last
+    {
       pins.remove(pin.id)
     }
   }
@@ -312,7 +329,7 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
 
   private func updateControls() {
     controls.update(
-      tabCount: currentBrowser?.tabs.count ?? 0, pinCount: pins.pins.count)
+      tabCount: currentBrowser?.tabs.count ?? 0, pinCount: pins.pins(on: nil).count)
   }
 
   @objc private func windowDidBecomeKey(_ notification: Notification) {

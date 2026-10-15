@@ -8,6 +8,7 @@
 @protocol FiberExtensions;
 @protocol FiberFindBar;
 @protocol FiberOmnibox;
+@protocol FiberShelves;
 @protocol FiberTabIndex;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -124,6 +125,8 @@ NS_SWIFT_UI_ACTOR
 @property(readonly) id<FiberExtensions> extensions;
 // Listed in the tab overlay, under its tabs.
 @property(readonly) id<FiberDownloads> downloads;
+// Listed in the tab overlay, after the window's own tabs.
+@property(readonly) id<FiberShelves> shelves;
 @property(readonly) id<FiberFindBar> findBar;
 // A startup window's are set once, by the browser that takes it over (see
 // FiberWindowFactory); what the user does before then waits in the event

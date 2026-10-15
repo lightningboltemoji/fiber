@@ -220,7 +220,7 @@ struct PinGrid: View {
         .accessibilityAction { model.onOpenPin(pin.pinID) }
         .accessibilityAction(named: "Close Tab") {
           if pin.tabID != 0 {
-            model.onClose(pin.tabID)
+            model.onCloseTab(pin.tabID)
           }
         }
         .accessibilityAction(named: "Back to Pinned Page") {

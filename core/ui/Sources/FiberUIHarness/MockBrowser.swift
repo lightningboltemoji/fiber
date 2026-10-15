@@ -39,8 +39,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private let tabIndex: any FiberTabIndex
   private(set) var tabs: [MockTab] = []
   private var activeTab: MockTab!
-  /// The pins open here, by ID. Their tabs come first, as in Chrome's tab
-  /// strip.
+  /// The pins and shelf pages open here, by ID. Their tabs come first, as
+  /// in Chrome's tab strip, where they're pinned.
   private var pinTabs: [String: MockTab] = [:]
   /// The profile's, which an Incognito window has none of.
   private var pins: MockPins? { isIncognito ? nil : app?.pins }
@@ -91,6 +91,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     // Incognito's profile has downloads of its own, none so far.
     if !isIncognito {
       app.downloads.attach(ui.downloads)
+      ui.shelves.actions = self
     }
     for url in urls {
       openTab(url, activate: true)
@@ -99,6 +100,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   var window: NSWindow { ui.window }
+  var activeTabID: Int { activeTab.id }
 
   func show() {
     ui.window.makeKeyAndOrderFront(nil)
@@ -869,16 +871,23 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private func pushTabs() {
     ui.setTabs(tabStates, activeTabID: activeTab.id)
     if let pins {
-      ui.setPins(
-        pins.pins.map { pin in
-          let tab = pinTabs[pin.id]
-          return FiberPinState(
-            id: pin.id, title: pin.title, url: Self.displayURL(pin.url),
-            favicon: MockFavicon.image(for: pin.url), tabID: tab?.id ?? 0,
-            loading: tab?.isLoading ?? false, atPinnedURL: tab?.url == pin.url)
+      ui.setPins(pins.pins(on: nil).map(pinState))
+      ui.shelves.setShelves(
+        pins.shelves.map { shelf in
+          FiberShelfState(
+            id: shelf.id, name: shelf.name,
+            pages: pins.pins(on: shelf.id).map(pinState))
         })
     }
     app?.tabsDidChange()
+  }
+
+  private func pinState(_ pin: MockPins.Pin) -> FiberPinState {
+    let tab = pinTabs[pin.id]
+    return FiberPinState(
+      id: pin.id, title: pin.title, url: Self.displayURL(pin.url),
+      favicon: MockFavicon.image(for: pin.url), tabID: tab?.id ?? 0,
+      loading: tab?.isLoading ?? false, atPinnedURL: tab?.url == pin.url)
   }
 
   /// `url` as Chrome shows it: no "https://", "www." or lone "/".
@@ -988,3 +997,55 @@ private final class MockDialogActions: NSObject, FiberJavaScriptDialogActions {
   }
 }
 
+
+// MARK: FiberShelvesActions
+
+extension MockBrowser: FiberShelvesActions {
+  func addShelfNamed(_ name: String) -> String {
+    pins?.addShelf(named: name) ?? ""
+  }
+
+  func renameShelf(withID shelfID: String, to name: String) {
+    pins?.renameShelf(shelfID, to: name)
+  }
+
+  func removeShelf(withID shelfID: String) {
+    pins?.removeShelf(shelfID)
+  }
+
+  func openShelfPage(withID pageID: String) {
+    openPin(withID: pageID)
+  }
+
+  /// As PinnedTabs::KeepTab() does, a pin's tab moves to the shelf.
+  func moveTab(withID tabID: Int, toShelfWithID shelfID: String) {
+    guard let pins, let tab = tabs.first(where: { $0.id == tabID }) else {
+      return
+    }
+    if let pinID = pinTabs.first(where: { $0.value === tab })?.key {
+      pins.moveToShelf(pinID, shelfID)
+      return
+    }
+    let id = pins.makeID()
+    pinTabs[id] = tab
+    pins.add(url: tab.url, title: tab.page.title, shelfID: shelfID, id: id)
+  }
+
+  func moveShelfPage(withID pageID: String, toShelfWithID shelfID: String) {
+    guard let pins, let page = pins.pin(withID: pageID) else {
+      return
+    }
+    guard shelfID.isEmpty else {
+      pins.moveToShelf(pageID, shelfID)
+      return
+    }
+    if pinTabs[pageID] == nil {
+      openTab(page.url, activate: false)
+    }
+    pins.remove(pageID)
+  }
+
+  func removeShelfPage(withID pageID: String) {
+    unpinPin(withID: pageID)
+  }
+}

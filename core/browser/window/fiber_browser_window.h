@@ -315,7 +315,7 @@ class FiberBrowserWindow : public BrowserWindow,
   // Whether `view` is in the active tab's page or its docked DevTools.
   bool IsInActiveTab(NSView* view) const;
   void UpdateLoadProgress();
-  // Sends the UI the tab list, in tab strip order, and the pins.
+  // Sends the UI the tab list, in tab strip order, and the pins and shelves.
   void UpdateTabs();
   void UpdatePins();
   // Before the user closes `closing`. Closing the last of the window's tabs

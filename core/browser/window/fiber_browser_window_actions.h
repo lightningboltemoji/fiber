@@ -3,17 +3,21 @@
 
 #import <Cocoa/Cocoa.h>
 
+#import "FiberBridge/FiberShelves.h"
 #import "FiberBridge/FiberWindow.h"
 
 namespace fiber {
 class FiberBrowserWindow;
 }
 
-// Carries out what the user does in a Fiber window's UI on its
-// FiberBrowserWindow. The window also forwards Chrome's main menu commands here
-// while it's key, ahead of AppController, so they act on this window's browser.
+// Carries out what the user does in a Fiber window's UI, its shelves
+// included, on its FiberBrowserWindow. The window also forwards Chrome's main
+// menu commands here while it's key, ahead of AppController, so they act on
+// this window's browser.
 @interface FiberBrowserWindowActions
-    : NSObject <FiberWindowActions, NSUserInterfaceValidations>
+    : NSObject <FiberWindowActions,
+                FiberShelvesActions,
+                NSUserInterfaceValidations>
 
 - (instancetype)initWithOwner:(fiber::FiberBrowserWindow*)owner;
 
