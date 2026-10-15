@@ -128,10 +128,12 @@ it draws. Its pieces:
   pushing in slowly once a move settles. Fast moves are blurred in renders
   (not the preview): the window is drawn at several instants across half a
   frame and averaged.
-- **`Keys`** shows the take's shortcuts as keycaps; **`Caption`**, **`Title`**
-  and **`Backdrop`** are the words and what's behind the window. The README's
-  cut loops, so it has no words and starts and ends on a `Backdrop` that
-  `loop`s: its last frame leads into its first.
+- **`Keys`** shows the take's shortcuts as keycaps, given the cut's shots so
+  they stay on the window, never half on the backdrop where they'd lose their
+  contrast; **`Caption`**, **`Title`** and **`Backdrop`** are the words and
+  what's behind the window. The README's cut loops, so it has no words and
+  starts and ends on a `Backdrop` that `loop`s: its last frame leads into its
+  first.
 - `brand.ts` takes the app icon from `core/branding/icon`, so a render uses
   the icon `make icon` last built.
 

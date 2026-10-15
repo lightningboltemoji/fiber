@@ -1,5 +1,6 @@
-import React from 'react';
+import React, {useMemo} from 'react';
 import {AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig} from 'remotion';
+import {type Shot, cameraAt, resolveShots, windowOnScreen} from './camera';
 import {type At, type Timeline, resolveAt} from './timeline';
 
 const symbols: Record<string, string> = {
@@ -24,11 +25,21 @@ const symbols: Record<string, string> = {
 
 /**
  * The shortcuts pressed in the take, as keycaps along the bottom of the
- * picture. Keys pressed alone, like return, aren't shortcuts, so aren't shown.
+ * picture, over the window that `shots` film. Keys pressed alone, like
+ * return, aren't shortcuts, so aren't shown.
  */
-export const Keys: React.FC<{timeline: Timeline; from?: At; hold?: number}> = ({timeline, from = 0, hold = 1.1}) => {
+export const Keys: React.FC<{timeline: Timeline; shots: Shot[]; from?: At; hold?: number}> = ({
+	timeline,
+	shots,
+	from = 0,
+	hold = 1.1,
+}) => {
 	const frame = useCurrentFrame();
-	const {fps, height} = useVideoConfig();
+	const {fps, width, height} = useVideoConfig();
+	const resolved = useMemo(
+		() => resolveShots(timeline, shots, {width, height}),
+		[timeline, shots, width, height],
+	);
 	const t = resolveAt(timeline, from) + frame / fps;
 	const shown = timeline.keys.filter((k) => k.keys.includes('+') && k.time <= t && t < k.time + hold).at(-1);
 	if (!shown) {
@@ -42,8 +53,17 @@ export const Keys: React.FC<{timeline: Timeline; from?: At; hold?: number}> = ({
 	const scale = interpolate(age, [0, 0.14], [0.92, 1], {extrapolateRight: 'clamp'});
 	const caps = shown.keys.split('+').map((part) => symbols[part] ?? part.toUpperCase());
 	const size = height / 24;
+	// Half on the window and half on the backdrop, keycaps lose their contrast
+	// on one or the other, so they rise to stay on the window while shown.
+	const windowBottom = Math.min(
+		...Array.from({length: 12}, (_, i) => {
+			const rect = windowOnScreen(cameraAt(resolved, shown.time + (hold * i) / 11), timeline.window, {width, height});
+			return rect.y + rect.height;
+		}),
+	);
+	const bottom = Math.max(height * 0.07, height - windowBottom + height * 0.04);
 	return (
-		<AbsoluteFill style={{justifyContent: 'flex-end', alignItems: 'center', paddingBottom: height * 0.07}}>
+		<AbsoluteFill style={{justifyContent: 'flex-end', alignItems: 'center', paddingBottom: bottom}}>
 			<div style={{display: 'flex', gap: size * 0.3, opacity, transform: `scale(${scale})`}}>
 				{caps.map((cap, i) => (
 					<div

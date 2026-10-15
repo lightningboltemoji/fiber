@@ -33,11 +33,11 @@ Click
 Wait title "Wayfarer"
 Mark wayfarer
 Locate 38.7121,-9.1302
-Sleep 1.3s
+Sleep 0.9s
 
 # The map asks where he is, in a bubble over the page, and finds the café
 # round the corner.
-Move page "#nearby" 900ms
+Move page "#nearby" 700ms
 Sleep 150ms
 Click
 Wait AXButton "Never allow"
@@ -63,9 +63,11 @@ Click
 Wait title "Lettera"
 Mark mail
 Sleep 300ms
-Mark message page "#message"
-Sleep 2.4s
-Click page "#reply-body"
+Mark subject page ".subject h2"
+Sleep 1.2s
+Move page "#reply-body" 450ms
+Sleep 100ms
+Click
 Sleep 300ms
 Mark draft page "#reply-draft"
 Type "We're staying at " 75ms
@@ -75,7 +77,7 @@ Sleep 1.2s
 Key cmd+p
 Wait palette
 Mark palette palette
-Sleep 300ms
+Sleep 500ms
 Type "address" 95ms
 Sleep 300ms
 Mark found results
@@ -90,13 +92,16 @@ Sleep 450ms
 Key cmd+c
 Sleep 700ms
 
-# The window's top edge keeps the recent tabs: back to the reply.
+# The window's top edge keeps the recent tabs: back to the reply, its page
+# hanging below its tab. AX has the strip's frames as it opens, smaller than
+# it ends up, but its tabs' centers are right, so the camera frames the tab.
 Move @800,3 900ms
 Wait AXButton "Lettera"
-Sleep 150ms
-Mark picker AXButton "Tabs"
-Sleep 500ms
-Click AXButton "Lettera"
+Sleep 400ms
+Mark picker AXButton "Lettera"
+Move AXButton "Lettera" 450ms
+Sleep 550ms
+Click
 Wait title "Lettera"
 Mark back
 Sleep 500ms
@@ -106,7 +111,5 @@ Type ". Leitaria do Largo is round the corner. 8:30?" 65ms
 Sleep 900ms
 Mark send page "#send-reply"
 Click page "#send-reply"
-Sleep 600ms
-Mark sent page ".mine"
-Sleep 2.4s
+Sleep 3s
 Mark end

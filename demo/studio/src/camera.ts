@@ -160,6 +160,14 @@ export const cameraTransform = (state: CameraState, picture: {width: number; hei
 		`translate(${-state.x}px, ${-state.y}px)`,
 	].join(' ');
 
+/** Where `state` puts the window in the picture, in pixels (ignoring tilt). */
+export const windowOnScreen = (state: CameraState, window: Rect, picture: {width: number; height: number}): Rect => ({
+	x: picture.width / 2 - state.x * state.scale,
+	y: picture.height / 2 - state.y * state.scale,
+	width: window.width * state.scale,
+	height: window.height * state.scale,
+});
+
 /** How far, in pixels, the window's corners move between two states (ignoring tilt). */
 export const travel = (a: CameraState, b: CameraState, window: Rect) => {
 	const corners = [
