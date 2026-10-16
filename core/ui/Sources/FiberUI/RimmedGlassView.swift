@@ -56,25 +56,24 @@ final class RimmedGlassView: NSView {
 }
 
 /// RimmedGlassView in SwiftUI, for glass whose shape animates.
-struct RimmedGlass: View {
-  let cornerRadius: CGFloat
+struct RimmedGlass<S: InsettableShape>: View {
+  let shape: S
   let rimWidth: CGFloat
 
   var body: some View {
     Color.clear
-      .glassEffect(
-        .regular,
-        in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-      )
+      .glassEffect(.regular, in: shape)
       .overlay {
         Color.clear
-          .glassEffect(
-            .regular,
-            in: RoundedRectangle(
-              cornerRadius: max(cornerRadius - rimWidth, 0),
-              style: .continuous)
-          )
-          .padding(rimWidth)
+          .glassEffect(.regular, in: shape.inset(by: rimWidth))
       }
+  }
+}
+
+extension RimmedGlass where S == RoundedRectangle {
+  init(cornerRadius: CGFloat, rimWidth: CGFloat) {
+    self.init(
+      shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+      rimWidth: rimWidth)
   }
 }

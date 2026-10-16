@@ -331,10 +331,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     controlsView.addSubview(openedTabNotice)
 
-    tabPicker.frame = NSRect(
-      x: 0, y: content.bounds.height - TabPicker.height,
-      width: content.bounds.width, height: TabPicker.height)
-    tabPicker.autoresizingMask = [.width, .minYMargin]
+    tabPicker.frame = controlsView.bounds
+    tabPicker.autoresizingMask = [.width, .height]
     tabPicker.onSelect = { [weak self] tabID in
       self?.actions?.selectTab(withID: tabID)
     }

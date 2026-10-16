@@ -58,6 +58,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/TabOverlay.swift",
     "Sources/FiberUI/TabOverlayMotion.swift",
     "Sources/FiberUI/TabPicker.swift",
+    "Sources/FiberUI/TabPickerDrop.swift",
     "Sources/FiberUI/TabPickerView.swift",
     "Sources/FiberUI/TabState.swift",
     "Sources/FiberUI/TextMatching.swift",

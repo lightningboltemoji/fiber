@@ -2,93 +2,122 @@ import FiberBridge
 import SwiftUI
 
 /// Draws the tab picker; TabPicker handles all input. One piece of glass is
-/// the lip while closed and grows into the strip, uncovering the tabs; the
-/// highlighted tab's preview hangs below in its own. Positions come from the
-/// model, in the picker's coordinates.
+/// the lip, and the drop hanging from it that grows into the column, its tabs
+/// condensing out of the glass as it pours over them; the highlighted tab's
+/// preview hangs beside it in its own. Positions come from the model, in the
+/// picker's coordinates.
 struct TabPickerView: View {
+  private static let closeFade = Animation.easeOut(duration: 0.12)
+
   let model: TabPickerModel
 
   var body: some View {
-    let panel = model.panelRect
-    let glass = model.isExpanded ? panel : model.lipRect
-    let cornerRadius =
-      model.isExpanded
-      ? TabPickerLayout.cornerRadius : TabPickerModel.lipHeight / 2
-    // An overlay, so a strip wider than the window runs off its right edge
-    // rather than the hosting view centering it.
-    Color.clear.overlay(alignment: .topLeading) {
-      ZStack(alignment: .topLeading) {
-        PanelShadow(cornerRadius: cornerRadius)
-          .opacity(model.isExpanded ? 1 : 0)
-          .frame(width: glass.width, height: glass.height)
-          .offset(x: glass.minX, y: glass.minY)
+    let drop = model.drop
+    let shape = drop.shape
+    ZStack(alignment: .topLeading) {
+      PanelShadow(shape: shape)
+        .opacity(drop.shadowOpacity)
 
-        RimmedGlass(
-          cornerRadius: cornerRadius,
-          rimWidth: model.isExpanded ? TabPickerLayout.rimWidth : 0
-        )
-        .frame(width: glass.width, height: glass.height)
-        .offset(x: glass.minX, y: glass.minY)
+      RimmedGlass(shape: shape, rimWidth: drop.rimWidth)
+        .accessibilityHidden(true)
+
+      // The glass fills the picker, so it's framed around the drop for
+      // accessibility.
+      let frame = shape.path(in: .zero).boundingRect
+      Color.clear
+        .frame(width: frame.width, height: frame.height)
+        .offset(x: frame.minX, y: frame.minY)
         .accessibilityElement()
         .accessibilityLabel("Tabs")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.onToggle() }
 
-        // Laid out where the open strip is, and cut to the glass, so the
-        // glass uncovers the tabs as it grows.
-        TabPickerItems(model: model)
-          .frame(width: panel.width, height: panel.height, alignment: .topLeading)
-          .mask(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-              .frame(width: glass.width, height: glass.height)
-              .offset(x: glass.minX - panel.minX, y: glass.minY - panel.minY)
-          }
-          .opacity(model.isExpanded ? 1 : 0)
-          .offset(x: panel.minX, y: panel.minY)
-          .accessibilityHidden(!model.isExpanded)
+      // Laid out where the open column is, and cut to the glass, so the glass
+      // uncovers the tabs as it pours. Closing, they fade before it narrows
+      // across them.
+      TabPickerItems(model: model)
+        .mask { shape }
+        .opacity(model.isExpanded ? 1 : 0)
+        .animation(
+          model.isExpanded ? nil : Self.closeFade.slowMotion,
+          value: model.isExpanded)
+        .accessibilityHidden(!model.isExpanded)
 
-        TabPreview(model: model)
-      }
+      TabPreview(model: model)
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
-/// The strip's tabs, with a highlight that glides to the highlighted one.
+/// The column's tabs, with a highlight that glides to the highlighted one.
 private struct TabPickerItems: View {
   let model: TabPickerModel
 
   var body: some View {
+    let columnMinX = model.columnMinX
     ZStack(alignment: .topLeading) {
       highlight
-      ForEach(Array(model.tabs.enumerated()), id: \.element.tabID) {
-        index, tab in
-        let frame = TabPickerLayout.itemFrame(index)
-        TabPickerItem(
-          tab: tab, isActive: tab.tabID == model.activeTabID,
-          closeButton: model.closeButton?.tabID == tab.tabID
-            ? model.closeButton : nil
-        )
-        .frame(width: frame.width, height: frame.height)
-        .offset(x: frame.minX, y: frame.minY)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(
-          tab.tabID == model.activeTabID ? [.isButton, .isSelected] : .isButton
-        )
-        .accessibilityAction { model.onSelect(tab.tabID) }
-        .accessibilityAction(named: "Close Tab") { model.onClose(tab.tabID) }
+      let shown = Array(model.tabs.prefix(model.maxRows).enumerated())
+      ForEach(shown, id: \.element.tabID) { index, tab in
+        let frame = TabPickerLayout.itemFrame(index, columnMinX: columnMinX)
+        let coverage = model.coverage(ofRow: index)
+        if coverage > 0 {
+          TabPickerItem(
+            tab: tab, isActive: tab.tabID == model.activeTabID,
+            closeButton: model.closeButton?.tabID == tab.tabID
+              ? model.closeButton : nil
+          )
+          .frame(width: frame.width, height: frame.height)
+          .modifier(Condensing(coverage: coverage))
+          .offset(x: frame.minX, y: frame.minY)
+          .accessibilityElement(children: .combine)
+          .accessibilityAddTraits(
+            tab.tabID == model.activeTabID ? [.isButton, .isSelected] : .isButton
+          )
+          .accessibilityAction { model.onSelect(tab.tabID) }
+          .accessibilityAction(named: "Close Tab") { model.onClose(tab.tabID) }
+        }
       }
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 
   @ViewBuilder private var highlight: some View {
     if let index = model.highlightedIndex {
-      let frame = TabPickerLayout.itemFrame(index)
+      let frame = TabPickerLayout.itemFrame(index, columnMinX: model.columnMinX)
       RoundedRectangle(cornerRadius: 12, style: .continuous)
         .fill(Color.primary.opacity(0.1))
         .frame(width: frame.width, height: frame.height)
+        .opacity(Condensing.eased(model.coverage(ofRow: index)))
         .offset(x: frame.minX, y: frame.minY)
         .animation(.spring(duration: 0.22, bounce: 0.15).slowMotion, value: index)
     }
+  }
+}
+
+/// A tab coming out of the glass as it pours over: drifting down into place
+/// as it sharpens and brightens.
+private struct Condensing: ViewModifier {
+  /// How far above its place, and how blurred, a tab is as the glass first
+  /// reaches it.
+  private static let rise: CGFloat = 8
+  private static let blur: CGFloat = 5
+  private static let scale: CGFloat = 0.94
+
+  let coverage: CGFloat
+
+  static func eased(_ coverage: CGFloat) -> CGFloat {
+    coverage * coverage * (3 - 2 * coverage)
+  }
+
+  func body(content: Content) -> some View {
+    let progress = Self.eased(coverage)
+    let remaining = 1 - progress
+    content
+      .scaleEffect(1 - (1 - Self.scale) * remaining, anchor: .top)
+      .blur(radius: Self.blur * remaining)
+      .opacity(progress)
+      .offset(y: -Self.rise * remaining)
   }
 }
 
@@ -105,7 +134,7 @@ private struct TabPickerItem: View {
 
   var body: some View {
     let isCloseButtonShown = closeButton != nil
-    HStack(spacing: 9) {
+    HStack(spacing: 10) {
       icon
         .frame(width: 16, height: 16)
       VStack(alignment: .leading, spacing: 1) {
@@ -178,8 +207,8 @@ private struct TabPickerItem: View {
   }
 }
 
-/// The highlighted tab's page in its own glass under it, gliding from tab to
-/// tab, and fading where it was when there's none to show.
+/// The highlighted tab's page in its own glass beside it, gliding from tab
+/// to tab, and fading where it was when there's none to show.
 private struct TabPreview: View {
   private static let spring = Animation.spring(duration: 0.3, bounce: 0.12)
 
@@ -218,8 +247,11 @@ private struct TabPreview: View {
       }
     }
     .animation(Self.spring.slowMotion) {
-      $0.scaleEffect(isShown ? 1 : 0.94, anchor: .top)
-        .opacity(isShown ? 1 : 0)
+      $0.scaleEffect(
+        isShown ? 1 : 0.94,
+        anchor: model.isPreviewLeading ? .topTrailing : .topLeading
+      )
+      .opacity(isShown ? 1 : 0)
     }
     .frame(width: shown.width, height: shown.height, alignment: .topLeading)
     .offset(x: shown.minX, y: shown.minY)
@@ -241,13 +273,12 @@ private struct TabPreview: View {
   }
 }
 
-/// A soft shadow around a rounded rect, like a window's, that stays outside
-/// it so it doesn't darken the glass on top.
-struct PanelShadow: View {
-  let cornerRadius: CGFloat
+/// A soft shadow around a shape, like a window's, that stays outside it so
+/// it doesn't darken the glass on top.
+struct PanelShadow<S: Shape>: View {
+  let shape: S
 
   var body: some View {
-    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     shape
       .fill(.black)
       .shadow(color: .black.opacity(0.22), radius: 18, y: 6)
@@ -257,5 +288,12 @@ struct PanelShadow: View {
           .overlay { shape.blendMode(.destinationOut) }
           .compositingGroup()
       }
+  }
+}
+
+extension PanelShadow where S == RoundedRectangle {
+  init(cornerRadius: CGFloat) {
+    self.init(
+      shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
   }
 }

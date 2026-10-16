@@ -92,10 +92,12 @@ Sleep 450ms
 Key cmd+c
 Sleep 700ms
 
-# The window's top edge keeps the recent tabs: back to the reply, its page
-# hanging below its tab. AX has the strip's frames as it opens, smaller than
-# it ends up, but its tabs' centers are right, so the camera frames the tab.
+# The window's top edge keeps the recent tabs: its lip drips into a column of
+# them, which pours on a tab ahead of the pointer, down to the reply, its page
+# beside it. The camera frames the tab once it has settled.
 Move @800,3 900ms
+Sleep 350ms
+Move @800,32 350ms
 Wait AXButton "Lettera"
 Sleep 400ms
 Mark picker AXButton "Lettera"
