@@ -107,33 +107,42 @@ def mouth():
     return lips, tongue.intersection(lips.buffer(-5))
 
 
-def mark():
+def mark(cord=True):
     """The icon's glyph without its tile, as SVG for Fiber's UI to draw in one
     color: the face cut out of the housing, and the cord fading out a short
-    way past the boot."""
+    way past the boot. Without the cord it's nearly square, so the head can
+    fill an icon-sized slot."""
     lips, _ = mouth()
     housing = lean(head().difference(eyes()).difference(lips))
     sleeve = lean(boot().difference(head().buffer(RIB_GAP)))
-    reach = 260
-    path = cord_path()
-    start = path[0]
-    lengths = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))])
-    tail = path[np.searchsorted(lengths, reach + CORD_INSET)]
-    line = stroke(path, CORD_WIDTH).intersection(Point(start).buffer(reach + CORD_INSET))
-    line = line.difference(lean(box(0, 0, SIZE, BOOT_FOOT - CORD_INSET)))
+    parts = [housing, sleeve]
+    defs = fade = ""
+    if cord:
+        reach = 260
+        path = cord_path()
+        start = path[0]
+        lengths = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))])
+        tail = path[np.searchsorted(lengths, reach + CORD_INSET)]
+        line = stroke(path, CORD_WIDTH).intersection(Point(start).buffer(reach + CORD_INSET))
+        line = line.difference(lean(box(0, 0, SIZE, BOOT_FOOT - CORD_INSET)))
+        parts.append(line)
+        defs = (
+            f'  <defs><linearGradient id="fade" gradientUnits="userSpaceOnUse" '
+            f'x1="{start[0]:.1f}" y1="{start[1]:.1f}" x2="{tail[0]:.1f}" y2="{tail[1]:.1f}">'
+            f'<stop offset="0.2" stop-opacity="1"/><stop offset="1" stop-opacity="0"/>'
+            f"</linearGradient></defs>\n"
+        )
+        fade = f'  <path d="{geom_to_d(line)}" fill="url(#fade)"/>\n'
     margin = 8
-    x0, y0, x1, y1 = unary_union([housing, sleeve, line]).bounds
+    x0, y0, x1, y1 = unary_union(parts).bounds
     view = f"{x0 - margin:.1f} {y0 - margin:.1f} {x1 - x0 + 2 * margin:.1f} {y1 - y0 + 2 * margin:.1f}"
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view}">\n'
-        f'  <defs><linearGradient id="fade" gradientUnits="userSpaceOnUse" '
-        f'x1="{start[0]:.1f}" y1="{start[1]:.1f}" x2="{tail[0]:.1f}" y2="{tail[1]:.1f}">'
-        f'<stop offset="0.2" stop-opacity="1"/><stop offset="1" stop-opacity="0"/>'
-        f"</linearGradient></defs>\n"
-        f'  <path d="{geom_to_d(housing)}" fill="#000"/>\n'
+        + defs
+        + f'  <path d="{geom_to_d(housing)}" fill="#000"/>\n'
         f'  <path d="{geom_to_d(sleeve)}" fill="#000"/>\n'
-        f'  <path d="{geom_to_d(line)}" fill="url(#fade)"/>\n'
-        "</svg>\n"
+        + fade
+        + "</svg>\n"
     )
 
 

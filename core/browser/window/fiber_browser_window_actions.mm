@@ -132,10 +132,6 @@ int CommandID(FiberCommand command) {
   }
 }
 
-- (NSImage*)previewOfTabWithID:(NSInteger)tabID {
-  return _owner ? _owner->TabPreview(static_cast<int32_t>(tabID)) : nil;
-}
-
 - (void)pinTabWithID:(NSInteger)tabID {
   if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
     pinned_tabs->PinTab(static_cast<int32_t>(tabID));

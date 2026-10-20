@@ -42,9 +42,8 @@ const shots: Shot[] = [
 	{at: {marker: 'palette', offset: 0.1}, frame: ['palette', 'found'], fill: 0.63, duration: 0.7, ease: 'smooth', drift: 0.006},
 	{at: {marker: 'casa', offset: -0.15}, fill: 0.8, duration: 0.7, ease: 'whip'},
 	{at: {marker: 'address', offset: -0.1}, frame: 'address', fill: 0.5, duration: 0.9, ease: 'smooth', drift: 0.015},
-	// Up to the window's top edge as the pointer heads for it: the tab it
-	// picks, and that tab's page beside it.
-	{at: {marker: 'picker', offset: -1.3}, frame: 'picker', fill: 0.16, offset: [164, 68], duration: 0.8, ease: 'smooth'},
+	// ⌘S again, for the mail pin.
+	{at: {marker: 'overlay-again', offset: -0.25}, frame: ['overlay-again', 'pins-again'], fill: 0.64, duration: 0.6, ease: 'crash', drift: 0.012},
 	// Back to the reply, framed as before, for the paste and the send.
 	{at: {marker: 'back', offset: -0.15}, frame: ['subject', 'draft'], fill: 0.78, duration: 0.8, ease: 'smooth', drift: 0.006},
 	// And away as the window fades.

@@ -19,6 +19,14 @@ bool OpenURLInPin(BrowserWindowInterface* browser,
                   const GURL& url,
                   WindowOpenDisposition disposition);
 
+// How Chrome opens `url` from the omnibox, given the `disposition` it chose:
+// in a new tab in front rather than in a pin's tab, which stays on its page,
+// unless `url` is the pin's page, the one the tab is on, or a javascript: URL.
+WindowOpenDisposition DispositionForOmniboxURL(
+    BrowserWindowInterface* browser,
+    const GURL& url,
+    WindowOpenDisposition disposition);
+
 // Pages from other apps (AppController): goes to the pins of those that are
 // pins' pages, and returns the rest, for Chrome to open.
 StartupTabs OpenStartupTabsInPins(BrowserWindowInterface* browser,

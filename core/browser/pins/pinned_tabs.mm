@@ -61,12 +61,101 @@ NSString* DisplayURL(const GURL& url) {
 
 }  // namespace
 
+// FIBERTEST BEGIN
+}  // namespace fiber
+#include <cstdlib>
+#include "base/logging.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/time/time.h"
+#include "chrome/browser/ui/location_bar/location_bar.h"
+#include "chrome/browser/ui/omnibox/omnibox_controller.h"
+#include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
+#include "fiber/browser/window/fiber_browser_window.h"
+namespace fiber {
+namespace {
+void TestLog(BrowserWindowInterface* browser, const char* step) {
+  TabStripModel* m = browser->GetTabStripModel();
+  std::string s;
+  for (int i = 0; i < m->count(); ++i) {
+    s += base::StringPrintf(
+        "[%d%s%s %s] ", i, m->IsTabPinned(i) ? " pinned" : "",
+        i == m->active_index() ? " active" : "",
+        m->GetWebContentsAt(i)->GetVisibleURL().spec().c_str());
+  }
+  LOG(ERROR) << "FIBERTEST " << step << ": " << s;
+}
+void TestType(BrowserWindowInterface* browser, int index, std::string text) {
+  browser->GetTabStripModel()->ActivateTabAt(index);
+  OmniboxEditModel* model = FiberBrowserWindow::FromBrowser(browser)
+                                ->GetLocationBar()
+                                ->GetOmniboxController()
+                                ->edit_model();
+  model->SetUserText(base::UTF8ToUTF16(text));
+  model->OpenCurrentSelection(base::TimeTicks::Now(),
+                              WindowOpenDisposition::CURRENT_TAB,
+                              /*via_keyboard=*/true);
+}
+void TestStep(BrowserWindowInterface* browser, int step) {
+  const std::string dir = getenv("FIBER_TEST_PIN_OMNIBOX");
+  switch (step) {
+    case 0:
+      TestLog(browser, "start");
+      browser->GetTabStripModel()->SetTabPinned(0, true);
+      break;
+    case 1:
+      TestLog(browser, "pinned");
+      TestType(browser, 0, "file://" + dir + "/b.html");
+      break;
+    case 2:
+      TestLog(browser, "typed b on pin (expect pin on a, new active tab b)");
+      TestType(browser, 0, "file://" + dir + "/a.html");
+      break;
+    case 3:
+      TestLog(browser, "typed a (current) on pin (expect no new tab)");
+      TestType(browser, 0, "file://" + dir + "/c.html#x");
+      break;
+    case 4:
+      TestLog(browser, "typed c on pin (expect another new tab c)");
+      TestType(browser, 0, "javascript:document.title='js ran'");
+      break;
+    case 5:
+      TestLog(browser, "typed javascript: on pin (expect no new tab)");
+      LOG(ERROR) << "FIBERTEST pin title: "
+                 << browser->GetTabStripModel()->GetWebContentsAt(0)->GetTitle();
+      TestType(browser, browser->GetTabStripModel()->count() - 1,
+               "file://" + dir + "/a.html");
+      break;
+    case 6:
+      TestLog(browser, "typed a on last, non-pin tab (expect it to go to pin)");
+      TestType(browser, browser->GetTabStripModel()->count() - 1,
+               "file://" + dir + "/b.html");
+      break;
+    case 7:
+      TestLog(browser, "typed b on last, non-pin tab (expect in place)");
+      return;
+  }
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, base::BindOnce(&TestStep, browser, step + 1),
+      base::Seconds(2));
+}
+}  // namespace
+// FIBERTEST END
+
 PinnedTabs::PinnedTabs(BrowserWindowInterface* browser,
                        PinStore* store,
                        base::RepeatingClosure on_changed)
     : browser_(browser), store_(store), on_changed_(std::move(on_changed)) {
   store_observation_.Observe(store_);
   model()->AddObserver(this);
+  // FIBERTEST BEGIN
+  static bool fibertest_started = false;
+  if (getenv("FIBER_TEST_PIN_OMNIBOX") && !fibertest_started) {
+    fibertest_started = true;
+    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, base::BindOnce(&TestStep, browser, 0), base::Seconds(5));
+  }
+  // FIBERTEST END
 }
 
 PinnedTabs::~PinnedTabs() = default;

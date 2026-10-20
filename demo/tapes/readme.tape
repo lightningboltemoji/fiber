@@ -1,7 +1,7 @@
 # The README's video: Leo, mid-trip in Lisbon, answers a friend who wants
 # coffee near where he's staying. A search from a new tab finds a café map,
 # which asks where he is; ⌘S opens the mail pin to reply; ⌘P finds the
-# guesthouse's address on its page; and the tab picker goes back to the reply.
+# guesthouse's address on its page; and ⌘S goes back to the reply.
 Window 1600x1000
 Seed 7
 Search "Kestrel" kestrel.so https://kestrel.so/search?q=%s
@@ -92,17 +92,15 @@ Sleep 450ms
 Key cmd+c
 Sleep 700ms
 
-# The window's top edge keeps the recent tabs: its lip drips into a column of
-# them, which pours on a tab ahead of the pointer, down to the reply, its page
-# beside it. The camera frames the tab once it has settled.
-Move @800,3 900ms
-Sleep 350ms
-Move @800,32 350ms
-Wait AXButton "Lettera"
-Sleep 400ms
-Mark picker AXButton "Lettera"
-Move AXButton "Lettera" 450ms
-Sleep 550ms
+# ⌘S again, and the mail pin, back to the reply.
+Key cmd+s
+Wait overlay
+Sleep 200ms
+Mark overlay-again overlay
+Mark pins-again pins
+Sleep 700ms
+Move AXButton "Lettera" 700ms
+Sleep 250ms
 Click
 Wait title "Lettera"
 Mark back

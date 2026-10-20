@@ -444,15 +444,6 @@ void FiberBrowserWindow::CloseTab(int32_t tab_id) {
                                 TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
 }
 
-NSImage* FiberBrowserWindow::TabPreview(int32_t tab_id) const {
-  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
-  if (!tab || browser_->GetTabStripModel()->GetIndexOfTab(tab) ==
-                  TabStripModel::kNoTab) {
-    return nil;
-  }
-  return fiber::TabPreview(tab);
-}
-
 bool FiberBrowserWindow::WillCloseTabs(
     const std::vector<tabs::TabInterface*>& closing) {
   TabStripModel* model = browser_->GetTabStripModel();

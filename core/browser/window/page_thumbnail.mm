@@ -1,19 +1,11 @@
 #include "fiber/browser/window/page_thumbnail.h"
 
-#import <AppKit/AppKit.h>
-
 #include <algorithm>
 
 #include "base/apple/scoped_cftyperef.h"
 #include "base/functional/bind.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
-#include "chrome/browser/browser_process.h"
-#include "chrome/browser/ui/thumbnails/thumbnail_image.h"
-#include "chrome/browser/ui/thumbnails/thumbnail_tab_helper.h"
-#include "chrome/common/pref_names.h"
-#include "components/prefs/pref_service.h"
-#include "components/tabs/public/tab_interface.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
@@ -57,23 +49,6 @@ void CapturePageThumbnail(content::WebContents* web_contents,
                 SkCreateCGImageRef(result->bitmap));
             completion(image.get());
           })));
-}
-
-NSImage* TabPreview(tabs::TabInterface* tab) {
-  ThumbnailTabHelper* helper = ThumbnailTabHelper::From(tab);
-  // The browser's, not a profile's.
-  if (!helper || !g_browser_process->local_state()->GetBoolean(
-                     prefs::kHoverCardImagesEnabled)) {
-    return nil;
-  }
-  // JPEG, which NSImage decodes as it's drawn.
-  ThumbnailImage::CompressedThumbnailData data = helper->thumbnail()->data();
-  if (!data || data->data.empty()) {
-    return nil;
-  }
-  return [[NSImage alloc]
-      initWithData:[NSData dataWithBytes:data->data.data()
-                                  length:data->data.size()]];
 }
 
 }  // namespace fiber

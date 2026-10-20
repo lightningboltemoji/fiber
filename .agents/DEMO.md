@@ -102,8 +102,8 @@ A target is `window`, a point or rect in window points from the top left
 title, description or value contains (`AXButton "Hum"`, `AXButton "Allow" #3`
 for the third), an element of the active page by CSS selector
 (`page "#nearby"`, found over DevTools), or one of the names for Fiber's UI:
-`omnibar`, `palette`, `results` (their suggestions), `picker`, `overlay` (the
-tab overlay's tabs) and `pins`. To find what to target, put `Tree` where it's
+`omnibar`, `palette`, `results` (their suggestions), `overlay` (the tab
+overlay's tabs) and `pins`. To find what to target, put `Tree` where it's
 needed and play the tape with `--rehearse`, which records nothing:
 
 ```sh
@@ -157,16 +157,16 @@ Lisbon trip they share, Monday the 12th to Friday the 16th, "today" being
 Wednesday, October 14) and work offline: no outside requests, only macOS's own
 fonts, imagery in CSS and SVG, and a `favicon.svg` each. Titles are short and
 distinct, as tabs show them, and pages keep clear of the window's top center
-(the omnibar, and the tab picker on its edge). Text the command palette should
-find has to be on the page, and nowhere else in the tape's tabs, or it's found
-there too. `kestrel.so` is the search engine `readme.tape` makes the default;
-its results page answers any query with the same results, for coffee in
-Alfama. Pages that draw icons from an SVG sprite keep element IDs off the
-sprite's symbols' IDs, which `getElementById` would find first.
+(the omnibar). Text the command palette should find has to be on the page, and
+nowhere else in the tape's tabs, or it's found there too. `kestrel.so` is the
+search engine `readme.tape` makes the default; its results page answers any
+query with the same results, for coffee in Alfama. Pages that draw icons from
+an SVG sprite keep element IDs off the sprite's symbols' IDs, which
+`getElementById` would find first.
 
 `readme.tape` tells one story, so each step has a reason to happen: Leo, in
 Lisbon, gets an email from Inês asking where he's staying so she can meet him
 for coffee near it. He finds a café near him on Wayfarer's map, opens his mail
 pin to reply, finds the guesthouse's address with ⌘P, and goes back to the
-reply from the tab picker to paste it in. A change to a site or a step should
+reply from the mail pin to paste it in. A change to a site or a step should
 keep it true.

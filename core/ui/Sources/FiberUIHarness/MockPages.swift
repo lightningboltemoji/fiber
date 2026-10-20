@@ -25,7 +25,7 @@ enum MockPages {
         Every window is a Chrome browser underneath, so extensions, session restore and links from other apps work as they do in Chrome.
         Download for macOS 26
         Release notes
-        Fiber 0.1 brings the tab picker, the command palette, and hardware video decoding through VideoToolbox.
+        Fiber 0.1 brings the tab overlay, the command palette, and hardware video decoding through VideoToolbox.
         """),
     "news.example": Page(
       title: "Front Page — News",
@@ -48,16 +48,16 @@ enum MockPages {
         Airline — Your boarding pass for flight 212 to Lisbon
         """),
     "docs.example": Page(
-      title: "Tab picker — Design spec",
+      title: "Tab overlay — Design spec",
       text: """
-        Tab picker
-        The tab picker lives on the window's top edge. Moving the pointer to the edge reveals a glass strip of the window's recent tabs.
+        Tab overlay
+        Command-S opens the tab overlay over the dimmed page: the window's tabs in a glass panel, with the pins in rows of circles above it.
         Scrolling
         The list scrolls with two fingers and rubber-bands past either end. A flick coasts and stops at the last tab.
         Selecting
-        Clicking a tab selects it and closes the panel. The highlight glides to the hovered tab with a spring animation.
+        Clicking a tab switches to it as the overlay closes. The arrow keys move the highlight, and Return switches to the highlighted tab.
         Open questions
-        Should pinned tabs get their own section? How does the picker behave with hundreds of tabs?
+        Should tabs from the same site be grouped? How does the overlay behave with hundreds of tabs?
         """),
     "video.example": Page(
       title: "Designing with Liquid Glass — Video",

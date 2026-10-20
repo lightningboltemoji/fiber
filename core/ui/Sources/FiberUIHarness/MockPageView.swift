@@ -52,23 +52,6 @@ final class MockPageView: NSView {
     return image
   }
 
-  /// What it looks like now, at the size of Chrome's tab thumbnails (see
-  /// ThumbnailTabHelper::GetInitialCaptureInfo()), which a window's tab
-  /// previews show.
-  func preview() -> NSImage? {
-    guard let snapshot = snapshot(), !bounds.isEmpty else {
-      return nil
-    }
-    let scale = max(240 / bounds.width, 175 / bounds.height)
-    let size = NSSize(
-      width: (bounds.width * scale).rounded(),
-      height: (bounds.height * scale).rounded())
-    return NSImage(size: size, flipped: false) { rect in
-      snapshot.draw(in: rect)
-      return true
-    }
-  }
-
   /// What it looks like now, 32 pixels on its longer side, as //fiber/browser
   /// captures pages for the window's dimming.
   func thumbnail() -> CGImage? {

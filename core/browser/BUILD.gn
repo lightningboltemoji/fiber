@@ -191,7 +191,6 @@ source_set("browser") {
     "//chrome/browser/ui/login",
     "//chrome/browser/ui/omnibox",
     "//chrome/browser/ui/tabs:tabs_public",
-    "//chrome/browser/ui/thumbnails",
     "//chrome/browser/ui/webauthn",
     "//chrome/browser/web_applications",
     "//chrome/common:chrome_features",

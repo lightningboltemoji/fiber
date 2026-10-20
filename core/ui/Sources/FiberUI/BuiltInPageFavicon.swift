@@ -44,14 +44,14 @@ enum BuiltInPageIcon {
   private static let symbolScale: CGFloat = 13 / 16
 
   /// The page's glyph, and its size to draw in a square `side` points wide:
-  /// Fiber's mark for the New Tab page, and an SF Symbol for the rest.
+  /// Fiber's compact mark for the New Tab page, and an SF Symbol for the rest.
   @MainActor
   static func glyph(forHost host: String, side: CGFloat) -> (NSImage, NSSize) {
     if host == "newtab" {
-      let size = FiberMark.image.size
+      let size = FiberMark.compact.size
       let scale = side / max(size.width, size.height)
       return (
-        FiberMark.image,
+        FiberMark.compact,
         NSSize(width: size.width * scale, height: size.height * scale)
       )
     }

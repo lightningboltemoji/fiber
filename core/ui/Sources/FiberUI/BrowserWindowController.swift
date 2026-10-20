@@ -61,7 +61,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     didSet { browserWindow.menuActionTarget = actions }
   }
   var tabIndex: (any FiberTabIndex)?
-  private let tabPicker = TabPicker()
   /// In the top-right corner, after a tab opens from the active one.
   private let openedTabNotice = OpenedTabNotice()
   /// In the opened-tab notice's place, but over the omnibar, which a New Tab
@@ -114,7 +113,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let windowShelves = WindowShelves()
   private let newTabView: NewTabView
   private let sadTabView = SadTabView()
-  /// Over the page, under the tab picker.
+  /// Over the page.
   private let extensionBubbles = ExtensionBubbles()
   /// Over the tab overlay and the traffic lights, so over the omnibar,
   /// command palette and what the veil's up for too, which close its popup as
@@ -177,8 +176,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     rimWidth: BrowserWindowController.windowControlsRimWidth)
   /// Set while a page is fullscreen (a video, say), which shows alone.
   private var isPageFullScreen = false
-  /// The tab overlay and tab picker hide while a page is fullscreen, and
-  /// while DevTools emulates a device, whose controls take their place.
+  /// The tab overlay hides while a page is fullscreen, and while DevTools
+  /// emulates a device, whose controls take their place.
   private var areControlsVisible: Bool {
     !isPageFullScreen && devTools?.emulatesDevice != true
   }
@@ -297,7 +296,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     controlsView.frame = content.bounds
     controlsView.autoresizingMask = [.width, .height]
     controlsView.wantsLayer = true
-    // The tab picker's lip straddles the edge, and stays off DevTools.
+    // What's over the page stays off DevTools.
     controlsView.layer?.masksToBounds = true
     content.addSubview(controlsView)
 
@@ -330,22 +329,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
         forTabWithID: tabID, event: event, in: self?.openedTabNotice)
     }
     controlsView.addSubview(openedTabNotice)
-
-    tabPicker.frame = controlsView.bounds
-    tabPicker.autoresizingMask = [.width, .height]
-    tabPicker.onSelect = { [weak self] tabID in
-      self?.actions?.selectTab(withID: tabID)
-    }
-    tabPicker.onClose = { [weak self] tabID in
-      self?.actions?.closeTab(withID: tabID)
-    }
-    tabPicker.onMenu = { [weak self] tabID, event in
-      self?.showMenu(forTabWithID: tabID, event: event, in: self?.tabPicker)
-    }
-    tabPicker.preview = { [weak self] tabID in
-      self?.actions?.previewOfTab(withID: tabID)
-    }
-    controlsView.addSubview(tabPicker)
 
     configureTabOverlay()
     extensionPopups.autoresizingMask = [.width, .height]
@@ -385,7 +368,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     content.addSubview(
       omnibar.view, positioned: .below, relativeTo: closeWindowNotice)
     omnibar.onOpen = { [weak self] in
-      self?.tabPicker.close()
       self?.openedTabNotice.dismiss()
       self?.commandPalette?.close()
       self?.extensionsController.closePopup()
@@ -410,7 +392,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
       findBar, positioned: .below, relativeTo: extensionBubbles)
     findBar.autoresizingMask = [.minXMargin, .minYMargin]
     findBar.onOpen = { [weak self] in
-      self?.tabPicker.close()
       self?.openedTabNotice.dismiss()
       self?.madeOmnibar?.close()
       self?.commandPalette?.close()
@@ -618,7 +599,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  /// A shelf page's, in the tab overlay, or for its tab in the tab picker.
+  /// A shelf page's, in the tab overlay, or for its tab.
   private func showMenu(
     for page: FiberPinState, on shelf: FiberShelfState, event: NSEvent,
     in view: NSView?
@@ -663,7 +644,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     if tabOverlay.isOpen {
       closeTabOverlay()
     } else if canShowTabOverlay {
-      tabPicker.close()
       openedTabNotice.dismiss()
       madeOmnibar?.close()
       commandPalette?.close()
@@ -874,7 +854,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
-    tabPicker.setTabs(tabs, activeTabID: activeTabID)
     tabOverlay.setTabs(tabs, activeTabID: activeTabID)
     openedTabNotice.setTabs(tabs, activeTabID: activeTabID)
     // A tab opened in front (Command-T, a link from another app) is where the
@@ -933,8 +912,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       TabMenus.menu(for: pin, actions: actions), with: event, for: tabOverlay)
   }
 
-  /// A pin's tab, in the tab picker, has its pin's menu, and a shelf page's
-  /// its page's.
+  /// A pin's tab has its pin's menu, and a shelf page's its page's.
   private func showMenu(
     forTabWithID tabID: Int, event: NSEvent, in view: NSView?
   ) {
@@ -991,11 +969,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private func updateControls() {
     let isVisible = areControlsVisible
     if !isVisible {
-      tabPicker.close()
       openedTabNotice.dismiss()
       replaceTabOverlay()
     }
-    tabPicker.isHidden = !isVisible
     extensionBubbles.isHidden = !isVisible
     updateKeyPassthroughBubble()
     updatePageCorners()
@@ -1144,7 +1120,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
       responderBeforeVeilContent = window.firstResponder
     }
     self.veilContent = veilContent
-    tabPicker.close()
     openedTabNotice.dismiss()
     closeWindowNotice.dismiss()
     closeOmnibar()
@@ -1208,11 +1183,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     bubble.frame = controlsView.bounds
     bubble.autoresizingMask = [.width, .height]
-    controlsView.addSubview(bubble, positioned: .below, relativeTo: tabPicker)
+    controlsView.addSubview(bubble)
     // Sized to the page now, for where it opens (see measureBackdrop).
     bubble.layoutSubtreeIfNeeded()
     if tabID == nil {
-      tabPicker.close()
       openedTabNotice.dismiss()
       closeOmnibar()
       closeCommandPalette()
@@ -1401,7 +1375,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func beginHistorySwipe(
     in direction: FiberHistorySwipeDirection, snapshot: NSImage?
   ) {
-    tabPicker.close()
     historySwipe.begin(direction: direction, snapshot: snapshot)
   }
 
@@ -1465,7 +1438,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     palette.view.autoresizingMask = [.width, .height]
     content.addSubview(palette.view, positioned: .above, relativeTo: omnibar.view)
     palette.onOpen = { [weak self] in
-      self?.tabPicker.close()
       self?.openedTabNotice.dismiss()
       self?.madeOmnibar?.close()
       self?.extensionsController.closePopup()

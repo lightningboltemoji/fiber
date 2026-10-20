@@ -58,12 +58,16 @@ enum PinGridLayout {
   /// the gap between them in the pocket, so it breaks away.
   static let beadBlend: CGFloat = 15
 
-  /// The center of an open pin's bead, in the pocket at the pin's top-left
+  /// From a pin's center to its bead's, across and up: a little short of the
+  /// pocket's center, so the bead stays close to its pin.
+  static let beadOffset: CGFloat = step / 2 - 2
+
+  /// The center of an open pin's bead, in the pocket at the pin's top-right
   /// where it and three others meet: the most room between pins, and on no
   /// straight line from one to another.
   static func beadCenter(of index: Int, width: CGFloat) -> CGPoint {
     let frame = frame(of: index, width: width)
-    return CGPoint(x: frame.midX - step / 2, y: frame.midY - step / 2)
+    return CGPoint(x: frame.midX + beadOffset, y: frame.midY - beadOffset)
   }
 
   static func beadFrame(of index: Int, width: CGFloat) -> CGRect {
@@ -401,7 +405,7 @@ extension NSImage {
 
 /// A pin: its page's icon in a circle of glass, with a dot under it while it's
 /// open in the window, and ringed while its tab is the active one. Its bead
-/// buds off its glass into the pocket at its top-left, and breaks away.
+/// buds off its glass into the pocket at its top-right, and breaks away.
 private struct PinCircle: View {
   let pin: FiberPinState
   let isActive: Bool
@@ -539,10 +543,11 @@ private struct BeadBud: ViewModifier, Animatable {
 
   func body(content: Content) -> some View {
     let size = PinGridLayout.beadDiameter * (0.4 + 0.6 * progress)
-    let center = PinGridLayout.step * (1 - progress / 2)
+    let offset = PinGridLayout.beadOffset * progress
     content
       .frame(width: size, height: size)
-      .position(x: center, y: center)
+      .position(
+        x: PinGridLayout.step + offset, y: PinGridLayout.step - offset)
   }
 }
 

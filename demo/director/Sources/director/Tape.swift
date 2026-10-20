@@ -72,7 +72,6 @@ enum Target: CustomStringConvertible {
     "omnibar": .element(role: "AXTextField", label: nil, index: 0),
     "palette": .element(role: "AXTextField", label: nil, index: 0),
     "results": .element(role: "AXScrollArea", label: nil, index: 1),
-    "picker": .element(role: "AXButton", label: "Tabs", index: 0),
     "overlay": .element(role: "AXGroup", label: "Tabs", index: 0),
     "pins": .element(role: "AXGroup", label: "Pinned", index: 0),
   ]

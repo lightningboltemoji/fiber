@@ -60,9 +60,6 @@ NS_SWIFT_UI_ACTOR
 // Closes one of the window's tabs, as its close button would: the page may
 // ask the user first.
 - (void)closeTabWithID:(NSInteger)tabID;
-// What one of the window's tabs showed when it was last switched away from,
-// or nil: if it hasn't been, or if the user turned tab previews off.
-- (nullable NSImage*)previewOfTabWithID:(NSInteger)tabID;
 // Pins the tab's page (see FiberPinState): the tab becomes its pin's.
 - (void)pinTabWithID:(NSInteger)tabID;
 // Selects the pin's tab, or opens its URL in a new one.
@@ -177,8 +174,8 @@ NS_SWIFT_UI_ACTOR
 // The pointer moved over the page or off it. The status text keeps clear of
 // it.
 - (void)pointerMovedOverPage;
-// The toolbar and tab picker are hidden while a page is fullscreen, for
-// example a video.
+// The controls over the page hide while it's fullscreen, for example a
+// video.
 - (void)setControlsVisible:(BOOL)visible;
 
 // Swiping between pages (two fingers on a trackpad, one on a mouse): the page

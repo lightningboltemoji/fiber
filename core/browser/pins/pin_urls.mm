@@ -6,11 +6,13 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "fiber/browser/new_tab/new_tab_page.h"
 #include "fiber/browser/pins/pin_store.h"
 #include "fiber/browser/pins/pinned_tabs.h"
 #include "fiber/browser/window/fiber_browser_window.h"
 #include "url/gurl.h"
+#include "url/url_constants.h"
 
 namespace fiber {
 
@@ -48,6 +50,27 @@ bool OpenURLInPin(BrowserWindowInterface* browser,
     model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
   }
   return true;
+}
+
+WindowOpenDisposition DispositionForOmniboxURL(
+    BrowserWindowInterface* browser,
+    const GURL& url,
+    WindowOpenDisposition disposition) {
+  PinnedTabs* pinned_tabs = PinnedTabsFor(browser);
+  tabs::TabInterface* tab = browser->GetTabStripModel()->GetActiveTab();
+  if (!pinned_tabs || !tab ||
+      disposition != WindowOpenDisposition::CURRENT_TAB ||
+      url.SchemeIs(url::kJavaScriptScheme)) {
+    return disposition;
+  }
+  const Pin* pin = pinned_tabs->PinForTab(tab);
+  // Return on the unedited address reloads the page the tab is on.
+  if (!pin || pinned_tabs->PinForURL(url) == pin ||
+      tab->GetContents()->GetLastCommittedURL().GetWithoutRef() ==
+          url.GetWithoutRef()) {
+    return disposition;
+  }
+  return WindowOpenDisposition::NEW_FOREGROUND_TAB;
 }
 
 StartupTabs OpenStartupTabsInPins(BrowserWindowInterface* browser,

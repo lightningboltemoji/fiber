@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
-index 19b58e1126..944522e3b9 100644
+index 19b58e1126..1b5b61e0d8 100644
 --- a/chrome/browser/ui/browser_commands.cc
 +++ b/chrome/browser/ui/browser_commands.cc
 @@ -199,6 +199,8 @@
@@ -11,7 +11,7 @@ index 19b58e1126..944522e3b9 100644
  #include "pdf/buildflags.h"
  #include "printing/buildflags/buildflags.h"
  #include "rlz/buildflags/buildflags.h"
-@@ -1253,6 +1255,14 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(
+@@ -1253,9 +1255,22 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(
      return nullptr;
    }
  
@@ -26,7 +26,15 @@ index 19b58e1126..944522e3b9 100644
    NavigateParams params(browser, url,
                          location_bar->navigation_params().transition);
    params.disposition = location_bar->navigation_params().disposition;
-@@ -1485,6 +1495,13 @@ void CloseTab(BrowserWindowInterface* browser) {
++#if BUILDFLAG(IS_MAC)
++  // Fiber: other pages open in a new tab rather than a pin's.
++  params.disposition =
++      fiber::DispositionForOmniboxURL(browser, url, params.disposition);
++#endif
+   // Use ADD_INHERIT_OPENER so that all pages opened by the omnibox at least
+   // inherit the opener. In some cases the tabstrip will determine the group
+   // should be inherited, in which case the group is inherited instead of the
+@@ -1485,6 +1500,13 @@ void CloseTab(BrowserWindowInterface* browser) {
  #endif
  
    ToastController* toast_controller = ToastController::From(browser);

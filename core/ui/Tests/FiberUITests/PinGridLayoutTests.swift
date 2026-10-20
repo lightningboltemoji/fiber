@@ -57,15 +57,19 @@ struct PinGridLayoutTests {
     for index in 0..<count {
       let frame = PinGridLayout.frame(of: index, width: Self.width)
       let distance = hypot(bead.x - frame.midX, bead.y - frame.midY)
-      #expect(distance - PinGridLayout.diameter / 2 > PinGridLayout.beadReach)
+      // Its own pin's circle is hit ahead of it.
+      if index != open {
+        #expect(
+          distance - PinGridLayout.diameter / 2 > PinGridLayout.beadReach)
+      }
       // Its glass ends farther from its pin than glass blends.
       #expect(
         distance - PinGridLayout.diameter / 2 - PinGridLayout.beadDiameter / 2
           > PinGridLayout.beadBlend)
     }
-    // Up and to the left of its pin, between the rows.
+    // Up and to the right of its pin, between the rows.
     let pin = PinGridLayout.frame(of: open, width: Self.width)
-    #expect(bead.x < pin.minX && bead.y < pin.minY)
+    #expect(bead.x > pin.maxX && bead.y < pin.minY)
     #expect(
       bead.y > PinGridLayout.frame(of: open + columns, width: Self.width).maxY)
   }
@@ -84,15 +88,18 @@ struct PinGridLayoutTests {
     #expect(part(at: center)?.part == .bead)
     #expect(part(at: center)?.index == open)
     #expect(part(at: CGPoint(x: pin.midX, y: pin.midY))?.part == .icon)
-    // Just past the pin's glass, toward the bead.
-    let past = (PinGridLayout.diameter / 2 + 1) / 2.squareRoot()
-    let bridge = CGPoint(x: pin.midX - past, y: pin.midY - past)
+    // Beside where the bead's reach meets the pin's glass.
+    let along = PinGridLayout.diameter / 2 - 1
+    let aside = PinGridLayout.beadReach - 1
+    let bridge = CGPoint(
+      x: pin.midX + (along + aside) / 2.squareRoot(),
+      y: pin.midY - (along - aside) / 2.squareRoot())
     #expect(part(at: bridge)?.part == .bridge)
     // Nothing there with the bead in.
     #expect(part(at: center, bead: nil) == nil)
     #expect(part(at: bridge, bead: nil) == nil)
     // The pins around the pocket are still theirs.
-    for index in [open - 1, open + columns - 1, open + columns] {
+    for index in [open + 1, open + columns, open + columns + 1] {
       let frame = PinGridLayout.frame(of: index, width: Self.width)
       #expect(part(at: CGPoint(x: frame.midX, y: frame.midY))?.index == index)
     }

@@ -17,8 +17,9 @@
 // PromptSample for the kinds),
 // `--slow-motion N` (animations N times slower),
 // `--demo-sites` (the demo video's sites in place of made-up ones, drawn by
-// WebKit, each tab looked at once so the tab picker has its preview). Its own
-// controls (see HarnessControls) sit beside the window last used.
+// WebKit, each tab looked at once so the command palette lists them by
+// recency). Its own controls (see HarnessControls) sit beside the window last
+// used.
 
 import AppKit
 import FiberBridge
@@ -154,8 +155,8 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     }
     DemoSites.render(at: browser.window.contentView?.bounds.size ?? .zero) {
       [weak self] in
-      // As if each tab had been looked at, last to first, so each has a
-      // preview and they're in order of recency.
+      // As if each tab had been looked at, last to first, so they're in
+      // order of recency.
       for browser in self?.browsers ?? [] {
         for tab in browser.tabs.reversed() {
           browser.selectTab(withID: tab.id)

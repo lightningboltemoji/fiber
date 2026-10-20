@@ -58,16 +58,6 @@ void AddFeatureOverrides(
     overrides.emplace_back(std::cref(*feature),
                            base::FeatureList::OVERRIDE_DISABLE_FEATURE);
   }
-  const base::Feature* enabled[] = {
-      // Chrome's tab thumbnails (ThumbnailTabHelper), off on Mac, which
-      // TabStripModel captures as a tab is switched away from: the tab
-      // picker's previews.
-      &features::kTabHoverCardImages,
-  };
-  for (const base::Feature* feature : enabled) {
-    overrides.emplace_back(std::cref(*feature),
-                           base::FeatureList::OVERRIDE_ENABLE_FEATURE);
-  }
 }
 
 }  // namespace fiber
