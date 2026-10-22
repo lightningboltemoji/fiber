@@ -83,6 +83,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private static let undoDuration: TimeInterval = 5
 
   private let model = TabOverlayModel()
+  /// Holds everything but the downloads, which sinks behind their open list.
+  private let stage = TabOverlayStage()
   private let hostingView: NSHostingView<TabOverlayView>
   private let addressBubble = RimmedGlassView(rimWidth: GlassCapsule.rimWidth)
   private let addressButton = TabOverlay.makeAddressButton()
@@ -159,10 +161,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     hostingView.sizingOptions = []
     // The model's coordinates are the view's, title bar included.
     hostingView.safeAreaRegions = []
-    addSubview(hostingView)
+    addSubview(stage)
+    stage.content.addSubview(hostingView)
     for bubble in [addressBubble, extensionsBubble] {
       bubble.cornerRadius = GlassCapsule.height / 2
-      addSubview(bubble)
+      stage.content.addSubview(bubble)
     }
     addressButton.target = self
     addressButton.action = #selector(addressClicked(_:))
@@ -177,6 +180,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       self?.onDownloadAction(action)
     }
     downloadsBubble.onResize = { [weak self] in self?.layoutPanel() }
+    downloadsBubble.onExpand = { [weak self] isExpanded, duration in
+      self?.stage.setSunk(isExpanded, duration: duration)
+    }
     configureShelfBar()
     dragHostingView.sizingOptions = []
     dragHostingView.safeAreaRegions = []
@@ -491,7 +497,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   // MARK: Shelves
 
   private func configureShelfBar() {
-    addSubview(shelfBar)
+    stage.content.addSubview(shelfBar)
     shelfBar.onSelect = { [weak self] segment in self?.showSegment(segment) }
     shelfBar.onAdd = { [weak self] in self?.addShelf() }
     shelfBar.onUndo = { [weak self] in self?.undoShelfRemoval() }
@@ -814,6 +820,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   override var isFlipped: Bool { true }
 
   override func resizeSubviews(withOldSize oldSize: NSSize) {
+    stage.frame = bounds
     hostingView.frame = bounds
     downloadsBubble.frame = bounds
     shelfBar.frame = bounds
@@ -975,6 +982,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   private func location(of event: NSEvent) -> CGPoint {
     convert(event.locationInWindow, from: nil)
+  }
+
+  /// Where `event` is on the panel and pins as they're laid out, while the
+  /// downloads' open list sinks them (see TabOverlayStage).
+  private func stageLocation(of event: NSEvent) -> CGPoint {
+    stage.layoutPoint(drawnAt: location(of: event))
   }
 
   /// `point` from the panel's top-left corner.
@@ -1475,7 +1488,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   override func mouseDown(with event: NSEvent) {
-    let point = location(of: event)
+    let point = stageLocation(of: event)
     shelfBar.endRename(keep: true)
     // A click off the downloads' list closes it; on nothing else, that's all
     // it does.
@@ -1509,7 +1522,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   override func mouseDragged(with event: NSEvent) {
-    if dragRow(to: location(of: event)) {
+    if dragRow(to: stageLocation(of: event)) {
       return
     }
     guard let pressedPin, pressedPin.part == .icon,
@@ -1517,7 +1530,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     else {
       return
     }
-    let point = location(of: event)
+    let point = stageLocation(of: event)
     let offset = CGSize(
       width: point.x - pressedPin.point.x,
       height: point.y - pressedPin.point.y)
@@ -1547,12 +1560,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       pressedCloseButtonRowID = nil
       pressedPin = nil
     }
-    let point = location(of: event)
+    let point = stageLocation(of: event)
     if let drag = model.tabDrag {
       model.tabDrag = nil
       shelfBar.setDropTarget(nil)
       drop(drag)
-      hover(at: point)
+      hover(at: location(of: event))
       return
     }
     if let drag = model.pinDrag {
@@ -1564,7 +1577,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         onMovePin(drag.pinID, drag.targetIndex)
       }
       model.pinDrag = nil
-      hover(at: point)
+      hover(at: location(of: event))
       return
     }
     if let pressedPin {
@@ -1593,7 +1606,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   private func showMenu(for event: NSEvent) {
-    let point = location(of: event)
+    let point = stageLocation(of: event)
     if let pin = pin(at: point) {
       onPinMenu(pin, event)
       return
@@ -1620,7 +1633,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
     restingPointer = nil
     let point = point.flatMap {
-      downloadsBubble.glassFrame.contains($0) ? nil : $0
+      downloadsBubble.glassFrame.contains($0)
+        ? nil : stage.layoutPoint(drawnAt: $0)
     }
     let isDragging = model.pinDrag != nil || model.tabDrag != nil
     let hit = point.flatMap { isDragging ? nil : pinHit(at: $0) }

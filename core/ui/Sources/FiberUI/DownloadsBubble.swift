@@ -80,10 +80,14 @@ enum DownloadsLayout {
 /// This view keeps the model; DownloadsBubbleView draws and takes the clicks.
 @MainActor
 final class DownloadsBubble: NSView {
+  private static let expandDuration: TimeInterval = 0.42
+  private static let collapseDuration: TimeInterval = 0.3
+  /// With Reduce Motion, the list fades open and closed instead.
+  private static let fadeDuration: TimeInterval = 0.15
   private static let expandAnimation = Animation.spring(
-    duration: 0.42, bounce: 0.22)
+    duration: expandDuration, bounce: 0.22)
   private static let collapseAnimation = Animation.spring(
-    duration: 0.3, bounce: 0)
+    duration: collapseDuration, bounce: 0)
   /// Downloads coming and going, and the capsule following the panel.
   private static let changeAnimation = Animation.spring(
     duration: 0.3, bounce: 0)
@@ -98,6 +102,11 @@ final class DownloadsBubble: NSView {
   /// Called as the glass moves or changes shape, inside that change's
   /// animation, for the dimming pooled under it to follow.
   var onGlassChange: () -> Void = {}
+  /// Called as the list opens or closes, with how long that takes (nil for at
+  /// once), for what's behind it to follow.
+  var onExpand: (_ isExpanded: Bool, _ duration: TimeInterval?) -> Void = {
+    _, _ in
+  }
   /// Only while the tab overlay it's in is open does a download finishing
   /// show its check, or anything animate.
   var isOverlayOpen = false {
@@ -158,12 +167,16 @@ final class DownloadsBubble: NSView {
     let animation =
       Self.shape(of: downloads) != Self.shape(of: model.downloads)
       ? Self.changeAnimation.slowMotion : nil
+    let collapses = downloads.isEmpty && model.isExpanded
     withAnimation(animation) {
       model.downloads = downloads
       if downloads.isEmpty {
         model.isExpanded = false
       }
       updateSummary()
+    }
+    if collapses {
+      onExpand(false, Self.collapseDuration)
     }
   }
 
@@ -195,9 +208,13 @@ final class DownloadsBubble: NSView {
     }
     let reduceMotion = NSWorkspace.shared
       .accessibilityDisplayShouldReduceMotion
+    let duration =
+      reduceMotion
+      ? Self.fadeDuration
+      : expanded ? Self.expandDuration : Self.collapseDuration
     var animation =
       reduceMotion
-      ? .easeInOut(duration: 0.15)
+      ? .easeInOut(duration: duration)
       : expanded ? Self.expandAnimation : Self.collapseAnimation
     animation = animation.slowMotion
     var transaction = Transaction(animation: animated ? animation : nil)
@@ -207,6 +224,7 @@ final class DownloadsBubble: NSView {
       model.hoveredID = nil
       onGlassChange()
     }
+    onExpand(expanded, animated ? duration : nil)
   }
 
   /// Only the glass takes the pointer.
