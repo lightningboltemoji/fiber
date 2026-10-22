@@ -2,11 +2,11 @@
 # Configure (first run only) and build Fiber into chromium/src/out/<dir>.
 # Usage: [JOBS=n] scripts/build_chromium.sh [out_dir_name] [target]
 #   out/Release is the self-contained build `make app` packages; any other out
-#   dir gets the dev config.
+#   dir (out/Default) gets the debugging config.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="out/${1:-Default}"
+OUT="out/${1:-Release}"
 TARGET="${2:-chrome}"
 # Below the 15-core default: heavy C++ (chrome/browser, blink, v8) peaks ~1 GB
 # per compile, and 15 of those plus siso itself crowd 24 GB of RAM.
@@ -28,8 +28,8 @@ fi
 cd "$ROOT/chromium/src"
 
 # Fiber's args (core/build/args.gni), then the local config; edit $OUT/args.gn
-# and re-run to change the latter. Dev builds are component builds, for quick
-# incremental links; out/Release is one framework, so the app runs anywhere.
+# and re-run to change the latter. out/Release is one framework, so the app runs
+# anywhere. Others are component builds with Chromium's default of DCHECKs on.
 if [[ ! -f "$OUT/args.gn" ]]; then
   if [[ "$OUT" == out/Release ]]; then
     # A failed DCHECK crashes the browser. Symbols are over 40% of the binary;

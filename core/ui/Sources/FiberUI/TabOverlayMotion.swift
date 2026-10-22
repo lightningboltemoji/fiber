@@ -9,7 +9,8 @@ import SwiftUI
 /// dimmer past where the wave has reached.
 @MainActor
 enum TabOverlayMotion {
-  /// How far the pins move, and the address and extensions above them.
+  /// How far the pins move, the address and extensions above them, and the
+  /// downloads and shelves under the panel.
   static let travel: CGFloat = 6
   /// How far the address and extensions move beside the panel.
   static let sideTravel: CGFloat = 9

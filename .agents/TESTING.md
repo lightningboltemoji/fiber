@@ -60,9 +60,10 @@ together, never in the mock alone.
 
 ## The real app
 
-Run the dev build on a throwaway profile:
+Build `out/Release` (`make build`; see [Build](IMPLEMENTATION.md#build)) and
+run it on a throwaway profile:
 
-    chromium/src/out/Default/Fiber.app/Contents/MacOS/Fiber \
+    chromium/src/out/Release/Fiber.app/Contents/MacOS/Fiber \
       --user-data-dir=<temp dir> --no-first-run --no-default-browser-check \
       --use-mock-keychain [--incognito] [url]
 
@@ -152,7 +153,7 @@ content (an `NSRemoteView`).
   `--user-data-dir`), launched through LaunchServices (`open`, as from the
   Dock). Ask before running a build on the real profile.
 - **What opened it:** for one of Fiber's own windows, a temporary probe in the
-  dev build: poll `NSApp.windows` on a 1 ms timer, and swizzle
+  build: poll `NSApp.windows` on a 1 ms timer, and swizzle
   `-[NSWindow orderWindow:relativeTo:]` to log `Thread.callStackSymbols` for
   high-level windows, to a file.
 

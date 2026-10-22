@@ -346,8 +346,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   /// The address and extensions come and go with the pins (see
   /// TabOverlayMotion), from the left beside the panel, or from above like
-  /// the pins when above them; the downloads and shelves with the panel's
-  /// wave.
+  /// the pins when above them; the downloads and shelves from below, with the
+  /// panel's wave.
   private func moveBubbles() {
     let offset =
       model.areBubblesBeside
@@ -359,14 +359,13 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         delay: model.motionDelay(ofBubble: bubble.frame),
         span: model.motionSpan)
     }
+    let below = CGSize(width: 0, height: TabOverlayMotion.travel)
     TabOverlayMotion.move(
-      downloadsBubble, from: CGSize(width: 0, height: -TabOverlayMotion.travel),
-      isOpening: isOpen,
+      downloadsBubble, from: below, isOpening: isOpen,
       delay: model.motionDelay(belowPanel: model.downloadsFrame),
       span: model.motionSpan)
     TabOverlayMotion.move(
-      shelfBar, from: CGSize(width: 0, height: -TabOverlayMotion.travel),
-      isOpening: isOpen,
+      shelfBar, from: below, isOpening: isOpen,
       delay: model.motionDelay(belowPanel: model.shelfBarFrame),
       span: model.motionSpan)
   }

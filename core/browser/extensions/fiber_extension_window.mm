@@ -512,7 +512,9 @@ void FiberExtensionWindow::LinkOpeningFromGesture(
 void FiberExtensionWindow::FocusAppMenu() {}
 
 bool FiberExtensionWindow::IsTabStripEditable() const {
-  return false;
+  // False means a tab drag is in progress, which fails the tabs and windows
+  // APIs for every window in the profile, this one's windows.remove() included.
+  return true;
 }
 
 void FiberExtensionWindow::DisableTabStripEditingForTesting() {}

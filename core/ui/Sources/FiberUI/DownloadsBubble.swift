@@ -3,12 +3,16 @@ import FiberBridge
 import SwiftUI
 
 /// The layout of the tab overlay's downloads: a capsule under its panel that
-/// opens into a panel over the tabs, growing up and to the left from the
-/// capsule's bottom-right corner, with the capsule as its footer.
+/// opens into a panel over the tabs, growing up and to the left from just past
+/// the capsule's bottom-right corner, with the capsule as its footer.
 enum DownloadsLayout {
   /// Between the tab overlay's panel and the capsule.
   static let spacing = GlassCapsule.spacing
   static let panelWidth: CGFloat = 360
+  /// How far the open panel reaches past the capsule's right and bottom edges,
+  /// so it stands off the tab overlay's panel rather than lining up with it.
+  /// Within PaletteView's side and bottom margins, both still leave `margin`.
+  static let overhang = CGSize(width: 14, height: 8)
   static let cornerRadius = TabListLayout.cornerRadius
   static let rimWidth = GlassCapsule.rimWidth
   static let footerHeight = GlassCapsule.height
@@ -58,15 +62,16 @@ enum DownloadsLayout {
   /// The open panel over `capsule`, listing `rows` downloads, as tall as
   /// fits.
   static func panelFrame(capsule: CGRect, rows: Int) -> CGRect {
-    let width = max(min(panelWidth, capsule.maxX - margin), capsule.width)
+    let right = capsule.maxX + overhang.width
+    let bottom = capsule.maxY + overhang.height
+    let width = max(min(panelWidth, right - margin), capsule.width)
     let height = max(
       min(
         footerHeight + listHeight(rows: min(rows, maxVisibleRows)),
-        capsule.maxY - margin),
+        bottom - margin),
       footerHeight)
     return CGRect(
-      x: capsule.maxX - width, y: capsule.maxY - height, width: width,
-      height: height)
+      x: right - width, y: bottom - height, width: width, height: height)
   }
 }
 

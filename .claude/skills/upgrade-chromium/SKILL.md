@@ -33,7 +33,7 @@ Preview the rebase without changing the checkout (this fetches `NEW`):
 
 - `git status` is clean, and running `make patches` leaves it clean, so
   `chromium/src` has no edits that aren't in a patch.
-- For a milestone, run `make size` while `out/Default` is still built at `OLD`.
+- For a milestone, run `make size` while `out/Release` is still built at `OLD`.
   The run after the upgrade then reports what moved since.
 
 ## 3. Sync
@@ -104,8 +104,12 @@ resolved should read as you meant it.
 ## 5. Build
 
     make build
+    make build OUT=Default
 
-A new release rebuilds nearly everything, which takes hours for a milestone.
+The first is what `make size` and `make install` use; the second has DCHECKs
+on, for step 7, and catches what only breaks in a component build (a missing
+export). A new release rebuilds nearly everything in each, which takes hours
+for a milestone.
 Errors in `//fiber` come from changes to Chromium's API. Fix them the way
 Chrome's own callers changed in the same release (`git -C chromium/src grep`).
 A new pure virtual method in an interface Fiber implements (`BrowserWindow`,
@@ -115,8 +119,8 @@ Chromium file there, then run `make patches`.
 
 If the user leaves the build to CI, skip this step and the checks in step 7
 that need a build, and say which ones you skipped. Note that the local
-`out/Default` is then stale, and its next `make build` rebuilds most of
-Chromium.
+`out/Release` and `out/Default` are then stale, and their next builds rebuild
+most of Chromium.
 
 ## 6. Review the release against what Fiber depends on
 
@@ -187,7 +191,7 @@ the docs don't describe yet, add it to `IMPLEMENTATION.md`.
 - `make size`: what Fiber cut stays cut. `chrome/browser/ui/views` and the New
   Tab page's directories mustn't grow back. For media, check the decoders
   `.agents/MEDIA.md` lists as dead-stripped.
-- Launch the dev build as described under The real app in
+- Launch `out/Default`'s app as described under The real app in
   `.agents/TESTING.md`. It should open a window and load a page with no crash
   or DCHECK on stderr.
 - Run the media tests (`tests/media/README.md`).

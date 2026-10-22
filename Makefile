@@ -1,16 +1,16 @@
-# Fiber's entry points: the Chromium checkout and dev build (scripts/ does the work), the UI on its
+# Fiber's entry points: the Chromium checkout and builds (scripts/ does the work), the UI on its
 # own, and the app bundle for /Applications. See .agents/IMPLEMENTATION.md for how it all fits.
 
 APP_NAME := $(shell sed -n 's/^PRODUCT_FULLNAME=//p' core/branding/BRANDING)
-OUT      ?= Default
+OUT      ?= Release
 SRC      := chromium/src
 
 .PHONY: sync patches build run size ui harness icon app zip dist install uninstall clean print-version \
         demo demo-take demo-render demo-studio
 
-# --- Chromium and the dev build ------------------------------------------------------------------
-# `build` is the component build in out/$(OUT): hundreds of small dylibs, so an incremental build
-# relinks in seconds. Its Fiber.app loads them from out/$(OUT) and only runs from there.
+# --- Chromium and its builds ---------------------------------------------------------------------
+# `build` builds out/Release, the app `make app` packages: a change recompiles what it touches and
+# relinks in seconds. OUT=Default is for debugging, with DCHECKs on (scripts/build_chromium.sh).
 # Rebases the patches onto a new CHROMIUM_VERSION (scripts/rebase_patches.sh).
 sync:
 	scripts/sync_chromium.sh
@@ -85,9 +85,8 @@ print-version:
 	@echo $(FIBER_VERSION)
 
 # --- Fiber.app -----------------------------------------------------------------------------------
-# The dev build's app can't leave out/$(OUT), so the bundle comes from out/Release: one framework,
-# so the app runs anywhere, with DCHECKs off (scripts/build_chromium.sh). Its first build compiles
-# all of Chromium again (hours); after that, every change relinks the whole framework.
+# The bundle comes from out/Release: one framework, so the app runs anywhere, with DCHECKs off
+# (scripts/build_chromium.sh).
 DIST     := dist
 BUNDLE   := $(DIST)/$(APP_NAME).app
 RELEASE  := $(SRC)/out/Release

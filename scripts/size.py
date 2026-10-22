@@ -6,7 +6,7 @@ Relinks //chrome's library with a linker map, and attributes its symbols
 (linked and dead-stripped) and resource packs to source directories: only
 Chrome's layer in a component build, everything in out/Release.
 
-    scripts/size.py [--out Default] [source dir ...]
+    scripts/size.py [--out Release] [source dir ...]
 """
 
 import argparse
@@ -243,7 +243,7 @@ def save(path, sizes):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--out", default="Default")
+    parser.add_argument("--out", default="Release")
     parser.add_argument("--depth", type=int, default=3)
     parser.add_argument("--top", type=int, default=20)
     parser.add_argument("paths", nargs="*")

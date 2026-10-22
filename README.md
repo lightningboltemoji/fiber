@@ -10,7 +10,7 @@ a Chromium-based browser for macOS that optimizes for content area and playful a
 
 ```sh
 make sync       # fetch Chromium at CHROMIUM_VERSION (~31GB), apply patches
-make build      # configure out/Default and build
+make build      # configure out/Release and build (OUT=Default: with DCHECKs, for debugging)
 make run        # launch with a dev profile in chromium/dev-profile
 make size       # what Chrome's code costs by directory, what the linker strips, what moved
 make harness    # just the UI, against a mock browser, without Chromium

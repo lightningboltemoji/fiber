@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Launches the built browser against a dev profile kept in chromium/dev-profile.
-# Usage: [OUT=Default] scripts/run.sh [start-url] [extra Chromium switches...]
+# Usage: [OUT=Release] scripts/run.sh [start-url] [extra Chromium switches...]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="${OUT:-Default}"
+OUT="${OUT:-Release}"
 
 # --use-mock-keychain: avoid the macOS Keychain prompt on unsigned dev builds.
 exec "$ROOT/chromium/src/out/$OUT/Fiber.app/Contents/MacOS/Fiber" \
