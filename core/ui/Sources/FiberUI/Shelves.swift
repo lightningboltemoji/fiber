@@ -34,18 +34,37 @@ enum ShelfSegment: Hashable {
   case shelf(String)
 }
 
-/// A row of the tab overlay's list being dragged onto the shelf bar.
+/// A row of the tab overlay's list being dragged: to another place in the
+/// list, or onto the shelf bar or the split's spot.
 struct TabDrag: Equatable {
   let rowID: TabListRow.ID
+  /// From the row's top to where the pointer pressed it.
+  let grabOffset: CGFloat
   /// Where the pointer is, in the overlay.
   var point: CGPoint
-  /// Where it would go if dropped now: a segment other than the list's.
-  var target: ShelfSegment?
+  /// Where it would go if dropped now.
+  var target: TabDropTarget?
 }
 
-/// A row being dragged to the shelf bar, lifted off the list as a capsule of
-/// glass under the pointer. Over a segment it can drop on, it draws in to a
-/// bead of its icon above the pointer, clear of the segment's name.
+enum TabDropTarget: Equatable {
+  /// A place among the list's other rows.
+  case list(Int)
+  /// A segment other than the list's.
+  case shelf(ShelfSegment)
+  /// The split's spot (see SplitSpot).
+  case split
+
+  var segment: ShelfSegment? {
+    if case .shelf(let segment) = self {
+      return segment
+    }
+    return nil
+  }
+}
+
+/// A row being dragged off the list, as a capsule of glass under the
+/// pointer. Over a segment or the split's spot it can drop on, it draws in to
+/// a bead of its icon above the pointer, clear of the segment's name.
 struct DraggedRow: View {
   static let width: CGFloat = 240
   static let beadDiameter = PinGridLayout.diameter

@@ -1,46 +1,67 @@
 #include "fiber/browser/pins/tab_sequence.h"
 
+#include <algorithm>
 #include <optional>
+#include <vector>
 
 #include "base/time/time.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "fiber/browser/hooks/tab_strip_selection.h"
+#include "fiber/browser/split/tab_split.h"
 #include "ui/gfx/range/range.h"
 
 namespace fiber {
 
 namespace {
 
-void Activate(TabStripModel* model, int index) {
-  model->ActivateTabAt(
-      index, TabStripUserGestureDetails(
-                 TabStripUserGestureDetails::GestureType::kKeyboard));
+void Activate(TabStripModel* model, tabs::TabInterface* tab) {
+  ActivateBesideKeptTab(
+      model, tab,
+      TabStripUserGestureDetails(
+          TabStripUserGestureDetails::GestureType::kKeyboard));
+}
+
+std::vector<tabs::TabInterface*> KeyboardTabs(const TabStripModel& model) {
+  tabs::TabInterface* kept = KeptTab(model);
+  std::vector<tabs::TabInterface*> tabs;
+  for (int i = model.IndexOfFirstNonPinnedTab(); i < model.count(); ++i) {
+    if (model.GetTabAtIndex(i) != kept) {
+      tabs.push_back(model.GetTabAtIndex(i));
+    }
+  }
+  return tabs;
 }
 
 }  // namespace
 
 void SelectAdjacentTab(TabStripModel* model, int offset) {
-  const int first = model->IndexOfFirstNonPinnedTab();
-  const int count = model->count() - first;
+  const std::vector<tabs::TabInterface*> tabs = KeyboardTabs(*model);
+  const int count = static_cast<int>(tabs.size());
   if (count == 0) {
     return;
   }
-  const int active = model->active_index();
-  const int from =
-      active >= first ? active - first : (offset > 0 ? -1 : count);
-  Activate(model, first + ((from + offset) % count + count) % count);
+  tabs::TabInterface* active = model->GetActiveTab();
+  if (active && active == KeptTab(*model)) {
+    active = model->GetTabAtIndex(model->GetIndexOfTab(active) - 1);
+  }
+  const auto position = std::ranges::find(tabs, active);
+  const int from = position != tabs.end()
+                       ? static_cast<int>(position - tabs.begin())
+                       : (offset > 0 ? -1 : count);
+  Activate(model, tabs[((from + offset) % count + count) % count]);
 }
 
 void SelectTabAt(TabStripModel* model, int index) {
-  const int first = model->IndexOfFirstNonPinnedTab();
-  const int count = model->count() - first;
+  const std::vector<tabs::TabInterface*> tabs = KeyboardTabs(*model);
+  const int count = static_cast<int>(tabs.size());
   if (index < 0) {
     index = count - 1;
   }
   if (index >= 0 && index < count) {
-    Activate(model, first + index);
+    Activate(model, tabs[index]);
   }
 }
 

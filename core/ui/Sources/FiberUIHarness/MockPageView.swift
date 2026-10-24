@@ -131,6 +131,12 @@ final class MockPageView: NSView {
         self, selector: #selector(demoSitesDidRender(_:)),
         name: DemoSites.didRender, object: nil)
     }
+    // Like a page, it never makes the window wider, however narrow its side of
+    // a split: what doesn't fit is clipped.
+    for view in stack.arrangedSubviews {
+      view.setContentCompressionResistancePriority(
+        .dragThatCannotResizeWindow, for: .horizontal)
+    }
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 48),
       stack.topAnchor.constraint(equalTo: topAnchor, constant: 48),
@@ -149,6 +155,16 @@ final class MockPageView: NSView {
   // window.
   override var mouseDownCanMoveWindow: Bool { false }
   override var acceptsFirstResponder: Bool { true }
+
+  /// Clicked, as Fiber tells: switching tabs focuses pages too.
+  override func becomeFirstResponder() -> Bool {
+    if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(
+      NSApp.currentEvent?.type)
+    {
+      browser?.pageDidTakeFocus(self)
+    }
+    return super.becomeFirstResponder()
+  }
 
   // A wash of color picked from the host, so each site looks different and
   // the glass over it has something to refract.

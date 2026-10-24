@@ -57,6 +57,9 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
   void UpdateURL(std::string_view pin_id);
   void Unpin(std::string_view pin_id);
   void Move(std::string_view pin_id, size_t index);
+  // Opens the pin's page again in an ordinary tab, after the others: a copy
+  // of its tab, history and all, if it's open here. Returns the new tab.
+  tabs::TabInterface* OpenCopy(std::string_view pin_id);
 
   // What the user does with the shelves (see FiberShelvesActions).
   std::string AddShelf(const std::u16string& name);

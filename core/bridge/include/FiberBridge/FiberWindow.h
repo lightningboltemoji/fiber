@@ -3,6 +3,7 @@
 @class FiberDevTools;
 @class FiberPageState;
 @class FiberPinState;
+@class FiberSplit;
 @class FiberTabState;
 @protocol FiberDownloads;
 @protocol FiberExtensions;
@@ -70,8 +71,27 @@ NS_SWIFT_UI_ACTOR
 - (void)updateURLOfPinWithID:(NSString*)pinID;
 // Unpins the page, from every window. Its tabs stay, as ordinary tabs.
 - (void)unpinPinWithID:(NSString*)pinID;
-// Moves the pin to `index` among the pins, in every window.
+// Moves the pin to `index` among the pins, or a shelf's page to `index` among
+// its shelf's pages, in every window.
 - (void)movePinWithID:(NSString*)pinID toIndex:(NSInteger)index;
+// Moves one of the window's tabs to just before `beforeTabID`, or after its
+// other tabs for 0. A split's tab takes the other with it.
+- (void)moveTabWithID:(NSInteger)tabID beforeTabWithID:(NSInteger)beforeTabID;
+// Shows the tab on the right of a split with `leftTabID` (see FiberSplit), in
+// place of the window's split if it has one, and the left tab if neither is
+// active. A pin's or shelf page's tab can be the left, but not the right.
+- (void)splitTabWithID:(NSInteger)tabID besideTabWithID:(NSInteger)leftTabID;
+// The same for a copy of a pin's or shelf page's page: a copy of its tab, or
+// its page opened anew if it isn't open here. The pin stays as it is.
+- (void)splitCopyOfPinWithID:(NSString*)pinID
+             besideTabWithID:(NSInteger)leftTabID;
+// The window's split's tabs show one at a time again, the right after the
+// left.
+- (void)endSplit;
+// The window's split's tabs trade sides, unless the left is a pin's.
+- (void)reverseSplit;
+// The window's split's left tab's share of the page's width, from 0 to 1.
+- (void)setSplitRatio:(double)ratio;
 - (BOOL)canRunCommand:(FiberCommand)command;
 - (void)runCommand:(FiberCommand)command;
 - (void)endKeyPassthrough;
@@ -150,6 +170,9 @@ NS_SWIFT_UI_ACTOR
 // page is in the content area.
 - (void)setTabs:(NSArray<FiberTabState*>*)tabs
     activeTabID:(NSInteger)activeTabID;
+// The window's split, or nil. Follows the -setTabs:activeTabID: of any change
+// to its tabs.
+- (void)setSplit:(nullable FiberSplit*)split;
 // `tabID` was just opened from `openerTabID`, the active tab, by a link on its
 // page, an extension, or the omnibar: behind it, or in front of it, so that
 // `tabID` is active now. Not called for a New Tab page. Follows the

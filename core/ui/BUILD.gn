@@ -50,6 +50,8 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/ShelfBar.swift",
     "Sources/FiberUI/Shelves.swift",
     "Sources/FiberUI/SlowMotion.swift",
+    "Sources/FiberUI/SplitSpot.swift",
+    "Sources/FiberUI/SplitView.swift",
     "Sources/FiberUI/StatusBubble.swift",
     "Sources/FiberUI/Suggestion.swift",
     "Sources/FiberUI/SuggestionList.swift",

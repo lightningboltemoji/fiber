@@ -19,6 +19,7 @@
 #import "FiberRestorable.h"
 #import "FiberShelves.h"
 #import "FiberSlowMotion.h"
+#import "FiberSplit.h"
 #import "FiberTabIndex.h"
 #import "FiberTabState.h"
 #import "FiberWindow.h"

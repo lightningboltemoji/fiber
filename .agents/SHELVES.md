@@ -21,7 +21,8 @@ like bookmarks that open as tabs. How it fits with the rest of the tabs is in
   selected page.
 - **Dragging a row** onto a segment moves it there: a tab onto a shelf keeps
   its page there, a page onto another shelf moves it, and a page onto Home
-  stops keeping it (its tab stays, or opens behind).
+  stops keeping it (its tab stays, or opens behind). Dragged up or down the
+  list, a page moves to another place on its shelf.
 - **A page is kept as a pin is.** Its tab can wander; right-click offers Back
   to saved page and Replace with this page, and opening its URL (the omnibox,
   another app) goes to it. Move to and Remove are there too, and Home's tabs
@@ -69,5 +70,5 @@ though Fiber's UI shows no groups.
 
 ## Not yet
 
-Reordering shelves or pages by dragging, ⌘-number for shelves, undo for a
-removed page, and finding closed pages in the command palette.
+Reordering shelves by dragging, ⌘-number for shelves, undo for a removed
+page, and finding closed pages in the command palette.

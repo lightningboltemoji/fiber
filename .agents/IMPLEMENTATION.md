@@ -111,7 +111,8 @@ Each surface Fiber replaces, and where it lives:
 | Surface | Chrome integration | UI |
 |---|---|---|
 | Browser window and load progress, and the status bubble: the hovered link's URL in a glass capsule in the page's bottom-left corner, which moves to the bottom-right when the pointer comes near and shows a long URL whole once the pointer rests on its link | `browser/window/` | `BrowserWindowController.swift`, `StatusBubble.swift` |
-| Tabs, in the tab overlay (⌘S): the tabs in order, in a panel as wide as the command palette's over the dimmed page, with the pins in rows of glass circles rising from its top (a dot under each one open in the window), all a little above the middle of the window, and beside it the page's address (which opens the omnibar) and the extensions. An open pin the pointer rests on, or that's selected while Option is held, buds a bead of glass that breaks away into the pocket at its top-right, where it and the pins around it meet, so no pin moves and the bead is on no line from one pin to another. While its tab has left the pinned page the bead is Back, whose arrow turns back as the pointer comes onto it: pressed, it takes the tab back to the pinned page where it is, the overlay staying, and spins into Close, which closes the tab. A double-click's second click doesn't press it, nor does a held Option-Return, which presses it. Its arrow keys, Return and ⌘W move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)); holding Option shows each tab's number in place of its icon, and Option and a number switch to that tab, after a moment if a longer number could start with it, or as soon as Option is let go; one picked is switched to at once, under the overlay as it closes, which plays its opening back, quicker, showing what it closed with until it's gone; the omnibar or command palette opening cuts that short. It keeps the keyboard from the rest of the window until it closes, though not from an extension's popup opened from it, so a New Tab page that becomes active under it opens the omnibar only then; a tab opened in front (⌘T, a link from another app) closes it. A tab opened from the active one, in front of it or behind (a link on its page, ⌘-clicked or not, an extension, the omnibar; not a New Tab page, by Chrome's opener), shows in a notice in the window's top-right corner, below the find bar if it's open: a list like the overlay's of the tab it opened from, which grows to take it in (and the next few opened behind the same tab), and goes after a moment unless the pointer is on it, or when swiped (or dragged) off to the right like a notification | `browser/window/`, `browser/pins/` | `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift`, `OpenedTabNotice.swift` |
+| Tabs, in the tab overlay (⌘S): the tabs in order, in a panel as wide as the command palette's over the dimmed page, with the pins in rows of glass circles rising from its top (a dot under each one open in the window), all a little above the middle of the window, and beside it the page's address (which opens the omnibar) and the extensions. An open pin the pointer rests on, or that's selected while Option is held, buds a bead of glass that breaks away into the pocket at its top-right, where it and the pins around it meet, so no pin moves and the bead is on no line from one pin to another. While its tab has left the pinned page the bead is Back, whose arrow turns back as the pointer comes onto it: pressed, it takes the tab back to the pinned page where it is, the overlay staying, and spins into Close, which closes the tab. A double-click's second click doesn't press it, nor does a held Option-Return, which presses it. A row dragged up or down lifts, the others making room, and drops in its new place (a tab's in the tab strip, a shelf page's on its shelf), the list scrolling as it nears an end; dragged off the list, it's a capsule of glass for a shelf's segment or the split's spot (see Split view). Its arrow keys, Return and ⌘W move through, switch to and close the pins and tabs (see [Tabs and spaces](#tabs-and-spaces)); holding Option shows each tab's number in place of its icon, and Option and a number switch to that tab, after a moment if a longer number could start with it, or as soon as Option is let go; one picked is switched to at once, under the overlay as it closes, which plays its opening back, quicker, showing what it closed with until it's gone; the omnibar or command palette opening cuts that short. It keeps the keyboard from the rest of the window until it closes, though not from an extension's popup opened from it, so a New Tab page that becomes active under it opens the omnibar only then; a tab opened in front (⌘T, a link from another app) closes it. A tab opened from the active one, in front of it or behind (a link on its page, ⌘-clicked or not, an extension, the omnibar; not a New Tab page, by Chrome's opener), shows in a notice in the window's top-right corner, below the find bar if it's open: a list like the overlay's of the tab it opened from, which grows to take it in (and the next few opened behind the same tab), and goes after a moment unless the pointer is on it, or when swiped (or dragged) off to the right like a notification | `browser/window/`, `browser/pins/` | `TabOverlay.swift`, `PinGrid.swift`, `TabList.swift`, `TabMenus.swift`, `OpenedTabNotice.swift` |
+| Split view: two of the window's tabs side by side, each page rounded like the window, with a grip in the gap between them that drags to share the width differently (each keeps at least 280pt) and evens them out on a double-click. It's Chrome's split, so extensions see its `splitViewId` and session restore brings it back, its share too. Its right tab is the one the user keeps there, and its left whichever other tab is active, a pin's or a shelf page's too: a tab that becomes active, however (picked, ⌃Tab or ⌘1–⌘9, ⌘T, a link opened in front from either side, an extension, a pin), goes on the left, and as the left tab closes, the tab closing it goes to takes its place. A pin's or shelf page's tab is never on the right. In the tab overlay the right tab leaves the list for a spot like a pin to the right of the panel (above it, at the end of the address's row, in a narrow window). A row dropped there shows on the right, beside the active tab (or the one used last, if the active one is that row), and one dropped from the left trades sides, unless the left is a pin's; a pin or a shelf page dropped there opens a copy of its page on the right, its tab's, history and all, if it's open, the pin staying as it is (also Open copy on right in their menus). Clicking into a page makes its tab the active one, and the spot's menu swaps the sides, separates the tabs or closes the right one. A page's fullscreen shows it alone | `browser/split/`, `browser/window/` | `SplitView.swift`, `SplitSpot.swift`, `TabOverlay.swift`, `BrowserWindowController.swift` |
 | Shelves: named lists of pages kept to come back to, in a bar of glass segments under the tab overlay's panel at its left, after Home (the window's own tabs), with a + that adds one. A shelf's list shows its pages, open ones as their tabs are and the rest dimmed; closing a page's tab keeps the page, and a trash can removes it. Rows drag onto a segment to move there. Deleting a shelf can be undone for a few seconds. While the user switches lists, the bar holds still and the list grows above it; a list longer than the panel says how many rows are past its edge. See [SHELVES.md](SHELVES.md) | `browser/pins/` | `ShelfBar.swift`, `Shelves.swift`, `TabOverlay.swift`, `TabList.swift`, `TabMenus.swift` |
 | Downloads, in place of Chrome's download bubble: in the tab overlay, a glass capsule under the panel at its right, there while the window's profile has downloads from the last day (or any in progress), as Chrome's bubble lists them (an Incognito window, its own). It says how many are in progress with a ring of how far along they are together, or that one needs review, or how many there are with the newest files' icons fanned out; as the last one finishes, the ring fills and turns into a check. Clicked, it grows up and to the left into a panel over the tabs, reaching a little past the overlay's panel to the right and below so their edges don't line up, without moving the tabs, staying as its footer, while the rest of the overlay sinks back a little and darkens behind it: each download's icon, name, progress and buttons (pause, resume, cancel, retry, show in Finder; delete one that may be harmful, or keep it where Chrome's bubble would offer to), opening the file when it's clicked and dragging out as it; Show All opens the Downloads page, and Clear takes what's finished off the list. Escape or a click off it closes it. A warning Chrome only shows for a while (an insecure download's) starts its clock when the overlay first opens over it. Every download asks where to save it (`hooks/profile_pref_defaults.cc`, the macOS save panel); Chrome's bubble and the service that feeds it don't run (`hooks/download_ui.h`) | `browser/downloads/`, `hooks/download_ui.cc` | `DownloadsBubble.swift`, `Downloads.swift`, `TabOverlay.swift`, `TabOverlayStage.swift` |
 | Omnibox, as the omnibar, where Option-clicking part of the URL selects the URL up to and including it, and Shift-Option-clicking selects it and the rest, as does pressing those and the number shown under that part | `browser/omnibox/` | `Omnibar.swift`, `SuggestionList.swift`, `PaletteView.swift`, `URLFieldEditor.swift` |
@@ -147,8 +148,9 @@ Where Fiber has no replacement yet:
   chip) are ignored (`hooks/permission_prompt.h`, `hooks/webauthn_dialog.h`,
   and patches marked `Fiber:` in Chrome's views code).
 - **Not offered:** installing a page as an app; Save and fill on card forms;
-  Task Manager, tab groups, split view and side panels
-  (`hooks/commands.cc`); the profile switcher at startup
+  Task Manager, tab groups, Chrome's ways into a split (New Split Tab, and
+  its toolbar button's promos, off in `hooks/feature_overrides.cc`) and side
+  panels (`hooks/commands.cc`); the profile switcher at startup
   (`hooks/local_state_pref_defaults.cc`), and signing in to a profile Chrome
   locks until then (`browser/profiles/profile_picker.cc`); Chrome's sharing
   hub, leaving the Share menu (`hooks/profile_pref_defaults.cc`); Payment
@@ -253,7 +255,34 @@ everything below holds for it too (see [SHELVES.md](SHELVES.md)).
   back to the tab used last (`hooks/tab_strip_selection.h`, from
   `TabStripModel::DetermineNewSelectedIndex()`). ⌃Tab and the other
   tab-switching shortcuts go round the window's other tabs, and ⌘1–⌘9 count
-  them as the tab overlay numbers them.
+  them as the tab overlay numbers them, leaving out the split's right tab,
+  which stays where it is.
+- A window shows one of Chrome's splits (two adjacent tabs), the active tab's
+  or else its first (`split/tab_split.h`). A split takes its first tab's
+  pinning, so beside a pin's or shelf page's tab, the right tab is
+  Chrome-pinned too, though it's no pin: it's marked as kept beside one
+  (`pins/pinned_tab_data.h`, in its session too), which `PinnedTabs` doesn't
+  adopt, and keeps with its pin's tab as the pins reorder. Extensions see it
+  pinned while it's there. Going back to an ordinary tab, it's unpinned
+  again, and one left among the pins without its split (a restore without
+  it, the user separating them) goes back among the ordinary tabs. Fiber
+  makes its splits
+  with `RestoreSplit()`, which keeps a split's ID as its left tab changes and
+  skips Chrome's views-only promo. Putting a tab on the left moves the right
+  tab beside it, which the tab overlay doesn't list, so the list keeps the
+  order the user gave it.
+- Chrome's split is two particular tabs, which hides as another tab becomes
+  active, and ends as its left closes. After each change to the tab strip,
+  a task later, Fiber puts the right tab beside the active one, or beside
+  the tab next to it for a split that ended (`PlanSplit()`); meanwhile the UI
+  is sent the split as it will be, so the right page stays put
+  (`FiberBrowserWindow::KeepSplit()`). Only a click into the other page makes
+  its tab active: Chrome focuses pages as tabs switch, and tells of it late.
+- Both of a split's tabs are selected in Chrome, so Fiber's ⌘W counts only
+  the active one, which is all Chrome closes, and Pin Tab pins only it,
+  where Chrome would pin both and make two pins; the tab kept beside a pin
+  becomes a pin of its own, out of the split. On a pin's tab beside another,
+  it's Chrome's, which unpins both, keeping the split.
 - Opening a pin's page from the omnibar (in the tab, or a new one in front) or
   from another app goes to the pin instead, bringing its tab back to the page
   if it has left it (`hooks/pin_urls.h`). Typed over a blank New Tab page,
@@ -291,6 +320,10 @@ Fiber loses a window (`browser/sessions/`):
 - **A Dock click with no windows open** brings back the windows last closed,
   as relaunching would; Chrome only does for a login item (`AppController`'s
   `-applicationShouldHandleReopen:`). ⌘N opens an empty window.
+- **Which tab was active.** Chrome saves it by its place, and only as it
+  changes, so a move that shifts it (dragging tabs around it, pinning
+  another) would restore a different tab; Fiber saves it again after each
+  move (`FiberBrowserWindow::OnTabStripModelChanged()`).
 - **Closed windows** are Chrome's recently closed: ⇧⌘T, History › Recently
   Closed, and the command palette (see [PALETTE.md](PALETTE.md)). Fiber keeps
   100 closed windows and tabs rather than 25 (`tab_restore_service_helper.h`).

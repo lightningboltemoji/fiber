@@ -24,11 +24,9 @@ final class HistorySwipe: NSObject {
   private static let settleStiffness: Double = 22
 
   let view = HistorySwipeView()
-  /// Set by the owner, which adds `view` below or above the page area.
-  var place: (_ view: NSView, _ above: Bool) -> Void = { _, _ in }
 
-  private let pageArea: NSView
-  private let page: NSView
+  private var pageArea: NSView
+  private var page: NSView
   private var direction = FiberHistorySwipeDirection.back
   private var progress: CGFloat = 0
   /// The progress the browser reported lately, for the fingers' speed.
@@ -56,10 +54,27 @@ final class HistorySwipe: NSObject {
     view.isHidden = true
   }
 
+  /// Moves `area` from now on, as init(pageArea:page:) says, putting the
+  /// swipe down first.
+  func setPage(area: NSView, page: NSView) {
+    guard area !== pageArea || page !== self.page else {
+      return
+    }
+    reset()
+    pageArea = area
+    self.page = page
+  }
+
+  /// Puts `view` beside the page area, below it or above.
+  private func place(above: Bool) {
+    pageArea.superview?.addSubview(
+      view, positioned: above ? .above : .below, relativeTo: pageArea)
+  }
+
   func begin(direction: FiberHistorySwipeDirection, snapshot: NSImage?) {
     reset()
     self.direction = direction
-    place(view, direction == .forward)
+    place(above: direction == .forward)
     view.frame = pageArea.frame
     view.setPage(
       frame: page.frame, corners: page.layer?.maskedCorners ?? [],
@@ -170,7 +185,7 @@ final class HistorySwipe: NSObject {
     }
     // The snapshot covers the page, which goes back in place under it.
     isCovering = true
-    place(view, true)
+    place(above: true)
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     pageArea.layer?.sublayerTransform = CATransform3DIdentity

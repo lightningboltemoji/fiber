@@ -5,15 +5,17 @@ import SwiftUI
 /// The window's tabs, over the dimmed page with Command-S: those that aren't
 /// pins', in the tab strip's order, in a panel as wide as the command
 /// palette's, with the pins (PinGrid) in rows above it, the page's address
-/// and the extensions beside it, and under it the shelves (ShelfBar), whose
-/// lists it shows in place of the tabs, and the downloads (DownloadsBubble).
-/// The arrow keys, Return and Command-W move through, switch to and close
-/// them, and holding Option numbers the tabs, for Option and a number to switch
-/// to one. This view takes the events and keeps the model; TabOverlayView draws.
+/// and the extensions beside it, the split's spot (SplitSpot) on its other
+/// side, and under it the shelves (ShelfBar), whose lists it shows in place
+/// of the tabs, and the downloads (DownloadsBubble). Rows drag to a new place
+/// in the list, onto a shelf, or onto the split's spot. The arrow keys,
+/// Return and Command-W move through, switch to and close them, and holding
+/// Option numbers the tabs, for Option and a number to switch to one. This
+/// view takes the events and keeps the model; TabOverlayView draws.
 @MainActor
 final class TabOverlay: NSView, NSViewToolTipOwner {
-  /// Called with a tab to switch to, never the active one. Its owner closes
-  /// the overlay.
+  /// Called with a tab to switch to, never the active one unless it's to go
+  /// on the left of the split. Its owner closes the overlay.
   var onSelect: (Int) -> Void = { _ in }
   /// Called with the ID of a tab to close.
   var onClose: (Int) -> Void = { _ in }
@@ -23,8 +25,19 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Called with a pin whose tab should go back to its pinned page, where it
   /// is: the overlay stays.
   var onResetPin: (String) -> Void = { _ in }
-  /// Called with a pin dropped in a new place, and its index there.
+  /// Called with a pin dropped in a new place, and its index there, or a
+  /// shelf's page and its index among the shelf's.
   var onMovePin: (String, Int) -> Void = { _, _ in }
+  /// Called with a tab dropped in a new place in Home's list, and the tab it
+  /// goes before, or 0 for after the others.
+  var onMoveTab: (Int, Int) -> Void = { _, _ in }
+  /// Called with a tab dropped on the split's spot, and the tab it goes on the
+  /// right of.
+  var onSplit: (Int, Int) -> Void = { _, _ in }
+  /// The same for a pin or a shelf's page, which a copy of goes there.
+  var onSplitCopy: (String, Int) -> Void = { _, _ in }
+  /// Right-clicks on the split's spot, while it has a tab.
+  var onSplitMenu: (NSEvent) -> Void = { _ in }
   var onUnpin: (String) -> Void = { _ in }
   /// Right-clicks (or Control-clicks) on a pin or a tab, for their menus.
   var onPinMenu: (FiberPinState, NSEvent) -> Void = { _, _ in }
@@ -71,6 +84,17 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private static let topShare: CGFloat = 0.45
   /// How far a pressed pin moves before it's dragged rather than clicked.
   private static let dragThreshold: CGFloat = 4
+  /// How far in from the panel's sides a row dragged within the list pulls
+  /// out of it, and how far in it drops back in, so it doesn't flicker
+  /// between the two at the edge.
+  private static let pullOutInset: CGFloat = 28
+  private static let pullInInset: CGFloat = 56
+  /// How far above and below the panel a dragged row still drops in the list.
+  private static let listDropSlop: CGFloat = 12
+  /// How near the list's top or bottom edge a row dragged within it scrolls
+  /// it, and how fast at the edge, in points a second.
+  private static let autoscrollZone: CGFloat = 36
+  private static let autoscrollSpeed: CGFloat = 600
   /// How long the pool under the glass takes to follow a new measure of the
   /// page.
   private static let relightDuration: TimeInterval = 0.2
@@ -97,6 +121,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private let isIncognito: Bool
   /// All the window's tabs; the panel lists those that aren't pins'.
   private var tabs: [FiberTabState] = []
+  /// The window's split, whose right tab the spot has, apart from the list.
+  private var split: SplitPair?
+  private var isSpotPressed = false
+  /// Scrolls the list while a row's dragged near its edge.
+  private var autoscroll: Timer?
   /// Where the fingers have scrolled the list to, before rubber-banding.
   private var dragOffset: CGFloat = 0
   private var pressedRowID: TabListRow.ID?
@@ -141,6 +170,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var heldPins: [FiberPinState]?
   private var heldDownloads: [FiberDownloadState]?
   private var heldShelves: [FiberShelfState]?
+  private var heldSplit: SplitPair??
   /// Its fade out as it closes, which waits for what's on it to leave.
   private var pendingFadeOut: DispatchWorkItem?
   /// Counts its closings, so that a fade out from one cut short does nothing.
@@ -201,6 +231,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     model.onOpenPin = { [weak self] pinID in self?.openPin(pinID) }
     model.onUnpin = { [weak self] pinID in self?.onUnpin(pinID) }
     model.onResetPin = { [weak self] pinID in self?.onResetPin(pinID) }
+    model.onOpenSplit = { [weak self] in self?.openSplitTab() }
     addTrackingArea(
       NSTrackingArea(
         rect: .zero,
@@ -269,8 +300,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       model.isOpen = false
       moveBubbles()
       pressedPin = nil
+      isSpotPressed = false
       model.pinDrag = nil
       model.tabDrag = nil
+      stopAutoscroll()
       shelfBar.setDropTarget(nil)
       shelfBar.endRename(keep: true)
       commitShelfRemoval()
@@ -347,6 +380,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     if let shelves = heldShelves {
       heldShelves = nil
       setShelves(shelves)
+    }
+    if let split = heldSplit {
+      heldSplit = nil
+      setSplit(split)
     }
   }
 
@@ -492,6 +529,18 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     hasShelves = true
     self.shelves = shelves
     updateShelves()
+  }
+
+  func setSplit(_ split: SplitPair?) {
+    guard !isClosing else {
+      heldSplit = .some(split)
+      return
+    }
+    self.split = split
+    if case .split? = model.selection, split == nil {
+      model.selection = initialSelection
+    }
+    updateListedTabs()
   }
 
   // MARK: Shelves
@@ -664,29 +713,87 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   private func drop(_ drag: TabDrag) {
-    guard let target = drag.target else {
-      return
-    }
-    holdShelfBar()
-    let shelfID: String
-    if case .shelf(let id) = target {
-      shelfID = id
-    } else {
-      shelfID = ""
-    }
-    switch drag.rowID {
-    case .page(let pageID):
-      onMoveShelfPage(pageID, shelfID)
-    case .tab(let tabID) where !shelfID.isEmpty:
-      onMoveTabToShelf(tabID, shelfID)
-    case .tab:
+    switch drag.target {
+    case .list(let index)?:
+      move(drag.rowID, to: index)
+    case .shelf(let segment)?:
+      holdShelfBar()
+      let shelfID: String
+      if case .shelf(let id) = segment {
+        shelfID = id
+      } else {
+        shelfID = ""
+      }
+      switch drag.rowID {
+      case .page(let pageID):
+        onMoveShelfPage(pageID, shelfID)
+      case .tab(let tabID) where !shelfID.isEmpty:
+        onMoveTabToShelf(tabID, shelfID)
+      case .tab:
+        break
+      }
+    case .split?:
+      guard let leftTabID = splitLeftTab(for: drag.rowID) else {
+        break
+      }
+      switch drag.rowID {
+      case .tab(let tabID):
+        onSplit(tabID, leftTabID)
+      case .page(let pageID):
+        onSplitCopy(pageID, leftTabID)
+      }
+    case nil:
       break
     }
   }
 
-  /// A pressed row dragged far enough lifts off the list, for the shelf bar.
+  /// Moves the row to `index` among the others: a tab before the tab there,
+  /// or a shelf's page to that place on its shelf.
+  private func move(_ rowID: TabListRow.ID, to index: Int) {
+    guard let from = model.rows.firstIndex(where: { $0.id == rowID }),
+      from != index
+    else {
+      return
+    }
+    switch rowID {
+    case .tab(let tabID):
+      let others = model.rows.filter { $0.id != rowID }
+      onMoveTab(
+        tabID, others.indices.contains(index) ? others[index].tabID ?? 0 : 0)
+    case .page(let pageID):
+      onMovePin(pageID, index)
+    }
+  }
+
+  /// Home's tabs: those that aren't pins' or shelf pages'.
+  private var homeTabs: [FiberTabState] {
+    let pinTabIDs = Set(panelPins.map(\.tabID))
+    let pageTabIDs = Set(shelfBar.shelves.flatMap(\.pages).map(\.tabID))
+    return tabs.filter {
+      !pinTabIDs.contains($0.tabID) && !pageTabIDs.contains($0.tabID)
+    }
+  }
+
+  /// The tab a row's tab would go on the right of, dropped on the split's
+  /// spot, or for a shelf page, its copy.
+  private func splitLeftTab(for rowID: TabListRow.ID) -> Int? {
+    switch rowID {
+    case .tab(let tabID): splitLeftTab(beside: tabID)
+    case .page: splitLeftTab(beside: nil)
+    }
+  }
+
+  /// The same for the tab `tabID`, or a pin's or shelf page's copy for nil.
+  private func splitLeftTab(beside tabID: Int?) -> Int? {
+    SplitPair.leftTab(
+      beside: tabID, in: split, tabs: tabs, activeTabID: model.activeTabID)
+  }
+
+  /// A pressed row dragged far enough lifts, to a new place in the list, or
+  /// off it, for the shelf bar or the split's spot.
   private func dragRow(to point: CGPoint) -> Bool {
-    guard hasShelves, let rowID = pressedRowID, let start = pressedRowPoint
+    guard let rowID = pressedRowID, let start = pressedRowPoint,
+      let index = model.rows.firstIndex(where: { $0.id == rowID })
     else {
       return false
     }
@@ -696,13 +803,115 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     else {
       return true
     }
-    let target = shelfBar.segment(forDropAt: point).flatMap {
-      $0 == shelfBar.segment ? nil : $0
-    }
+    let grabOffset =
+      model.tabDrag?.grabOffset
+      ?? model.listContentY(at: start) - TabListLayout.rowCenter(index)
+      + TabListLayout.rowHeight / 2
+    let target = dropTarget(
+      for: rowID, at: point, grabOffset: grabOffset,
+      isLifted: model.tabDrag == nil || model.liftedRowTop != nil)
     model.closeButton = nil
-    model.tabDrag = TabDrag(rowID: rowID, point: point, target: target)
-    shelfBar.setDropTarget(target)
+    model.tabDrag = TabDrag(
+      rowID: rowID, grabOffset: grabOffset, point: point, target: target)
+    shelfBar.setDropTarget(target?.segment)
+    updateAutoscroll()
     return true
+  }
+
+  /// Where a row dragged to `point` would go: the split's spot, a shelf's
+  /// segment, or a place in the list, if any of them takes it. `isLifted` is
+  /// whether it's within the list now.
+  private func dropTarget(
+    for rowID: TabListRow.ID, at point: CGPoint, grabOffset: CGFloat,
+    isLifted: Bool
+  ) -> TabDropTarget? {
+    if splitLeftTab(for: rowID) != nil,
+      SplitSpotLayout.takesDrop(at: point, frame: model.splitSpotFrame)
+    {
+      return .split
+    }
+    if hasShelves, let segment = shelfBar.segment(forDropAt: point),
+      segment != shelfBar.segment
+    {
+      return .shelf(segment)
+    }
+    let list = model.panelFrame.insetBy(
+      dx: isLifted ? Self.pullOutInset : Self.pullInInset,
+      dy: -Self.listDropSlop)
+    guard model.rows.count > 1, list.contains(point) else {
+      return nil
+    }
+    return .list(
+      model.dropIndex(
+        forLiftedTop: model.liftedRowTop(at: point, grabOffset: grabOffset)))
+  }
+
+  /// While a row's lifted within the list near its top or bottom edge, the
+  /// list scrolls, faster nearer the edge.
+  private func updateAutoscroll() {
+    guard autoscrollStep() != 0 else {
+      stopAutoscroll()
+      return
+    }
+    guard autoscroll == nil else {
+      return
+    }
+    let interval: TimeInterval = 1 / 60
+    autoscroll = Timer.scheduledTimer(withTimeInterval: interval, repeats: true)
+    { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self else {
+          return
+        }
+        let step = self.autoscrollStep() * interval
+        guard step != 0 else {
+          self.stopAutoscroll()
+          return
+        }
+        self.setScrollOffset(
+          self.clamp(
+            self.model.scrollOffset + step, to: self.model.scrollRange))
+        self.retargetDrag()
+      }
+    }
+  }
+
+  /// How fast the list scrolls for the lifted row, in points a second, up the
+  /// list for negative.
+  private func autoscrollStep() -> CGFloat {
+    guard let drag = model.tabDrag, case .list = drag.target,
+      model.scrollRange.upperBound > 0
+    else {
+      return 0
+    }
+    let list = model.listRect.offsetBy(
+      dx: model.panelFrame.minX, dy: model.panelFrame.minY)
+    let zone = Self.autoscrollZone
+    let intoTop = list.minY + zone - drag.point.y
+    let intoBottom = drag.point.y - (list.maxY - zone)
+    if intoTop > 0, model.scrollOffset > model.scrollRange.lowerBound {
+      return -Self.autoscrollSpeed * min(intoTop / zone, 1)
+    }
+    if intoBottom > 0, model.scrollOffset < model.scrollRange.upperBound {
+      return Self.autoscrollSpeed * min(intoBottom / zone, 1)
+    }
+    return 0
+  }
+
+  private func stopAutoscroll() {
+    autoscroll?.invalidate()
+    autoscroll = nil
+  }
+
+  /// The dragged row's target again, for the list scrolled under it.
+  private func retargetDrag() {
+    guard var drag = model.tabDrag else {
+      return
+    }
+    drag.target = dropTarget(
+      for: drag.rowID, at: drag.point, grabOffset: drag.grabOffset,
+      isLifted: model.liftedRowTop != nil)
+    model.tabDrag = drag
   }
 
   /// A flourish where each pin that came or went is, or was.
@@ -752,19 +961,18 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     updateListedTabs()
   }
 
-  /// Home's tabs are those that aren't pins' or shelf pages'; a shelf lists
-  /// its pages, as their tabs are if they're open.
+  /// Home's tabs are those that aren't pins' or shelf pages', but for the one
+  /// in the split's spot; a shelf lists its pages, as their tabs are if
+  /// they're open.
   private func updateListedTabs() {
-    let pinTabIDs = Set(panelPins.map(\.tabID))
     let previous = model.rows
+    model.split = split
+    model.splitTab = split.flatMap { split in
+      tabs.first { $0.tabID == split.rightTabID }
+    }
     switch shelfBar.segment {
     case .home:
-      let pageTabIDs = Set(shelfBar.shelves.flatMap(\.pages).map(\.tabID))
-      model.rows =
-        tabs
-        .filter {
-          !pinTabIDs.contains($0.tabID) && !pageTabIDs.contains($0.tabID)
-        }
+      model.rows = homeTabs.filter { $0.tabID != split?.rightTabID }
         .map(TabListRow.init(tab:))
       model.listedShelfName = nil
     case .shelf(let shelfID):
@@ -776,7 +984,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       }
       model.listedShelfName = shelf?.name
     }
-    model.activeRowID = model.rows.first { $0.tabID == model.activeTabID }?.id
+    // With the split's right tab active, its left shows too.
+    let activeTabID =
+      split?.rightTabID == model.activeTabID
+      ? split?.leftTabID : model.activeTabID
+    model.activeRowID = model.rows.first { $0.tabID == activeTabID }?.id
     if let pageID = disarmedPageID,
       !model.rows.contains(where: { $0.id == .page(pageID) })
     {
@@ -800,13 +1012,16 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
   }
 
-  /// The active tab's pin, or the active tab's row.
+  /// The active tab's pin, spot or row.
   private var initialSelection: TabOverlaySelection? {
     let activeTabID = model.activeTabID
     if let pin = model.pins.first(where: {
       $0.tabID != 0 && $0.tabID == activeTabID
     }) {
       return .pin(pin.pinID)
+    }
+    if split?.rightTabID == activeTabID {
+      return .split
     }
     if let rowID = model.activeRowID {
       return .row(rowID)
@@ -831,7 +1046,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   /// The panel as wide as the command palette's, as tall as fits, with what's
   /// above and below it a little above the window's middle; the address and
-  /// extensions to its left (or above if narrow), the downloads under it.
+  /// extensions to its left (or above if narrow), the split's spot to its
+  /// right (or above, at the end, if narrower), the downloads under it.
   private func layoutPanel(animated: Bool = true) {
     guard bounds.width > 0 else {
       return
@@ -845,6 +1061,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let columnEnd = x - Self.bubbleSpacing
     let isBeside =
       columnEnd - max(addressWidth, extensionsWidth) >= Self.bubbleMargin
+    let spot = SplitSpotLayout.diameter
+    let isSpotBeside =
+      bounds.width - (x + width + Self.bubbleSpacing + spot)
+      >= Self.bubbleMargin
     let pinsHeight = model.pinsHeight(width: width)
     let above = pinsHeight + (isBeside ? 0 : height + Self.bubbleSpacing)
     let footerHeight = TabOverlayModel.footerHeight
@@ -884,8 +1104,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         y: top + height + GlassCapsule.spacing, width: extensionsWidth,
         height: height)
     } else {
+      let spotRoom = isSpotBeside ? 0 : spot + GlassCapsule.spacing
       addressWidth = max(
-        min(addressWidth, width - extensionsWidth - GlassCapsule.spacing), 0)
+        min(
+          addressWidth,
+          width - extensionsWidth - GlassCapsule.spacing - spotRoom),
+        0)
       addressBubble.frame = NSRect(
         x: x, y: top - above, width: addressWidth, height: height)
       extensionsBubble.frame = NSRect(
@@ -895,6 +1119,16 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let bubbleFrames = [addressBubble.frame, extensionsBubble.frame]
     if bubbleFrames != model.bubbleFrames {
       model.bubbleFrames = bubbleFrames
+    }
+    // Level with the panel's top, or else at the end of the address's row
+    // above it.
+    let spotTop = isSpotBeside ? top : top - above
+    let spotFrame = CGRect(
+      x: isSpotBeside ? x + width + Self.bubbleSpacing : x + width - spot,
+      y: spotTop + (height - spot) / 2, width: spot, height: spot)
+    if spotFrame != model.splitSpotFrame {
+      model.splitSpotFrame = spotFrame
+      updatePinToolTips()
     }
 
     let frame = CGRect(
@@ -1015,13 +1249,17 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     ).map { (model.pins[$0.index], $0.part) }
   }
 
-  /// Whether `point` is on the panel, or on or between the pins. A pin's bead
-  /// can reach past the grid's edges.
+  /// Whether `point` is on the panel, on or between the pins, or on the
+  /// split's spot. A pin's bead can reach past the grid's edges.
   private func isOnPanelOrPins(_ point: CGPoint) -> Bool {
     model.panelFrame.contains(point)
       || PinGridLayout.covers(
         inPins(point), count: model.pins.count, width: model.gridWidth)
-      || pinHit(at: point) != nil
+      || pinHit(at: point) != nil || isOnSpot(point)
+  }
+
+  private func isOnSpot(_ point: CGPoint) -> Bool {
+    SplitSpotLayout.contains(point, frame: model.splitSpotFrame)
   }
 
   /// The row at `point`, where the list is scrolled to now.
@@ -1094,9 +1332,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   // MARK: Tooltips
 
-  /// A pin shows only its icon, so its title shows on hover.
+  /// A pin shows only its icon, so its title shows on hover, as the split's
+  /// spot shows its tab's.
   private func updatePinToolTips() {
     removeAllToolTips()
+    addToolTip(model.splitSpotFrame, owner: self, userData: nil)
     let pins = model.pinsOrigin
     var frames = model.pins.indices.map {
       PinGridLayout.frame(of: $0, width: model.gridWidth)
@@ -1114,6 +1354,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     _ view: NSView, stringForToolTip tag: NSView.ToolTipTag, point: NSPoint,
     userData data: UnsafeMutableRawPointer?
   ) -> String {
+    if isOnSpot(point) {
+      guard let tab = model.splitTab else {
+        return "Drag a tab here to show it on the right"
+      }
+      return tab.title.isEmpty ? tab.url : tab.title
+    }
     guard let (pin, part) = pinHit(at: point) else {
       return ""
     }
@@ -1296,6 +1542,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
 
   override func insertNewline(_ sender: Any?) {
     switch model.selection {
+    case .split?:
+      openSplitTab()
     case .pin(let pinID)?:
       openPin(pinID)
     case .row(let rowID)?:
@@ -1335,6 +1583,16 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let columns = PinGridLayout.columns(width: model.gridWidth)
     let topRowStart = (max(pins.count, 1) - 1) / columns * columns
     switch selection {
+    case .split?:
+      // Beside the list's top, as the pins' first row is above it.
+      switch direction {
+      case .up:
+        return pins.first.map { .pin($0.pinID) }
+      case .down, .left:
+        return rows.first.map { .row($0.id) }
+      case .right:
+        return nil
+      }
     case .pin(let pinID)?:
       guard let index = pins.firstIndex(where: { $0.pinID == pinID }) else {
         return initialSelection
@@ -1369,11 +1627,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
   }
 
-  /// Tab and Shift-Tab go through the pins and rows in reading order.
+  /// Tab and Shift-Tab go through the pins, the split's spot and the rows in
+  /// reading order.
   private func stepSelection(by step: Int) {
     let items =
       model.pins.map { TabOverlaySelection.pin($0.pinID) }
-      + model.rows.map { .row($0.id) }
+      + (split != nil ? [.split] : []) + model.rows.map { .row($0.id) }
     guard let current = model.selection.flatMap(items.firstIndex(of:)) else {
       select(initialSelection)
       return
@@ -1408,6 +1667,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       if let tabID = model.rows.first(where: { $0.id == rowID })?.tabID {
         onClose(tabID)
       }
+    case .split?:
+      if let split {
+        onClose(split.rightTabID)
+      }
     case nil:
       break
     }
@@ -1421,11 +1684,17 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       }
       return
     }
-    if tabID == model.activeTabID {
+    // The active tab outside the split goes beside its right tab.
+    let isPaired = split.map { $0.contains(tabID) || !isHomeTab(tabID) } ?? true
+    if tabID == model.activeTabID, isPaired {
       onDismiss()
     } else {
       onSelect(tabID)
     }
+  }
+
+  private func isHomeTab(_ tabID: Int) -> Bool {
+    homeTabs.contains { $0.tabID == tabID }
   }
 
   private func openPin(_ pinID: String) {
@@ -1436,6 +1705,18 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       onDismiss()
     } else {
       onOpenPin(pinID)
+    }
+  }
+
+  /// The split's right tab, which shows it with the left.
+  private func openSplitTab() {
+    guard let split else {
+      return
+    }
+    if split.rightTabID == model.activeTabID {
+      onDismiss()
+    } else {
+      onSelect(split.rightTabID)
     }
   }
 
@@ -1514,6 +1795,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       }
       return
     }
+    if isOnSpot(point) {
+      isSpotPressed = true
+      return
+    }
     pressedCloseButtonRowID = closeButtonRow(at: point)
     if pressedCloseButtonRowID == nil {
       pressedRowID = row(at: point)?.id
@@ -1547,10 +1832,17 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let center = CGPoint(
       x: origin.x + PinGridLayout.diameter / 2 + offset.width,
       y: origin.y + PinGridLayout.diameter / 2 + offset.height)
+    let isOverSplit =
+      splitLeftTab(beside: nil) != nil
+      && SplitSpotLayout.takesDrop(at: point, frame: model.splitSpotFrame)
     model.pinDrag = PinDrag(
       pinID: pressedPin.pinID, offset: offset,
-      targetIndex: PinGridLayout.nearestIndex(
-        to: center, count: model.pins.count, width: model.gridWidth))
+      // Over the split's spot, the pins stay as they are.
+      targetIndex: isOverSplit
+        ? from
+        : PinGridLayout.nearestIndex(
+          to: center, count: model.pins.count, width: model.gridWidth),
+      isOverSplit: isOverSplit)
   }
 
   override func mouseUp(with event: NSEvent) {
@@ -1559,19 +1851,33 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       pressedRowPoint = nil
       pressedCloseButtonRowID = nil
       pressedPin = nil
+      isSpotPressed = false
     }
     let point = stageLocation(of: event)
     if let drag = model.tabDrag {
-      model.tabDrag = nil
+      stopAutoscroll()
       shelfBar.setDropTarget(nil)
-      drop(drag)
+      // The browser moves the tab before this returns, so a row dropped in
+      // the list settles into its new place from under the pointer.
+      withAnimation(.spring(duration: 0.3, bounce: 0.15).slowMotion) {
+        model.tabDrag = nil
+        drop(drag)
+      }
       hover(at: location(of: event))
+      return
+    }
+    if isSpotPressed {
+      if isOnSpot(point) {
+        openSplitTab()
+      }
       return
     }
     if let drag = model.pinDrag {
       // The browser reorders the pins before this returns, so the pin settles
       // into its new place from where it was dropped.
-      if drag.targetIndex
+      if drag.isOverSplit, let leftTabID = splitLeftTab(beside: nil) {
+        onSplitCopy(drag.pinID, leftTabID)
+      } else if drag.targetIndex
         != model.pins.firstIndex(where: { $0.pinID == drag.pinID })
       {
         onMovePin(drag.pinID, drag.targetIndex)
@@ -1611,6 +1917,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       onPinMenu(pin, event)
       return
     }
+    if isOnSpot(point) {
+      if split != nil {
+        onSplitMenu(event)
+      }
+      return
+    }
     switch row(at: point)?.id {
     case .tab(let tabID)?:
       onTabMenu(tabID, event)
@@ -1641,6 +1953,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     if let point, !isDragging {
       if let (pin, _) = hit {
         model.selection = .pin(pin.pinID)
+      } else if split != nil, isOnSpot(point) {
+        model.selection = .split
       } else if let row = row(at: point) {
         model.selection = .row(row.id)
       }
@@ -1793,6 +2107,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         break
       }
     }
+    retargetDrag()
     hover(at: location(of: event))
   }
 
@@ -1839,6 +2154,8 @@ private enum PanelHold {
 enum TabOverlaySelection: Equatable {
   case pin(String)
   case row(TabListRow.ID)
+  /// The split's right tab, in its spot.
+  case split
 
   var isPin: Bool {
     if case .pin = self {
@@ -1868,6 +2185,10 @@ final class TabOverlayModel {
   var shelfBarFrame: CGRect = .zero
   var shelfButtonFrame: CGRect = .zero
   var tabDrag: TabDrag?
+  /// The window's split, and its right tab, which its spot shows.
+  var split: SplitPair?
+  var splitTab: FiberTabState?
+  var splitSpotFrame: CGRect = .zero
   /// What the pins and the panel come and go with (see TabOverlayMotion).
   var isOpen = false
   var selection: TabOverlaySelection?
@@ -1902,8 +2223,54 @@ final class TabOverlayModel {
   @ObservationIgnored var onOpenPin: (String) -> Void = { _ in }
   @ObservationIgnored var onUnpin: (String) -> Void = { _ in }
   @ObservationIgnored var onResetPin: (String) -> Void = { _ in }
+  @ObservationIgnored var onOpenSplit: () -> Void = {}
 
   var gridWidth: CGFloat { panelFrame.width }
+
+  /// Whether the split shows, its left or right tab being active.
+  var isSplitShown: Bool { split?.contains(activeTabID) ?? false }
+
+  /// The rows as the list shows them: one dragged within it where it would
+  /// drop.
+  var shownRows: [TabListRow] {
+    guard let tabDrag, case .list(let index) = tabDrag.target,
+      let from = rows.firstIndex(where: { $0.id == tabDrag.rowID })
+    else {
+      return rows
+    }
+    var shown = rows
+    let row = shown.remove(at: from)
+    shown.insert(row, at: min(index, shown.count))
+    return shown
+  }
+
+  /// The top of the row dragged within the list, from the list's.
+  var liftedRowTop: CGFloat? {
+    guard let tabDrag, case .list = tabDrag.target else {
+      return nil
+    }
+    return liftedRowTop(at: tabDrag.point, grabOffset: tabDrag.grabOffset)
+  }
+
+  /// How far down the list's rows `point` is, where it's scrolled to now.
+  func listContentY(at point: CGPoint) -> CGFloat {
+    point.y - panelFrame.minY - listRect.minY + scrollOffset
+  }
+
+  /// Where a row's top is with the pointer at `point`, `grabOffset` below it,
+  /// kept to the list's rows.
+  func liftedRowTop(at point: CGPoint, grabOffset: CGFloat) -> CGFloat {
+    let first = TabListLayout.contentInset
+    let last = first + CGFloat(max(rows.count - 1, 0)) * TabListLayout.rowStep
+    return min(max(listContentY(at: point) - grabOffset, first), last)
+  }
+
+  /// The place among the other rows a row lifted to `top` would drop in.
+  func dropIndex(forLiftedTop top: CGFloat) -> Int {
+    let index = Int(
+      ((top - TabListLayout.contentInset) / TabListLayout.rowStep).rounded())
+    return min(max(index, 0), max(rows.count - 1, 0))
+  }
 
   /// How many rows aren't wholly in sight below the list's bottom edge.
   var rowsBelow: Int {
@@ -1981,7 +2348,8 @@ final class TabOverlayModel {
     let bubblesDelay = max(
       bubbleFrames.map(motionDelay(ofBubble:)).max() ?? 0,
       motionDelay(belowPanel: downloadsFrame),
-      motionDelay(belowPanel: shelfButtonFrame))
+      motionDelay(belowPanel: shelfButtonFrame),
+      motionDelay(belowPanel: splitSpotFrame))
     return TabOverlayMotion.span(
       lastDelay: max(pinsDelay, bubblesDelay),
       panelReach: PanelWave.reach(of: panelFrame.size))
@@ -2007,7 +2375,8 @@ final class TabOverlayModel {
   }
 
   /// The glass, for the black pooled under it: the panel, each row of pins,
-  /// the address's and extensions' capsules, and the downloads'.
+  /// the split's spot, the address's and extensions' capsules, and the
+  /// downloads'.
   var poolShapes: [DimmingPool.Shape] {
     var shapes = [
       DimmingPool.Shape(
@@ -2023,6 +2392,10 @@ final class TabOverlayModel {
           id: "pins\(start / columns)", frame: row,
           cornerRadius: PinGridLayout.diameter / 2))
     }
+    shapes.append(
+      DimmingPool.Shape(
+        id: "splitSpot", frame: splitSpotFrame,
+        cornerRadius: splitSpotFrame.height / 2))
     for (index, frame) in bubbleFrames.enumerated() {
       shapes.append(
         DimmingPool.Shape(
@@ -2087,6 +2460,7 @@ final class TabOverlayModel {
 /// Draws the tab overlay's panel and pins; TabOverlay handles all input. The
 /// highlight glides to the selected tab.
 struct TabOverlayView: View {
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   /// The black pooled under the glass (see DimmingPool).
   private static let poolSpread: CGFloat = 80
   private static let poolRadius: CGFloat = 80
@@ -2112,10 +2486,11 @@ struct TabOverlayView: View {
 
         TabList(
           width: panel.width, showsURL: true,
-          showsNumbers: model.showsNumbers, rows: model.rows,
+          showsNumbers: model.showsNumbers, rows: model.shownRows,
           activeRowID: model.activeRowID,
           highlightedRowID: model.tabDrag == nil ? model.selectedRowID : nil,
           closeButton: model.closeButton, draggedRowID: model.tabDrag?.rowID,
+          liftedRowTop: model.liftedRowTop,
           onSelect: model.onSelect, onClose: model.onClose
         )
         .fixedSize(horizontal: false, vertical: true)
@@ -2173,6 +2548,8 @@ struct TabOverlayView: View {
         // Read before the tabs, as they show.
         .accessibilitySortPriority(1)
 
+      splitSpot
+
     }
     // Tabs opening and closing grow and shrink the panel, and rows of pins
     // coming and going can move it.
@@ -2183,6 +2560,37 @@ struct TabOverlayView: View {
       .spring(duration: 0.3, bounce: 0).slowMotion, value: model.panelPinCount)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .accessibilityElement(children: .contain)
+  }
+
+  /// Comes from the right, beside the panel, as the wave reaches it.
+  private var splitSpot: some View {
+    let frame = model.splitSpotFrame
+    let delay = model.motionDelay(belowPanel: frame)
+    let span = model.motionSpan
+    let tab = model.splitTab
+    return SplitSpot(
+      tab: tab, isActive: tab.map { $0.tabID == model.activeTabID } ?? false,
+      isShown: model.isSplitShown, isSelected: model.selection == .split,
+      isDropTarget: model.tabDrag?.target == .split
+        || model.pinDrag?.isOverSplit == true
+    )
+    .offset(x: model.isOpen || reduceMotion ? 0 : TabOverlayMotion.sideTravel)
+    .animation(
+      TabOverlayMotion.animation(
+        .offset, delay: delay, span: span, isOpening: model.isOpen),
+      value: model.isOpen)
+    .opacity(model.isOpen || reduceMotion ? 1 : 0)
+    .animation(
+      TabOverlayMotion.animation(
+        .opacity, delay: delay, span: span, isOpening: model.isOpen),
+      value: model.isOpen)
+    .offset(x: frame.minX, y: frame.minY)
+    .accessibilityElement()
+    .accessibilityLabel(
+      tab.map { "Right of split: \($0.title.isEmpty ? $0.url : $0.title)" }
+        ?? "Right of split")
+    .accessibilityAddTraits(.isButton)
+    .accessibilityAction { model.onOpenSplit() }
   }
 }
 
@@ -2220,13 +2628,13 @@ private struct PanelWave: View, Animatable {
   }
 }
 
-/// A row dragged to the shelf bar, over everything in the overlay.
+/// A row dragged off the list, over everything in the overlay.
 private struct TabDragView: View {
   let model: TabOverlayModel
 
   var body: some View {
     ZStack(alignment: .topLeading) {
-      if let drag = model.tabDrag,
+      if let drag = model.tabDrag, model.liftedRowTop == nil,
         let row = model.rows.first(where: { $0.id == drag.rowID })
       {
         let isOverTarget = drag.target != nil
@@ -2242,7 +2650,7 @@ private struct TabDragView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .animation(
       .spring(duration: 0.25, bounce: 0.2).slowMotion,
-      value: model.tabDrag == nil)
+      value: model.tabDrag == nil || model.liftedRowTop != nil)
   }
 }
 

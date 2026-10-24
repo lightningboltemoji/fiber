@@ -139,8 +139,8 @@ int CommandID(FiberCommand command) {
 }
 
 - (void)openPinWithID:(NSString*)pinID {
-  if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
-    pinned_tabs->Open(base::SysNSStringToUTF8(pinID));
+  if (_owner) {
+    _owner->OpenPin(base::SysNSStringToUTF8(pinID));
   }
 }
 
@@ -166,6 +166,46 @@ int CommandID(FiberCommand command) {
   if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
     pinned_tabs->Move(base::SysNSStringToUTF8(pinID),
                       static_cast<size_t>(std::max<NSInteger>(index, 0)));
+  }
+}
+
+- (void)moveTabWithID:(NSInteger)tabID beforeTabWithID:(NSInteger)beforeTabID {
+  if (_owner) {
+    _owner->MoveTab(static_cast<int32_t>(tabID),
+                    static_cast<int32_t>(beforeTabID));
+  }
+}
+
+- (void)splitTabWithID:(NSInteger)tabID besideTabWithID:(NSInteger)leftTabID {
+  if (_owner) {
+    _owner->SplitTab(static_cast<int32_t>(tabID),
+                     static_cast<int32_t>(leftTabID));
+  }
+}
+
+- (void)splitCopyOfPinWithID:(NSString*)pinID
+             besideTabWithID:(NSInteger)leftTabID {
+  if (_owner) {
+    _owner->SplitCopyOfPin(base::SysNSStringToUTF8(pinID),
+                           static_cast<int32_t>(leftTabID));
+  }
+}
+
+- (void)endSplit {
+  if (_owner) {
+    _owner->EndSplit();
+  }
+}
+
+- (void)reverseSplit {
+  if (_owner) {
+    _owner->ReverseSplit();
+  }
+}
+
+- (void)setSplitRatio:(double)ratio {
+  if (_owner) {
+    _owner->SetSplitRatio(ratio);
   }
 }
 

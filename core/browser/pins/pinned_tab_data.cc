@@ -15,6 +15,7 @@ namespace fiber {
 namespace {
 
 constexpr char kPinIDKey[] = "fiber_pin_id";
+constexpr char kBesidePinKey[] = "fiber_beside_pin";
 
 class PinnedTabData : public content::WebContentsUserData<PinnedTabData> {
  public:
@@ -35,10 +36,47 @@ class PinnedTabData : public content::WebContentsUserData<PinnedTabData> {
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(PinnedTabData);
 
+class BesidePinData : public content::WebContentsUserData<BesidePinData> {
+ public:
+  ~BesidePinData() override = default;
+
+ private:
+  friend WebContentsUserData;
+
+  explicit BesidePinData(content::WebContents* contents)
+      : WebContentsUserData(*contents) {}
+
+  WEB_CONTENTS_USER_DATA_KEY_DECL();
+};
+
+WEB_CONTENTS_USER_DATA_KEY_IMPL(BesidePinData);
+
 void SetPinID(content::WebContents* contents, std::string_view pin_id) {
   contents->RemoveUserData(PinnedTabData::UserDataKey());
   if (!pin_id.empty()) {
     PinnedTabData::CreateForWebContents(contents, std::string(pin_id));
+  }
+}
+
+void SetBeside(content::WebContents* contents, bool beside) {
+  if (beside) {
+    BesidePinData::CreateForWebContents(contents);
+  } else {
+    contents->RemoveUserData(BesidePinData::UserDataKey());
+  }
+}
+
+// Until the tab is in a window, its session doesn't know it.
+void SaveExtraData(content::WebContents* contents,
+                   const char* key,
+                   const std::string& value) {
+  SessionService* session = SessionServiceFactory::GetForProfile(
+      Profile::FromBrowserContext(contents->GetBrowserContext()));
+  const SessionID window_id =
+      sessions::SessionTabHelper::IdForWindowContainingTab(contents);
+  const SessionID tab_id = sessions::SessionTabHelper::IdForTab(contents);
+  if (session && window_id.is_valid() && tab_id.is_valid()) {
+    session->AddTabExtraData(window_id, tab_id, key, value);
   }
 }
 
@@ -51,24 +89,31 @@ std::string PinIDForTab(content::WebContents* contents) {
 
 void SetPinIDForTab(content::WebContents* contents, std::string_view pin_id) {
   SetPinID(contents, pin_id);
-  // Until the tab is in a window, its session doesn't know it.
-  SessionService* session = SessionServiceFactory::GetForProfile(
-      Profile::FromBrowserContext(contents->GetBrowserContext()));
-  const SessionID window_id =
-      sessions::SessionTabHelper::IdForWindowContainingTab(contents);
-  const SessionID tab_id = sessions::SessionTabHelper::IdForTab(contents);
-  if (session && window_id.is_valid() && tab_id.is_valid()) {
-    session->AddTabExtraData(window_id, tab_id, kPinIDKey, std::string(pin_id));
+  SaveExtraData(contents, kPinIDKey, std::string(pin_id));
+}
+
+bool IsBesidePin(content::WebContents* contents) {
+  return BesidePinData::FromWebContents(contents) != nullptr;
+}
+
+void SetBesidePin(content::WebContents* contents, bool beside) {
+  if (beside == IsBesidePin(contents)) {
+    return;
   }
+  SetBeside(contents, beside);
+  SaveExtraData(contents, kBesidePinKey, beside ? "1" : "");
 }
 
 std::map<std::string, std::string> TabExtraData(
     content::WebContents* contents) {
-  std::string pin_id = PinIDForTab(contents);
-  if (pin_id.empty()) {
-    return {};
+  std::map<std::string, std::string> data;
+  if (std::string pin_id = PinIDForTab(contents); !pin_id.empty()) {
+    data[kPinIDKey] = std::move(pin_id);
   }
-  return {{kPinIDKey, std::move(pin_id)}};
+  if (IsBesidePin(contents)) {
+    data[kBesidePinKey] = "1";
+  }
+  return data;
 }
 
 void RestoreTabExtraData(
@@ -78,6 +123,8 @@ void RestoreTabExtraData(
   if (it != extra_data.end()) {
     SetPinID(contents, it->second);
   }
+  it = extra_data.find(kBesidePinKey);
+  SetBeside(contents, it != extra_data.end() && it->second == "1");
 }
 
 }  // namespace fiber

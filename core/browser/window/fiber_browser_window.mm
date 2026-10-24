@@ -9,6 +9,7 @@
 #import "FiberBridge/FiberBridge.h"
 #include "base/apple/foundation_util.h"
 #include "base/apple/owned_objc.h"
+#include "base/auto_reset.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
@@ -20,6 +21,8 @@
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/global_keyboard_shortcuts_mac.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -64,6 +67,7 @@
 #include "fiber/browser/pins/pinned_tabs.h"
 #include "fiber/browser/pins/tab_sequence.h"
 #include "fiber/browser/profiles/profile_switcher.h"
+#include "fiber/browser/split/tab_split.h"
 #include "fiber/browser/swipe/history_swipe_navigation.h"
 #include "fiber/browser/swipe/page_snapshots.h"
 #import "fiber/browser/window/fiber_browser_window_actions.h"
@@ -161,6 +165,38 @@ class FiberStatusBubble : public StatusBubble {
   id<FiberWindow> __weak ui_;
   std::u16string status_;
   std::u16string url_;
+};
+
+// Clicking into a split's other page makes its tab the active one, as in
+// Chrome's split view. Not while the page takes focus: activating focuses it
+// again, from inside AppKit's making it first responder.
+class FiberBrowserWindow::SplitFocusObserver
+    : public content::WebContentsObserver {
+ public:
+  explicit SplitFocusObserver(FiberBrowserWindow* window) : window_(window) {}
+
+  using content::WebContentsObserver::Observe;
+
+  // content::WebContentsObserver:
+  void OnWebContentsFocused(content::RenderWidgetHost* host) override {
+    // Only a click's: switching tabs focuses pages too, and Chrome can tell
+    // of it once another tab is active.
+    const NSEventType type = NSApp.currentEvent.type;
+    tabs::TabInterface* tab =
+        tabs::TabInterface::MaybeGetFromContents(web_contents());
+    if (!tab || (type != NSEventTypeLeftMouseDown &&
+                 type != NSEventTypeRightMouseDown &&
+                 type != NSEventTypeOtherMouseDown)) {
+      return;
+    }
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&FiberBrowserWindow::ActivateSplitTab,
+                       window_->GetWeakPtr(), tab->GetHandle().raw_value()));
+  }
+
+ private:
+  const raw_ptr<FiberBrowserWindow> window_;
 };
 
 // static
@@ -268,10 +304,12 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
     ui_.shelves.actions = actions_;
     UpdatePins();
   }
+  split_focus_observer_ = std::make_unique<SplitFocusObserver>(this);
   browser_->GetTabStripModel()->AddObserver(this);
 }
 
 FiberBrowserWindow::~FiberBrowserWindow() {
+  split_focus_observer_.reset();
   pinned_tabs_.reset();
   // Its popup and actions go while the browser's features are still there.
   extensions_toolbar_.reset();
@@ -336,12 +374,30 @@ void FiberBrowserWindow::ExecuteCommand(int command,
   TabStripModel* model = browser_->GetTabStripModel();
   switch (command) {
     case IDC_CLOSE_TAB: {
+      // Both of a split's tabs are selected, but Chrome closes only the active
+      // one (chrome::CloseTab()).
+      tabs::TabInterface* active = model->GetActiveTab();
       const auto& selected = model->selection_model().selected_tabs();
-      if (!WillCloseTabs({selected.begin(), selected.end()})) {
+      if (!WillCloseTabs(active && active->IsSplit()
+                             ? std::vector<tabs::TabInterface*>{active}
+                             : std::vector<tabs::TabInterface*>(
+                                   selected.begin(), selected.end()))) {
         return;
       }
       break;
     }
+    // Chrome pins both of a split's tabs, making two pins; the active one's
+    // page is the one to pin.
+    // Unpinning a pin's tab beside another, Chrome unpins both, keeping the
+    // split: as the pin goes, its tab is an ordinary one beside it.
+    case IDC_WINDOW_PIN_TAB:
+      if (tabs::TabInterface* active = model->GetActiveTab();
+          active && active->IsSplit() && pinned_tabs_ &&
+          (!active->IsPinned() || IsBesidePin(active->GetContents()))) {
+        pinned_tabs_->PinTab(active->GetHandle().raw_value());
+        return;
+      }
+      break;
     case IDC_NEW_TAB:
       if (ShowBlankNewTab()) {
         return;
@@ -351,11 +407,13 @@ void FiberBrowserWindow::ExecuteCommand(int command,
     // tab_sequence.h).
     case IDC_SELECT_NEXT_TAB:
     case IDC_CYCLE_TO_NEXT_TAB:
-      SelectAdjacentTab(model, 1);
+      Rearrange(
+          [](TabStripModel* tab_strip) { SelectAdjacentTab(tab_strip, 1); });
       return;
     case IDC_SELECT_PREVIOUS_TAB:
     case IDC_CYCLE_TO_PREV_TAB:
-      SelectAdjacentTab(model, -1);
+      Rearrange(
+          [](TabStripModel* tab_strip) { SelectAdjacentTab(tab_strip, -1); });
       return;
     case IDC_SELECT_TAB_0:
     case IDC_SELECT_TAB_1:
@@ -365,10 +423,12 @@ void FiberBrowserWindow::ExecuteCommand(int command,
     case IDC_SELECT_TAB_5:
     case IDC_SELECT_TAB_6:
     case IDC_SELECT_TAB_7:
-      SelectTabAt(model, command - IDC_SELECT_TAB_0);
+      Rearrange([command](TabStripModel* tab_strip) {
+        SelectTabAt(tab_strip, command - IDC_SELECT_TAB_0);
+      });
       return;
     case IDC_SELECT_LAST_TAB:
-      SelectTabAt(model, -1);
+      Rearrange([](TabStripModel* tab_strip) { SelectTabAt(tab_strip, -1); });
       return;
   }
   chrome::ExecuteCommandWithDisposition(browser_, command, disposition);
@@ -381,7 +441,7 @@ bool FiberBrowserWindow::IsCommandEnabled(int command) const {
 
 bool FiberBrowserWindow::IsActiveTabPinned() const {
   tabs::TabInterface* tab = browser_->GetTabStripModel()->GetActiveTab();
-  return tab && tab->IsPinned();
+  return tab && tab->IsPinned() && !IsBesidePin(tab->GetContents());
 }
 
 void FiberBrowserWindow::FocusWebContents() {
@@ -397,14 +457,15 @@ void FiberBrowserWindow::SelectTab(int32_t tab_id) {
   if (!window || window->GetProfile() != GetProfile()) {
     return;
   }
-  TabStripModel* model = window->browser_->GetTabStripModel();
-  int index = model->GetIndexOfTab(tab);
-  if (index == TabStripModel::kNoTab) {
+  if (window->browser_->GetTabStripModel()->GetIndexOfTab(tab) ==
+      TabStripModel::kNoTab) {
     return;
   }
-  model->ActivateTabAt(index,
-                       TabStripUserGestureDetails(
-                           TabStripUserGestureDetails::GestureType::kMouse));
+  window->Rearrange([tab](TabStripModel* tab_strip) {
+    ActivateBesideKeptTab(tab_strip, tab,
+                          TabStripUserGestureDetails(
+                              TabStripUserGestureDetails::GestureType::kMouse));
+  });
   if (window != this) {
     window->Activate();
   }
@@ -442,6 +503,120 @@ void FiberBrowserWindow::CloseTab(int32_t tab_id) {
   model->CloseWebContentsAt(model->GetIndexOfTab(tab),
                             TabCloseTypes::CLOSE_USER_GESTURE |
                                 TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+}
+
+void FiberBrowserWindow::MoveTab(int32_t tab_id, int32_t before_tab_id) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  tabs::TabInterface* before =
+      before_tab_id ? tabs::TabHandle(before_tab_id).Get() : nullptr;
+  if (model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
+      (before_tab_id &&
+       model->GetIndexOfTab(before) == TabStripModel::kNoTab)) {
+    return;
+  }
+  Rearrange([&](TabStripModel* tab_strip) {
+    fiber::MoveTab(tab_strip, tab, before);
+  });
+}
+
+void FiberBrowserWindow::SplitTab(int32_t tab_id, int32_t left_tab_id) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  tabs::TabInterface* left = tabs::TabHandle(left_tab_id).Get();
+  if (model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
+      model->GetIndexOfTab(left) == TabStripModel::kNoTab) {
+    return;
+  }
+  Rearrange([&](TabStripModel* tab_strip) { Split(tab_strip, left, tab); });
+}
+
+void FiberBrowserWindow::SplitCopyOfPin(std::string_view pin_id,
+                                        int32_t left_tab_id) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  tabs::TabInterface* left = tabs::TabHandle(left_tab_id).Get();
+  if (!pinned_tabs_ || model->GetIndexOfTab(left) == TabStripModel::kNoTab) {
+    return;
+  }
+  Rearrange([&](TabStripModel* tab_strip) {
+    if (tabs::TabInterface* copy = pinned_tabs_->OpenCopy(pin_id)) {
+      Split(tab_strip, left, copy);
+    }
+  });
+}
+
+void FiberBrowserWindow::EndSplit() {
+  base::AutoReset<bool> ending(&ending_split_, true);
+  Rearrange([](TabStripModel* tab_strip) { fiber::EndSplit(tab_strip); });
+}
+
+void FiberBrowserWindow::OpenPin(std::string_view pin_id) {
+  if (pinned_tabs_) {
+    Rearrange([&](TabStripModel* tab_strip) { pinned_tabs_->Open(pin_id); });
+  }
+}
+
+void FiberBrowserWindow::ReverseSplit() {
+  fiber::ReverseSplit(browser_->GetTabStripModel());
+}
+
+void FiberBrowserWindow::SetSplitRatio(double ratio) {
+  fiber::SetSplitRatio(browser_->GetTabStripModel(), ratio);
+}
+
+void FiberBrowserWindow::ActivateSplitTab(int32_t tab_id) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  tabs::TabInterface* active = model->GetActiveTab();
+  // Only beside the active tab: not a page focused as it leaves the split, or
+  // as the window hides.
+  if (!IsVisible() || model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
+      !tab->IsSplit() || !active || active == tab ||
+      active->GetSplit() != tab->GetSplit()) {
+    return;
+  }
+  model->ActivateTabAt(model->GetIndexOfTab(tab),
+                       TabStripUserGestureDetails(
+                           TabStripUserGestureDetails::GestureType::kMouse));
+}
+
+void FiberBrowserWindow::ScheduleKeepSplit() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  if (rearranging_ || is_keep_split_pending_ || model->closing_all()) {
+    return;
+  }
+  std::optional<SplitPlan> plan = PlanSplit(*model, ended_split_);
+  if ((!plan || IsAsPlanned(*model, *plan)) && !HasStrandedTab(*model)) {
+    ended_split_.reset();
+    return;
+  }
+  is_keep_split_pending_ = true;
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&FiberBrowserWindow::KeepSplit, GetWeakPtr()));
+}
+
+void FiberBrowserWindow::KeepSplit() {
+  is_keep_split_pending_ = false;
+  if (!browser_->GetTabStripModel()->closing_all()) {
+    // Which settles the split as it ends.
+    Rearrange([](TabStripModel*) {});
+  }
+}
+
+void FiberBrowserWindow::Rearrange(
+    base::FunctionRef<void(TabStripModel*)> rearrange) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  {
+    base::AutoReset<bool> rearranging(&rearranging_, true);
+    rearrange(model);
+    std::optional<SplitPlan> plan =
+        PlanSplit(*model, std::exchange(ended_split_, std::nullopt));
+    if (plan && !IsAsPlanned(*model, *plan)) {
+      fiber::KeepSplit(model, *plan);
+    }
+    ReleaseStrandedTabs(model);
+  }
+  UpdateTabs();
 }
 
 bool FiberBrowserWindow::WillCloseTabs(
@@ -665,6 +840,9 @@ void FiberBrowserWindow::UpdateLoadProgress() {
 }
 
 void FiberBrowserWindow::UpdateTabs() {
+  if (rearranging_) {
+    return;
+  }
   TabStripModel* model = browser_->GetTabStripModel();
   NSMutableArray<FiberTabState*>* tabs =
       [NSMutableArray arrayWithCapacity:model->count()];
@@ -675,10 +853,41 @@ void FiberBrowserWindow::UpdateTabs() {
   [ui_ setTabs:tabs
       activeTabID:active ? active->GetHandle().raw_value()
                          : tabs::TabHandle::NullValue];
+  UpdateSplit();
   if (tab_index_source_) {
     tab_index_source_->TabsChanged();
   }
   UpdatePins();
+}
+
+// As planned, so that while Chrome's split catches up (see KeepSplit()), the
+// kept tab's page stays where it is.
+void FiberBrowserWindow::UpdateSplit() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  std::optional<SplitPlan> plan = PlanSplit(*model, ended_split_);
+  if (!plan) {
+    split_focus_observer_->Observe(nullptr);
+    [ui_ setSplit:nil];
+    return;
+  }
+  split_ratio_ = plan->ratio;
+  tabs::TabInterface* active = model->GetActiveTab();
+  tabs::TabInterface* other = active == plan->left    ? plan->right.get()
+                              : active == plan->right ? plan->left.get()
+                                                      : nullptr;
+  content::WebContents* contents = other ? other->GetContents() : nullptr;
+  if (contents) {
+    contents->SetColorProviderSource(this);
+  }
+  split_focus_observer_->Observe(contents);
+  [ui_ setSplit:[[FiberSplit alloc]
+                    initWithLeftTabID:plan->left->GetHandle().raw_value()
+                           rightTabID:plan->right->GetHandle().raw_value()
+                                ratio:plan->ratio
+                            otherView:contents ? contents->GetNativeView()
+                                                     .GetNativeNSView()
+                                               : nil
+                    otherIsNewTabPage:contents && IsNewTabPage(contents)]];
 }
 
 void FiberBrowserWindow::UpdatePins() {
@@ -1312,6 +1521,16 @@ void FiberBrowserWindow::OnTabStripModelChanged(
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
   UpdateTabs();
+  ScheduleKeepSplit();
+  // Chrome saves which tab is active by its place, and only as the active tab
+  // changes, so after a move that shifts it a restore would pick another.
+  if (change.type() == TabStripModelChange::kMoved) {
+    if (SessionService* session =
+            SessionServiceFactory::GetForProfileIfExisting(GetProfile())) {
+      session->SetSelectedTabInWindow(browser_->GetSessionID(),
+                                      tab_strip_model->active_index());
+    }
+  }
   // A page or an extension took the window's last tab that wasn't a pin's,
   // and Chrome went to a pin's: a New Tab page takes its place, as when the
   // user closes it (see WillCloseTabs()), once the tab strip can change.
@@ -1354,6 +1573,26 @@ void FiberBrowserWindow::OnTabStripModelChanged(
 void FiberBrowserWindow::OnTabChangedAt(tabs::TabInterface* tab,
                                         TabChangeType change_type) {
   UpdateTabs();
+}
+
+void FiberBrowserWindow::OnSplitTabChanged(const SplitTabChange& change) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  if (change.type == SplitTabChange::Type::kRemoved && !rearranging_ &&
+      !ending_split_ && !model->closing_all() &&
+      change.GetRemovedChange()->reason() !=
+          SplitTabChange::SplitTabRemoveReason::kSplitTabUpdated) {
+    // Both tabs are still here: a closing one goes after this.
+    std::vector<std::pair<tabs::TabInterface*, int>> tabs =
+        change.GetRemovedChange()->tabs();
+    std::ranges::sort(tabs, {}, &std::pair<tabs::TabInterface*, int>::second);
+    if (tabs.size() == 2) {
+      ended_split_ = EndedSplit{tabs.front().first->GetHandle(),
+                                tabs.back().first->GetHandle(), split_ratio_,
+                                model->GetActiveTab() == tabs.front().first};
+    }
+  }
+  UpdateTabs();
+  ScheduleKeepSplit();
 }
 
 // content::WebContentsObserver:

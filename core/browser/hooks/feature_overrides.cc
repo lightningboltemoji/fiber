@@ -8,6 +8,7 @@
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_features.h"
 #include "components/autofill/core/common/autofill_features.h"
+#include "components/feature_engagement/public/feature_constants.h"
 #include "components/omnibox/browser/aim_eligibility_service_features.h"
 #include "components/security_interstitials/core/features.h"
 #include "content/public/common/content_features.h"
@@ -53,6 +54,10 @@ void AddFeatureOverrides(
       // For them, every new tab asks macOS whether Touch ID is available: a
       // few milliseconds on the main thread, the first as Fiber starts.
       &autofill::features::kAutofillAiWalletPrivatePasses,
+      // Chrome's promos for its split view's toolbar button, which Fiber's
+      // split doesn't have.
+      &feature_engagement::kIPHSideBySidePinnableFeature,
+      &feature_engagement::kIPHSideBySideTabSwitchFeature,
   };
   for (const base::Feature* feature : disabled) {
     overrides.emplace_back(std::cref(*feature),

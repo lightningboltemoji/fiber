@@ -6,8 +6,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "base/functional/function_ref.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -15,6 +17,7 @@
 #include "chrome/browser/ui/sad_tab.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "fiber/browser/split/tab_split.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/color/color_provider_source.h"
 #include "ui/gfx/geometry/rect.h"
@@ -97,6 +100,19 @@ class FiberBrowserWindow : public BrowserWindow,
   // Closes one of this window's tabs as the user would, so its page can ask
   // first and it can be reopened (see WillCloseTabs()).
   void CloseTab(int32_t tab_id);
+  // Moves one of this window's tabs before another, or to the end for 0.
+  void MoveTab(int32_t tab_id, int32_t before_tab_id);
+  // The window's split (see split/tab_split.h).
+  void SplitTab(int32_t tab_id, int32_t left_tab_id);
+  // Puts a copy of a pin's or shelf page's page on the right, the pin staying
+  // as it is.
+  void SplitCopyOfPin(std::string_view pin_id, int32_t left_tab_id);
+  void EndSplit();
+  void ReverseSplit();
+  // Selects the pin's tab, or opens it, putting the split's right tab beside
+  // it.
+  void OpenPin(std::string_view pin_id);
+  void SetSplitRatio(double ratio);
   // The window's pins and their tabs; null if its profile has none.
   PinnedTabs* pinned_tabs() const { return pinned_tabs_.get(); }
   void OnCommandPaletteOpened();
@@ -291,6 +307,7 @@ class FiberBrowserWindow : public BrowserWindow,
                               const TabStripSelectionChange& selection) override;
   void OnTabChangedAt(tabs::TabInterface* tab,
                       TabChangeType change_type) override;
+  void OnSplitTabChanged(const SplitTabChange& change) override;
 
   // content::WebContentsObserver (observes the active tab):
   void LoadProgressChanged(double progress) override;
@@ -311,9 +328,20 @@ class FiberBrowserWindow : public BrowserWindow,
   // Whether `view` is in the active tab's page or its docked DevTools.
   bool IsInActiveTab(NSView* view) const;
   void UpdateLoadProgress();
-  // Sends the UI the tab list, in tab strip order, and the pins and shelves.
+  // Sends the UI the tab list, in tab strip order, the split, and the pins
+  // and shelves.
   void UpdateTabs();
+  void UpdateSplit();
   void UpdatePins();
+  // Runs `rearrange`, which changes the tab strip in steps, and sends the UI
+  // where they end rather than each step.
+  void Rearrange(base::FunctionRef<void(TabStripModel*)> rearrange);
+  // The user clicked into the page of the shown split's tab that isn't active.
+  void ActivateSplitTab(int32_t tab_id);
+  // Once the tab strip has changed, the split's right tab goes beside the
+  // active tab, or what's left of its split (see split/tab_split.h).
+  void ScheduleKeepSplit();
+  void KeepSplit();
   // Before the user closes `closing`. Closing the last of the window's tabs
   // that aren't pins' leaves a New Tab page in its place, and a lone New Tab
   // page stays, unless the UI confirms closing the window instead. Returns
@@ -344,6 +372,16 @@ class FiberBrowserWindow : public BrowserWindow,
   // The New Tab page opened for the last tab, while that tab's page may still
   // ask the user to stay.
   base::WeakPtr<content::WebContents> last_tab_replacement_;
+  // Watches the page beside the active tab's, in its split, for focus.
+  class SplitFocusObserver;
+  std::unique_ptr<SplitFocusObserver> split_focus_observer_;
+  bool rearranging_ = false;
+  // Set while the user separates the split's tabs, which ends it.
+  bool ending_split_ = false;
+  std::optional<EndedSplit> ended_split_;
+  bool is_keep_split_pending_ = false;
+  // The last split the UI was sent's, for one that ends.
+  double split_ratio_ = 0.5;
   // Whether Chrome has shown the window. A startup window (see
   // ShowStartupWindow()) is on screen before then, but Chrome's startup
   // expects it hidden until it shows it.

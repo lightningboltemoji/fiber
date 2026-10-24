@@ -150,13 +150,14 @@ enum PinPart: Equatable {
   case icon, bead, bridge
 }
 
-/// A pin being dragged to a new place.
+/// A pin being dragged to a new place, or onto the split's spot.
 struct PinDrag: Equatable {
   let pinID: String
   /// How far the pointer has moved it from its place.
   var offset: CGSize
   /// Where it would go if dropped now.
   var targetIndex: Int
+  var isOverSplit = false
 }
 
 /// The flourish around a pin as it's pinned or unpinned (see PinBurstView).

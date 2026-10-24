@@ -136,7 +136,20 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let pageArea = NSView()
   /// The page and what the window draws over it (the New Tab page, a sad tab),
   /// with its corners rounded like the window's.
-  private let pageView = NSView()
+  private let pageView = ResizingView()
+  /// Each holds a page: the active tab's, and in a split, the other's beside
+  /// it. As the split's other tab becomes active, they trade roles, staying
+  /// where they are.
+  private var activePane = PagePane()
+  private var otherPane = PagePane()
+  private let splitDivider = SplitDivider()
+  /// Over the split's other page while it's the New Tab page.
+  private let otherNewTabView: NewTabView
+  private var split: FiberSplit?
+  /// The split's left page's share of the page area, as the browser last
+  /// said or the divider is being dragged to.
+  private var splitRatio = 0.5
+  private var isDraggingDivider = false
   /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
   /// draws over the (empty) page.
   private var isNewTabPage = false
@@ -191,6 +204,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     self.tabIndex = tabIndex
     tabOverlay = TabOverlay(isIncognito: isIncognito)
     newTabView = NewTabView(isIncognito: isIncognito)
+    otherNewTabView = NewTabView(isIncognito: isIncognito)
     let styleMask: NSWindow.StyleMask = [
       .titled, .closable, .miniaturizable, .resizable, .fullSizeContentView,
     ]
@@ -249,13 +263,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // A swipe moves the page within it, clear of DevTools.
     pageArea.layer?.masksToBounds = true
     contentArea.addSubview(pageArea)
-    historySwipe.place = { [weak self] view, above in
-      guard let self else {
-        return
-      }
-      self.contentArea.addSubview(
-        view, positioned: above ? .above : .below, relativeTo: self.pageArea)
-    }
 
     pageView.frame = pageArea.bounds
     pageView.autoresizingMask = [.width, .height]
@@ -266,6 +273,23 @@ final class BrowserWindowController: NSObject, FiberWindow {
     pageView.layer?.cornerCurve = .continuous
     pageArea.addSubview(pageView)
     updatePageCorners()
+
+    // The active tab's pane fills the page until there's a split (see
+    // layoutPanes()).
+    for pane in [activePane, otherPane] {
+      pane.frame = pageView.bounds
+      pane.autoresizingMask = [.width, .height]
+      pageView.addSubview(pane)
+    }
+    otherPane.isHidden = true
+    otherNewTabView.isHidden = true
+    otherNewTabView.onClick = { [weak self] in self?.selectOtherSplitTab() }
+    pageView.addSubview(otherNewTabView)
+    pageView.onResize = { [weak self] in
+      if self?.isSplitShown == true {
+        self?.layoutPanes()
+      }
+    }
 
     // Over the page (see setContentsView(_:)).
     newTabView.frame = pageView.bounds
@@ -279,6 +303,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
     sadTabView.onButton = { [weak self] in self?.actions?.pressSadTabButton() }
     sadTabView.onHelp = { [weak self] in self?.actions?.openSadTabHelp() }
     pageView.addSubview(sadTabView)
+    splitDivider.isHidden = true
+    splitDivider.onDrag = { [weak self] x, isDone in
+      self?.dragDivider(to: x, isDone: isDone)
+    }
+    splitDivider.onReset = { [weak self] in self?.actions?.setSplitRatio(0.5) }
+    pageView.addSubview(splitDivider)
 
     pageOverlay.frame = content.bounds
     pageOverlay.autoresizingMask = [.width, .height]
@@ -523,6 +553,27 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabOverlay.onMovePin = { [weak self] pinID, index in
       self?.actions?.movePin(withID: pinID, to: index)
     }
+    tabOverlay.onMoveTab = { [weak self] tabID, beforeTabID in
+      self?.actions?.moveTab(withID: tabID, beforeTabWithID: beforeTabID)
+    }
+    tabOverlay.onSplit = { [weak self] tabID, leftTabID in
+      self?.actions?.splitTab(withID: tabID, besideTabWithID: leftTabID)
+    }
+    tabOverlay.onSplitCopy = { [weak self] pinID, leftTabID in
+      self?.actions?.splitCopyOfPin(withID: pinID, besideTabWithID: leftTabID)
+    }
+    tabOverlay.onSplitMenu = { [weak self] event in
+      guard let self, let actions = self.actions, let split = self.split else {
+        return
+      }
+      let pinTabIDs = self.pins.map(\.tabID)
+        + self.shelfStates.flatMap(\.pages).map(\.tabID)
+      NSMenu.popUpContextMenu(
+        TabMenus.menu(
+          forSplitWithRightTabID: split.rightTabID,
+          canSwap: !pinTabIDs.contains(split.leftTabID), actions: actions),
+        with: event, for: self.tabOverlay)
+    }
     tabOverlay.onUnpin = { [weak self] pinID in
       self?.actions?.unpinPin(withID: pinID)
     }
@@ -610,7 +661,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     NSMenu.popUpContextMenu(
       TabMenus.menu(
-        for: page, on: shelf, shelves: shelfStates, actions: actions,
+        for: page, on: shelf, shelves: shelfStates,
+        splitLeftTabID: splitLeftTab(beside: nil), actions: actions,
         shelvesActions: shelvesActions),
       with: event, for: view)
   }
@@ -788,20 +840,17 @@ final class BrowserWindowController: NSObject, FiberWindow {
     madeOmnibar?.close()
     commandPalette?.close()
     historySwipe.reset()
-    contentsView?.removeFromSuperview()
-    contentsView = view
     pageLightness = nil
-    guard let view else {
-      return
+    if let view, view === otherPane.contents {
+      // The split's other tab, which the browser makes active as the user
+      // clicks into its page. Moved, the page would hide and show again.
+      (activePane, otherPane) = (otherPane, activePane)
+      placeOverPage()
+    } else {
+      activePane.setContents(view)
     }
-    // The window's controls float over the page.
-    view.frame = pageView.bounds
-    view.autoresizingMask = [.width, .height]
-    // Chrome hides a page made in the background (a ⌘-clicked link, a restored
-    // tab) until its host shows it; hidden, it never draws.
-    view.isHidden = false
-    pageView.addSubview(view, positioned: .below, relativeTo: newTabView)
-    if tabOverlay.isOpen {
+    contentsView = view
+    if view != nil, tabOverlay.isOpen {
       measurePageLightness()
     }
   }
@@ -874,6 +923,38 @@ final class BrowserWindowController: NSObject, FiberWindow {
     updatePromptBubbles(didSwitchTabs: didSwitchTabs)
   }
 
+  /// Comes with every change to the window's tabs, so it lays out again only
+  /// for a change to the split.
+  func setSplit(_ split: FiberSplit?) {
+    let previous = self.split
+    self.split = split
+    let pair = split.map {
+      SplitPair(leftTabID: $0.leftTabID, rightTabID: $0.rightTabID)
+    }
+    let previousPair = previous.map {
+      SplitPair(leftTabID: $0.leftTabID, rightTabID: $0.rightTabID)
+    }
+    if pair != previousPair {
+      tabOverlay.setSplit(pair)
+    }
+    let other = split?.otherView.flatMap { $0 === contentsView ? nil : $0 }
+    guard
+      other !== otherPane.contents || pair != previousPair
+        || split?.ratio != previous?.ratio
+        || split?.otherIsNewTabPage != previous?.otherIsNewTabPage
+    else {
+      return
+    }
+    if let split, !isDraggingDivider {
+      splitRatio = split.ratio
+    }
+    if (other == nil) != (otherPane.contents == nil) {
+      historySwipe.reset()
+    }
+    otherPane.setContents(other)
+    layoutPanes()
+  }
+
   /// Not while the veil's up, or the omnibar, command palette or tab overlay
   /// covers the page.
   func didOpenTab(withID tabID: Int, fromTabWithID openerTabID: Int) {
@@ -909,7 +990,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return
     }
     NSMenu.popUpContextMenu(
-      TabMenus.menu(for: pin, actions: actions), with: event, for: tabOverlay)
+      TabMenus.menu(
+        for: pin, splitLeftTabID: splitLeftTab(beside: nil),
+        actions: actions),
+      with: event, for: tabOverlay)
   }
 
   /// A pin's tab has its pin's menu, and a shelf page's its page's.
@@ -927,12 +1011,29 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     let menu =
       pins.first { $0.tabID == tabID }.map {
-        TabMenus.menu(for: $0, actions: actions)
+        TabMenus.menu(
+          for: $0, splitLeftTabID: splitLeftTab(beside: nil),
+          actions: actions)
       }
       ?? TabMenus.menu(
         forTabWithID: tabID, canPin: canPin, shelves: shelfStates,
-        actions: actions, shelvesActions: windowShelves.actions)
+        splitLeftTabID: splitLeftTab(beside: tabID), actions: actions,
+        shelvesActions: windowShelves.actions)
     NSMenu.popUpContextMenu(menu, with: event, for: view)
+  }
+
+  /// The tab `tabID` would go on the right of, or a pin's or shelf page's
+  /// copy for nil, unless it's there already.
+  private func splitLeftTab(beside tabID: Int?) -> Int? {
+    guard split?.rightTabID != tabID else {
+      return nil
+    }
+    return SplitPair.leftTab(
+      beside: tabID,
+      in: split.map {
+        SplitPair(leftTabID: $0.leftTabID, rightTabID: $0.rightTabID)
+      },
+      tabs: windowTabs, activeTabID: activeTabID)
   }
 
   func setLoading(_ loading: Bool, progress: Double) {
@@ -964,6 +1065,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       closeCommandPalette()
     }
     updateControls()
+    layoutPanes()
   }
 
   private func updateControls() {
@@ -1038,19 +1140,93 @@ final class BrowserWindowController: NSObject, FiberWindow {
         x: pageFrame.minX, y: bounds.maxY - pageFrame.maxY,
         width: pageFrame.width, height: pageFrame.height)
     }
-    let emulatesDevice = devTools?.emulatesDevice == true
     // As the window resizes, until DevTools says otherwise, it keeps its size,
     // and an emulated screen keeps its own.
-    let resizing: NSView.AutoresizingMask =
-      emulatesDevice ? [.maxXMargin, .minYMargin] : [.width, .height]
-    for view in [pageArea, pageOverlay] {
-      view.frame = frame
+    pageArea.frame = frame
+    pageArea.autoresizingMask =
+      devTools?.emulatesDevice == true
+      ? [.maxXMargin, .minYMargin] : [.width, .height]
+    placeOverPage()
+  }
+
+  // MARK: Split
+
+  /// Whether the split's other page shows beside the active one, which it
+  /// doesn't while a page is fullscreen.
+  private var isSplitShown: Bool {
+    otherPane.contents != nil && !isPageFullScreen
+  }
+
+  /// The active tab's page fills the page area, or shares it with the split's
+  /// other page, the divider between them.
+  private func layoutPanes() {
+    let isShown = isSplitShown
+    let bounds = pageView.bounds
+    var activeFrame = bounds
+    if isShown, let split {
+      let (left, right) = SplitLayout.frames(in: bounds, ratio: splitRatio)
+      let isActiveLeft = activeTabID != split.rightTabID
+      activeFrame = isActiveLeft ? left : right
+      otherPane.frame = isActiveLeft ? right : left
+      splitDivider.frame = NSRect(
+        x: left.maxX, y: bounds.minY, width: right.minX - left.maxX,
+        height: bounds.height)
+    }
+    otherPane.isHidden = !isShown
+    otherNewTabView.isHidden = !isShown || split?.otherIsNewTabPage != true
+    splitDivider.isHidden = !isShown
+    // Laid out afresh as the page area resizes (see pageView.onResize).
+    let resizing: NSView.AutoresizingMask = isShown ? [] : [.width, .height]
+    for view in [activePane, newTabView, sadTabView] {
+      view.frame = activeFrame
       view.autoresizingMask = resizing
     }
+    activePane.isRounded = isShown
+    otherPane.isRounded = true
+    placeOverPage()
+  }
+
+  /// The load progress, the status and the window's controls go over the
+  /// active page: all of the page area, or its side of a split.
+  private func placeOverPage() {
+    let emulatesDevice = devTools?.emulatesDevice == true
+    var frame = pageArea.frame
+    var resizing: NSView.AutoresizingMask =
+      emulatesDevice ? [.maxXMargin, .minYMargin] : [.width, .height]
+    if isSplitShown {
+      frame = activePane.frame.offsetBy(dx: frame.minX, dy: frame.minY)
+      resizing = []
+    }
+    // With their panes after a switch (see setContentsView(_:)).
+    newTabView.frame = activePane.frame
+    sadTabView.frame = activePane.frame
+    otherNewTabView.frame = otherPane.frame
+    pageOverlay.frame = frame
+    pageOverlay.autoresizingMask = resizing
     if !emulatesDevice {
       controlsView.frame = frame
+      controlsView.autoresizingMask = isSplitShown ? [] : [.width, .height]
       placeNotices(animated: false)
     }
+  }
+
+  private func dragDivider(to x: CGFloat, isDone: Bool) {
+    isDraggingDivider = !isDone
+    splitRatio = SplitLayout.ratio(forGapAt: x, in: pageView.bounds)
+    layoutPanes()
+    if isDone {
+      actions?.setSplitRatio(splitRatio)
+    }
+  }
+
+  /// The split's tab that isn't active, as clicking its page would.
+  private func selectOtherSplitTab() {
+    guard let split else {
+      return
+    }
+    actions?.selectTab(
+      withID: activeTabID == split.leftTabID
+        ? split.rightTabID : split.leftTabID)
   }
 
   /// Makes room for docked DevTools beside a page as big as the smallest
@@ -1375,6 +1551,12 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func beginHistorySwipe(
     in direction: FiberHistorySwipeDirection, snapshot: NSImage?
   ) {
+    // In a split, the page moves within its side.
+    if isSplitShown, let page = activePane.contents {
+      historySwipe.setPage(area: activePane, page: page)
+    } else {
+      historySwipe.setPage(area: pageArea, page: pageView)
+    }
     historySwipe.begin(direction: direction, snapshot: snapshot)
   }
 
@@ -1490,9 +1672,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
         bubble.firstResponderDidChange()
       }
     }
-    let pages = [contentsView, devTools?.view, extensionPopups].compactMap {
-      $0
-    }
+    let pages = [
+      contentsView, otherPane.contents, devTools?.view, extensionPopups,
+    ].compactMap { $0 }
     guard pages.contains(where: isFirstResponder(in:)) else {
       return
     }

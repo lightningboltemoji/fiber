@@ -44,6 +44,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var pinTabs: [String: MockTab] = [:]
   /// The profile's, which an Incognito window has none of.
   private var pins: MockPins? { isIncognito ? nil : app?.pins }
+  /// As Chrome keeps it, two adjacent tabs, the left first.
+  private var split: MockSplit?
   private var dialog: (any FiberJavaScriptDialog)?
   /// Each tab's prompt, by tab ID, and the window's.
   private var tabPrompts:
@@ -150,6 +152,61 @@ final class MockBrowser: NSObject, FiberWindowActions {
     activate(tab)
   }
 
+  /// Like Fiber, a tab that can be in a split but isn't goes on the left of
+  /// the window's, the right staying.
+  private func keepSplit(beside tab: MockTab) {
+    guard let kept = split?.right, split?.contains(tab) == false else {
+      return
+    }
+    split?.left = tab
+    tabs.removeAll { $0 === kept }
+    tabs.insert(kept, at: tabs.firstIndex(of: tab)! + 1)
+  }
+
+  /// For a split's right tab whose left has gone, as Fiber does: the tab
+  /// after it, or before it, or after a pin's, the one used last.
+  private func left(inPlaceOf right: MockTab, afterPin: Bool) -> MockTab? {
+    let index = tabs.firstIndex(of: right)!
+    let free = { (tab: MockTab) in tab !== right && !self.isPinTab(tab) }
+    for neighbor in afterPin ? [] : [index + 1, index - 1]
+    where tabs.indices.contains(neighbor) && free(tabs[neighbor]) {
+      return tabs[neighbor]
+    }
+    return tabs.filter(free).max { $0.lastActive < $1.lastActive }
+  }
+
+  /// The split's left tab closed: its right stays, beside another.
+  private func replaceSplitLeft() {
+    guard let split,
+      let left = left(inPlaceOf: split.right, afterPin: isPinTab(split.left))
+    else {
+      self.split = nil
+      return
+    }
+    self.split?.left = left
+    tabs.removeAll { $0 === split.right }
+    tabs.insert(split.right, at: tabs.firstIndex(of: left)! + 1)
+  }
+
+  /// The split's tab that isn't active took the keyboard, as clicking its
+  /// page does.
+  func pageDidTakeFocus(_ page: MockPageView) {
+    DispatchQueue.main.async { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, let split = self.split,
+          split.contains(self.activeTab),
+          let tab = [split.left, split.right].first(where: {
+            $0.page === page
+          }),
+          tab !== self.activeTab
+        else {
+          return
+        }
+        self.activate(tab)
+      }
+    }
+  }
+
   func restore(_ restorableID: String, showingPageAt pageIndex: Int) {
     app?.restore(restorableID, showingPageAt: pageIndex)
   }
@@ -193,6 +250,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
       return
     }
     let id = pins.add(url: tab.url, title: tab.page.title)
+    leaveSplit(tab)
     pinTabs[id] = tab
     pinsDidChange()
   }
@@ -231,6 +289,97 @@ final class MockBrowser: NSObject, FiberWindowActions {
     pins?.move(pinID, to: index)
   }
 
+  /// A split's right tab being pinned leaves it, as a pin's is never there.
+  /// Its left stays, its pin's tab now.
+  private func leaveSplit(_ tab: MockTab) {
+    if split?.right === tab {
+      split = nil
+    }
+  }
+
+  func splitCopyOfPin(withID pinID: String, besideTabWithID leftTabID: Int) {
+    guard let pin = pins?.pin(withID: pinID) else {
+      return
+    }
+    // A copy of its tab, history and all, or its page anew.
+    let copy = MockTab()
+    copy.page.browser = self
+    if let tab = pinTabs[pinID] {
+      copy.history = tab.history
+      copy.index = tab.index
+    } else {
+      copy.history = [pin.url]
+      copy.index = 0
+    }
+    tabs.append(copy)
+    startLoading(copy)
+    splitTab(withID: copy.id, besideTabWithID: leftTabID)
+  }
+
+  func moveTab(withID tabID: Int, beforeTabWithID beforeTabID: Int) {
+    guard let tab = tabs.first(where: { $0.id == tabID }), !isPinTab(tab)
+    else {
+      return
+    }
+    let moving =
+      split.flatMap { $0.contains(tab) ? [$0.left, $0.right] : nil } ?? [tab]
+    var before = tabs.first { $0.id == beforeTabID }
+    if let split, before === split.right {
+      before = split.left
+    }
+    if let before, moving.contains(before) {
+      return
+    }
+    tabs.removeAll { moving.contains($0) }
+    tabs.insert(
+      contentsOf: moving,
+      at: before.flatMap { tabs.firstIndex(of: $0) } ?? tabs.count)
+    pushTabs()
+  }
+
+  func splitTab(withID tabID: Int, besideTabWithID leftTabID: Int) {
+    guard let right = tabs.first(where: { $0.id == tabID }),
+      let left = tabs.first(where: { $0.id == leftTabID }), right !== left,
+      !isPinTab(right)
+    else {
+      return
+    }
+    split = MockSplit(left: left, right: right, ratio: split?.ratio ?? 0.5)
+    tabs.removeAll { $0 === right }
+    tabs.insert(right, at: tabs.firstIndex(of: left)! + 1)
+    if activeTab !== left && activeTab !== right {
+      activate(left)
+    } else {
+      pushTabs()
+    }
+  }
+
+  func endSplit() {
+    // Beside a pin, its right tab goes back first among the ordinary tabs.
+    if let split, isPinTab(split.left) {
+      tabs.removeAll { $0 === split.right }
+      tabs.insert(split.right, at: tabs.filter(isPinTab).count)
+    }
+    split = nil
+    pushTabs()
+  }
+
+  func reverseSplit() {
+    guard let split, !isPinTab(split.left) else {
+      return
+    }
+    self.split = MockSplit(
+      left: split.right, right: split.left, ratio: split.ratio)
+    tabs.removeAll { $0 === split.left }
+    tabs.insert(split.left, at: tabs.firstIndex(of: split.right)! + 1)
+    pushTabs()
+  }
+
+  func setSplitRatio(_ ratio: Double) {
+    split?.ratio = min(max(ratio, 0), 1)
+    pushTabs()
+  }
+
   /// The pins changed, here or in another window: tabs of pins that are
   /// gone stay, as ordinary tabs, and the rest keep the pins' order.
   func pinsDidChange() {
@@ -238,7 +387,11 @@ final class MockBrowser: NSObject, FiberWindowActions {
       return
     }
     pinTabs = pinTabs.filter { pins.pin(withID: $0.key) != nil }
-    let pinned = pins.pins.compactMap { pinTabs[$0.id] }
+    var pinned = pins.pins.compactMap { pinTabs[$0.id] }
+    // The split's right tab stays beside a pin's on its left.
+    if let split, let host = pinned.firstIndex(of: split.left) {
+      pinned.insert(split.right, at: host + 1)
+    }
     tabs = pinned + tabs.filter { !pinned.contains($0) }
     if activeTab != nil {
       pushTabs()
@@ -334,17 +487,23 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   /// Like Fiber, Command-1 to Command-8 (the menu item's tag, from 0) go to
-  /// that tab, not counting pins', and Command-9 (-1) to the last.
+  /// that tab, not counting pins' or the split's right, and Command-9 (-1) to
+  /// the last.
   @objc func selectNumberedTab(_ sender: NSMenuItem) {
-    let unpinned = tabs.filter { !isPinTab($0) }
+    let unpinned = keyboardTabs
     let index = sender.tag < 0 ? unpinned.count - 1 : sender.tag
     if unpinned.indices.contains(index) {
       activate(unpinned[index])
     }
   }
 
-  /// Like Fiber, through the tabs that aren't pins', round from the last to
-  /// the first. From a pin's tab, the next is the first.
+  private var keyboardTabs: [MockTab] {
+    tabs.filter { !isPinTab($0) && $0 !== split?.right }
+  }
+
+  /// Like Fiber, through the tabs that aren't pins' or the split's right,
+  /// round from the last to the first. From a pin's tab, the next is the
+  /// first; from the split's right, it counts from its left.
   @objc func selectNextTab(_ sender: Any?) {
     selectTab(by: 1)
   }
@@ -354,12 +513,13 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   private func selectTab(by step: Int) {
-    let unpinned = tabs.filter { !isPinTab($0) }
+    let unpinned = keyboardTabs
     guard !unpinned.isEmpty else {
       return
     }
+    let from = activeTab === split?.right ? split?.left : activeTab
     let index =
-      unpinned.firstIndex { $0 === activeTab } ?? (step > 0 ? -1 : 0)
+      unpinned.firstIndex { $0 === from } ?? (step > 0 ? -1 : 0)
     activate(unpinned[(index + step + unpinned.count) % unpinned.count])
   }
 
@@ -408,6 +568,20 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   // MARK: Harness controls
+
+  /// Shows the tab after the active one on its right, as dropping it on the
+  /// tab overlay's split spot does.
+  func splitNextTab() {
+    let others = tabs.filter { !isPinTab($0) && $0 !== activeTab }
+    guard !isPinTab(activeTab),
+      let next = others.first(where: {
+        tabs.firstIndex(of: $0)! > tabs.firstIndex(of: activeTab)!
+      }) ?? others.first
+    else {
+      return
+    }
+    splitTab(withID: next.id, besideTabWithID: activeTab.id)
+  }
 
   /// Opens made-up sites, or closes tabs from the end, until there are
   /// `count`.
@@ -566,8 +740,12 @@ final class MockBrowser: NSObject, FiberWindowActions {
     tab.page.browser = self
     tab.history = [url]
     tab.index = 0
-    // Next to the active tab, as Chrome opens tabs from links.
-    let index = activeTab.flatMap { tabs.firstIndex(of: $0) } ?? tabs.count - 1
+    // Next to the active tab, as Chrome opens tabs from links, but after its
+    // split.
+    var index = activeTab.flatMap { tabs.firstIndex(of: $0) } ?? tabs.count - 1
+    if let split, activeTab === split.left {
+      index += 1
+    }
     tabs.insert(tab, at: index + 1)
     if activate || activeTab == nil {
       self.activate(tab)
@@ -585,7 +763,9 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
   private func activate(_ tab: MockTab) {
+    keepSplit(beside: tab)
     guard tab !== activeTab else {
+      pushTabs()
       return
     }
     // Switching tabs dismisses the page's dialog, as in Chrome.
@@ -611,13 +791,18 @@ final class MockBrowser: NSObject, FiberWindowActions {
     let wasPin = isPinTab(tab)
     tab.loadTimer?.invalidate()
     tabs.remove(at: index)
+    if split?.right === tab {
+      split = nil
+    } else if split?.left === tab {
+      replaceSplitLeft()
+    }
     pinTabs = pinTabs.filter { $0.value !== tab }
     guard !tabs.isEmpty else {
       close()
       return
     }
     if tab === activeTab {
-      activate(nextTab(afterClosingPin: wasPin, at: index))
+      activate(split?.left ?? nextTab(afterClosingPin: wasPin, at: index))
     } else {
       pushTabs()
     }
@@ -863,6 +1048,16 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   private func pushTabs() {
     ui.setTabs(tabStates, activeTabID: activeTab.id)
+    ui.setSplit(
+      split.map { split in
+        let other =
+          activeTab === split.left
+          ? split.right : activeTab === split.right ? split.left : nil
+        return FiberSplit(
+          leftTabID: split.left.id, rightTabID: split.right.id,
+          ratio: split.ratio, otherView: other?.page,
+          otherIsNewTabPage: other?.url == Self.newTabURL)
+      })
     if let pins {
       ui.setPins(pins.pins(on: nil).map(pinState))
       ui.shelves.setShelves(
@@ -920,6 +1115,18 @@ final class MockBrowser: NSObject, FiberWindowActions {
     extensions.stop()
     ui.window.close()
     app?.browserDidClose(self)
+  }
+}
+
+/// A window's split, as Chrome keeps it.
+@MainActor
+private struct MockSplit {
+  var left: MockTab
+  var right: MockTab
+  var ratio: Double
+
+  func contains(_ tab: MockTab) -> Bool {
+    tab === left || tab === right
   }
 }
 
@@ -1017,6 +1224,7 @@ extension MockBrowser: FiberShelvesActions {
       pins.moveToShelf(pinID, shelfID)
       return
     }
+    leaveSplit(tab)
     let id = pins.makeID()
     pinTabs[id] = tab
     pins.add(url: tab.url, title: tab.page.title, shelfID: shelfID, id: id)

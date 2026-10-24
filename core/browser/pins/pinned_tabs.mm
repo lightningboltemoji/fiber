@@ -10,12 +10,17 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/uuid.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/url_formatter/url_formatter.h"
 #include "content/public/browser/navigation_controller.h"
@@ -223,11 +228,23 @@ void PinnedTabs::Show(std::string_view pin_id) {
 }
 
 void PinnedTabs::PinTab(int32_t tab_id) {
-  const int index = model()->GetIndexOfTab(tabs::TabHandle(tab_id).Get());
-  if (index != TabStripModel::kNoTab) {
-    // OnTabPinnedStateChanged() makes it a new pin's.
-    model()->SetTabPinned(index, true);
+  tabs::TabInterface* tab = tabs::TabHandle(tab_id).Get();
+  const int index = model()->GetIndexOfTab(tab);
+  if (index == TabStripModel::kNoTab) {
+    return;
   }
+  // Pinned already, beside a pin: it becomes a pin of its own, which is never
+  // on a split's right.
+  if (IsBesidePin(tab->GetContents())) {
+    SetBesidePin(tab->GetContents(), false);
+    if (std::optional<split_tabs::SplitTabId> split = tab->GetSplit()) {
+      model()->RemoveSplit(*split);
+    }
+    Adopt(tab);
+    return;
+  }
+  // OnTabPinnedStateChanged() makes it a new pin's.
+  model()->SetTabPinned(index, true);
 }
 
 void PinnedTabs::Open(std::string_view pin_id) {
@@ -242,13 +259,17 @@ void PinnedTabs::Open(std::string_view pin_id) {
   if (!pin_index) {
     return;
   }
-  // After the tabs of the pins before it.
+  // After the tabs of the pins before it, and a tab beside one of them.
   int index = 0;
   for (int i = 0; i < model->IndexOfFirstNonPinnedTab(); ++i) {
     const Pin* pin = PinForTab(model->GetTabAtIndex(i));
     if (pin && store_->IndexOf(pin->id) < pin_index) {
       index = i + 1;
     }
+  }
+  while (index < model->IndexOfFirstNonPinnedTab() &&
+         IsBesidePin(model->GetWebContentsAt(index))) {
+    ++index;
   }
   NavigateParams params(browser_, store_->pins()[*pin_index].url,
                         ui::PAGE_TRANSITION_AUTO_BOOKMARK);
@@ -289,6 +310,32 @@ void PinnedTabs::Unpin(std::string_view pin_id) {
 
 void PinnedTabs::Move(std::string_view pin_id, size_t index) {
   store_->Move(pin_id, index);
+}
+
+tabs::TabInterface* PinnedTabs::OpenCopy(std::string_view pin_id) {
+  const Pin* pin = store_->Find(pin_id);
+  if (!pin) {
+    return nullptr;
+  }
+  TabStripModel* model = this->model();
+  tabs::TabInterface* tab = TabForPin(pin_id);
+  if (!tab) {
+    content::WebContents* contents =
+        chrome::AddAndReturnTabAt(browser_, pin->url, -1, /*foreground=*/false);
+    return contents ? tabs::TabInterface::MaybeGetFromContents(contents)
+                    : nullptr;
+  }
+  // Not chrome::DuplicateTabAt(), whose copy of a pinned tab is pinned, and
+  // so a new pin's.
+  std::unique_ptr<content::WebContents> clone = tab->GetContents()->Clone();
+  content::WebContents* contents = clone.get();
+  model->InsertWebContentsAt(model->count(), std::move(clone),
+                             AddTabTypes::ADD_NONE);
+  if (SessionService* session = SessionServiceFactory::GetForProfileIfExisting(
+          browser_->GetProfile())) {
+    session->TabRestored(contents, /*pinned=*/false);
+  }
+  return tabs::TabInterface::MaybeGetFromContents(contents);
 }
 
 std::string PinnedTabs::AddShelf(const std::u16string& name) {
@@ -372,6 +419,8 @@ void PinnedTabs::OnTabStripModelChanged(
       if (!pin_id.empty()) {
         SetPinIDForTab(replace->new_contents, pin_id);
       }
+      SetBesidePin(replace->new_contents,
+                   IsBesidePin(replace->old_contents));
       break;
     }
     case TabStripModelChange::kMoved:
@@ -395,10 +444,13 @@ void PinnedTabs::OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) {
   content::WebContents* contents = tab->GetContents();
   const std::string pin_id = PinIDForTab(contents);
   if (tab->IsPinned()) {
-    if (pin_id.empty()) {
+    if (pin_id.empty() && !IsBesidePin(contents)) {
       Adopt(tab);
     }
-  } else if (!pin_id.empty()) {
+    return;
+  }
+  SetBesidePin(contents, false);
+  if (!pin_id.empty()) {
     SetPinIDForTab(contents, std::string());
     store_->Remove(pin_id);
   }
@@ -461,7 +513,10 @@ void PinnedTabs::TabInserted(tabs::TabInterface* tab) {
     pin_id = opening_pin_id_;
   }
   if (pin_id.empty()) {
-    Adopt(tab);
+    // A restored tab beside a pin, which Chrome restores in its split after.
+    if (!IsBesidePin(contents)) {
+      Adopt(tab);
+    }
     return;
   }
   // A restored tab whose pin is gone, or whose pin is open here already.
@@ -552,17 +607,26 @@ void PinnedTabs::Arrange() {
       model->SetTabPinned(index, false);
     }
   }
-  std::vector<tabs::TabInterface*> ordered;
+  // From the first place on, each pin's tab, with the tab beside it if it's
+  // in a split, which moves with it.
+  int place = 0;
   for (const Pin& pin : store_->pins()) {
-    if (tabs::TabInterface* tab = TabForPin(pin.id)) {
-      ordered.push_back(tab);
+    tabs::TabInterface* tab = TabForPin(pin.id);
+    if (!tab) {
+      continue;
     }
-  }
-  for (size_t i = 0; i < ordered.size(); ++i) {
-    const int index = model->GetIndexOfTab(ordered[i]);
-    if (index != static_cast<int>(i)) {
-      model->MoveWebContentsAt(index, i, /*select_after_move=*/false);
+    const int index = model->GetIndexOfTab(tab);
+    if (std::optional<split_tabs::SplitTabId> split = tab->GetSplit()) {
+      if (index != place) {
+        model->MoveSplitTo(*split, place, /*pinned=*/true, std::nullopt);
+      }
+      place += 2;
+      continue;
     }
+    if (index != place) {
+      model->MoveWebContentsAt(index, place, /*select_after_move=*/false);
+    }
+    ++place;
   }
 }
 

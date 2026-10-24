@@ -8,6 +8,8 @@
 // `--pins N` (made-up pinned sites, the first two open, the first away from
 // its pinned page),
 // `--shelves N` (made-up shelves, Later's and Research's first pages open),
+// `--split` (the active tab on the left of a split, the next tab on its
+// right),
 // `--restorables N` (N made-up closed windows and earlier sessions, for the
 // command palette),
 // `--overlay` (the tab overlay, as Command-S opens it),
@@ -96,6 +98,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
           browsers.last?.navigate(toInput: "fiber.example/about", event: nil)
         }
       }
+    }
+    if CommandLine.arguments.contains("--split"), let browser = browsers.last {
+      browser.splitNextTab()
     }
     NSApp.activate()
     if DemoSites.isEnabled {

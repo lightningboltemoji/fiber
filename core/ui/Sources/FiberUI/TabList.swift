@@ -159,8 +159,10 @@ struct TabList: View {
   let activeRowID: TabListRow.ID?
   let highlightedRowID: TabListRow.ID?
   let closeButton: TabCloseButton?
-  /// A row lifted off the list, being dragged.
+  /// A row being dragged: dimmed in its place while it's off the list, and
+  /// while it's within it, lifted with its top here, from the list's.
   var draggedRowID: TabListRow.ID?
+  var liftedRowTop: CGFloat?
   /// For accessibility, which presses a row to select it.
   let onSelect: (TabListRow.ID) -> Void
   /// For accessibility, which closes a row's tab without its button showing.
@@ -169,12 +171,21 @@ struct TabList: View {
   var body: some View {
     VStack(spacing: TabListLayout.rowSpacing) {
       ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+        let isDragged = row.id == draggedRowID
+        let lift = isDragged ? liftedRowTop.map { $0 - rowTop(index) } : nil
         TabRow(
           row: row, showsURL: showsURL, number: index + 1,
           showsNumber: showsNumbers, isActive: row.id == activeRowID,
           closeButton: closeButton?.rowID == row.id ? closeButton : nil
         )
-        .opacity(row.id == draggedRowID ? 0.3 : 1)
+        .background {
+          if lift != nil {
+            LiftedRowBackground()
+          }
+        }
+        .offset(y: lift ?? 0)
+        .zIndex(lift != nil ? 1 : 0)
+        .opacity(isDragged && lift == nil ? 0.3 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(
           row.id == activeRowID ? [.isButton, .isSelected] : .isButton
@@ -187,6 +198,13 @@ struct TabList: View {
     }
     .padding(TabListLayout.contentInset)
     .background(alignment: .topLeading) { highlight }
+    // The others make room where a lifted row would drop.
+    .animation(
+      .spring(duration: 0.25, bounce: 0.1).slowMotion, value: rows.map(\.id))
+  }
+
+  private func rowTop(_ index: Int) -> CGFloat {
+    TabListLayout.contentInset + CGFloat(index) * TabListLayout.rowStep
   }
 
   @ViewBuilder private var highlight: some View {
@@ -201,6 +219,15 @@ struct TabList: View {
           y: TabListLayout.contentInset + CGFloat(row) * TabListLayout.rowStep)
         .animation(.spring(duration: 0.22, bounce: 0.15).slowMotion, value: row)
     }
+  }
+}
+
+/// Under a row lifted to a new place, like the highlight but raised.
+private struct LiftedRowBackground: View {
+  var body: some View {
+    RoundedRectangle(cornerRadius: 12, style: .continuous)
+      .fill(Color.primary.opacity(0.14))
+      .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
   }
 }
 
