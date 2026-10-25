@@ -30,7 +30,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// The glass capsule behind the traffic lights extends this far past them,
   /// rim included.
   fileprivate static let windowControlsPadding = NSSize(width: 14, height: 13)
-  private static let windowControlsRimWidth: CGFloat = 5
   /// Where the traffic lights go: their capsule's top-left corner sits
   /// `edgeInset` from the window's.
   fileprivate static let windowControlsLayout = WindowFrame.Layout(
@@ -66,8 +65,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// In the opened-tab notice's place, but over the omnibar, which a New Tab
   /// page opens, and everything else but the veil.
   private let closeWindowNotice = CloseWindowNotice()
-  /// Toggled with Command-S. Over everything but the traffic lights' capsule
-  /// and the veil, one at a time with the omnibar and the command palette.
+  /// Toggled with Command-S. Over everything but the window controls bar and
+  /// the veil, one at a time with the omnibar and the command palette.
   fileprivate let tabOverlay: TabOverlay
   /// Under the tab overlay, the omnibar and the command palette.
   private let panelDimming = PanelDimming()
@@ -185,8 +184,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// What the window asks, over whichever tab is active.
   private var windowBubble: PromptBubble?
   private weak var responderBeforeVeilContent: NSResponder?
-  private let windowControlsBackground = RimmedGlassView(
-    rimWidth: BrowserWindowController.windowControlsRimWidth)
+  private let windowControlsBar = WindowControlsBar()
   /// Set while a page is fullscreen (a video, say), which shows alone.
   private var isPageFullScreen = false
   /// The tab overlay hides while a page is fullscreen, and while DevTools
@@ -236,8 +234,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
     // Pages under the title bar get its clicks and don't move the window
-    // (patches/chromium/content-app_shim_remote_cocoa-…); only the capsules
-    // do. BrowserWindow moves the traffic lights (see windowControlsLayout).
+    // (patches/chromium/content-app_shim_remote_cocoa-…); only the window
+    // controls bar does. BrowserWindow moves the traffic lights (see
+    // windowControlsLayout).
     window.collectionBehavior.insert(.fullScreenPrimary)
     // Fiber has its own tabs; keep AppKit from merging windows.
     window.tabbingMode = .disallowed
@@ -487,14 +486,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   private func extensionPopupsKeepClear() -> [NSRect] {
-    guard showsWindowControlsBackground else {
+    guard showsWindowControlsBar else {
       return []
     }
-    return [
-      extensionPopups.convert(
-        windowControlsBackground.frame,
-        from: windowControlsBackground.superview)
-    ]
+    let capsule = windowControlsBar.capsule
+    return [extensionPopups.convert(capsule.frame, from: capsule.superview)]
   }
 
   /// In the controls' top-right corner, below the find bar while it's open.
@@ -775,9 +771,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
       .compactMap { window.standardWindowButton($0) }
   }
 
-  /// Puts a glass capsule behind the traffic lights, which stay in the title
-  /// bar above it, over the tab overlay's dimming. Dragging the capsule moves
-  /// the window.
+  /// Puts the window controls bar around the traffic lights, over the tab
+  /// overlay, whose dimming shows through it.
   private func configureWindowControls() {
     // Where AppKit put the traffic lights, in the content view's coordinates.
     window.layoutIfNeeded()
@@ -787,26 +782,26 @@ final class BrowserWindowController: NSObject, FiberWindow {
     guard !buttonsFrame.isNull else {
       return
     }
-    let frame = buttonsFrame.insetBy(
-      dx: -Self.windowControlsPadding.width,
-      dy: -Self.windowControlsPadding.height)
-    windowControlsBackground.frame = frame
-    windowControlsBackground.cornerRadius = frame.height / 2
-    windowControlsBackground.contentView = WindowDragArea()
-    windowControlsBackground.autoresizingMask = [.maxXMargin, .minYMargin]
-    window.contentView!.addSubview(windowControlsBackground)
+    let content = window.contentView!
+    windowControlsBar.place(
+      in: content.bounds, aroundButtons: buttonsFrame,
+      padding: Self.windowControlsPadding)
+    windowControlsBar.autoresizingMask = [.width, .minYMargin]
+    windowControlsBar.underlyingView = tabOverlay
+    content.addSubview(windowControlsBar)
   }
 
-  /// The traffic lights and their capsule show with the tab overlay. While
-  /// the window is fullscreen, AppKit shows the traffic lights with the menu
-  /// bar, without the capsule.
+  /// The traffic lights and their bar show with the tab overlay. While the
+  /// window is fullscreen, AppKit shows the traffic lights with the menu bar,
+  /// without the bar.
   private func updateWindowControls(animated: Bool) {
     let showsButtons =
       tabOverlay.isOpen || window.styleMask.contains(.fullScreen)
-    let showsBackground = showsWindowControlsBackground
+    let showsBar = showsWindowControlsBar
+    windowControlsBar.isShown = showsBar
     // Faded out, they'd still take clicks meant for the page; they're hidden
     // once the fade ends.
-    let views = windowControlButtons + [windowControlsBackground]
+    let views = windowControlButtons + [windowControlsBar]
     for view in views where view.alphaValue == 0 {
       view.isHidden = false
     }
@@ -815,7 +810,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       for button in windowControlButtons {
         button.animator().alphaValue = showsButtons ? 1 : 0
       }
-      windowControlsBackground.animator().alphaValue = showsBackground ? 1 : 0
+      windowControlsBar.animator().alphaValue = showsBar ? 1 : 0
     } completionHandler: {
       MainActor.assumeIsolated {
         for view in views {
@@ -825,7 +820,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
   }
 
-  private var showsWindowControlsBackground: Bool {
+  private var showsWindowControlsBar: Bool {
     tabOverlay.isOpen && !window.styleMask.contains(.fullScreen)
   }
 
