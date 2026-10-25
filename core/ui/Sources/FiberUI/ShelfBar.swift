@@ -13,8 +13,9 @@ enum ShelfBarLayout {
   static let titleInset: CGFloat = 13
   /// While renaming, the least a segment's field has to type in.
   static let minFieldWidth: CGFloat = 60
-  /// Between the bar's button and the downloads.
-  static let downloadsClearance: CGFloat = 24
+  /// Between the bar's button and what ends the row after it: the downloads,
+  /// or the split's spot.
+  static let endClearance: CGFloat = 24
   /// How far in from a scrolled edge segments fade out.
   static let fadeWidth: CGFloat = 18
   /// While a row's dragged to it, how far above and below the bar it still
@@ -552,9 +553,9 @@ struct ShelfBarView: View {
         model.undoName.map { "Undo Delete \($0)" } ?? "New Shelf")
     }
     .animation(
-      .spring(duration: 0.3, bounce: 0).slowMotion, value: model.segmentWidths)
+      TabOverlayMotion.layoutAnimation.slowMotion, value: model.segmentWidths)
     .animation(
-      .spring(duration: 0.3, bounce: 0).slowMotion, value: model.barFrame)
+      TabOverlayMotion.layoutAnimation.slowMotion, value: model.barFrame)
     .animation(.easeOut(duration: 0.15).slowMotion, value: model.hoveredPart)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }

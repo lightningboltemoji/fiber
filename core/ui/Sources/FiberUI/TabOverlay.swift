@@ -262,10 +262,12 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     if downloadsBubble.isShown {
       onDownloadsShown()
     }
-    // On the active tab's list, which it shows as it fades in.
+    // Laid out afresh, on the active tab's list, which it shows as it fades
+    // in.
     var transaction = Transaction(animation: nil)
     transaction.disablesAnimations = true
     withTransaction(transaction) {
+      hold = nil
       shelfBar.select(segment(ofTabWithID: model.activeTabID), animated: false)
       updateListedTabs()
     }
@@ -275,8 +277,6 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     model.showsNumbers = Self.isOptionOnly(NSEvent.modifierFlags)
     optionDidChange(isHeld: model.showsNumbers)
     restingPointer = NSEvent.mouseLocation
-    hold = nil
-    layoutPanel()
     revealSelection(animated: false)
     isHidden = false
     model.isOpen = true
@@ -1041,17 +1041,32 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     shelfBar.frame = bounds
     dragHostingView.frame = bounds
     hold = nil
-    layoutPanel(animated: false)
+    layoutPanel()
+  }
+
+  /// Lays the overlay out (see placeEverything). While it shows, everything
+  /// moves to the new layout together (see TabOverlayMotion.layoutAnimation).
+  private func layoutPanel() {
+    guard bounds.width > 0 else {
+      return
+    }
+    guard isOpen, !isHidden else {
+      var transaction = Transaction(animation: nil)
+      transaction.disablesAnimations = true
+      withTransaction(transaction) {
+        placeEverything(animated: false)
+      }
+      return
+    }
+    placeEverything(animated: true)
   }
 
   /// The panel as wide as the command palette's, as tall as fits, with what's
   /// above and below it a little above the window's middle; the address and
-  /// extensions to its left (or above if narrow), the split's spot to its
-  /// right (or above, at the end, if narrower), the downloads under it.
-  private func layoutPanel(animated: Bool = true) {
-    guard bounds.width > 0 else {
-      return
-    }
+  /// extensions to its left and the split's spot to its right, or if narrow,
+  /// the address and extensions above it and the spot at the end of the row
+  /// under it, with the shelves and downloads.
+  private func placeEverything(animated: Bool) {
     let (x, width, _) = PaletteView.panelPlacement(in: bounds.size)
     let height = GlassCapsule.height
     let padding = 2 * (GlassCapsule.rimWidth + GlassCapsule.endInset)
@@ -1062,16 +1077,19 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     let isBeside =
       columnEnd - max(addressWidth, extensionsWidth) >= Self.bubbleMargin
     let spot = SplitSpotLayout.diameter
+    // Beside the panel only while the address and extensions are, so they all
+    // switch layouts together.
     let isSpotBeside =
-      bounds.width - (x + width + Self.bubbleSpacing + spot)
-      >= Self.bubbleMargin
+      isBeside
+      && bounds.width - (x + width + Self.bubbleSpacing + spot)
+        >= Self.bubbleMargin
     let pinsHeight = model.pinsHeight(width: width)
     let above = pinsHeight + (isBeside ? 0 : height + Self.bubbleSpacing)
     let footerHeight = TabOverlayModel.footerHeight
+    let hasRowBelow = downloadsBubble.isShown || hasShelves || !isSpotBeside
     let below =
       footerHeight
-      + (downloadsBubble.isShown || hasShelves
-        ? DownloadsLayout.spacing + GlassCapsule.height : 0)
+      + (hasRowBelow ? DownloadsLayout.spacing + GlassCapsule.height : 0)
     let highest = PaletteView.minTop + above
     var listHeight = min(
       model.listContentHeight,
@@ -1094,43 +1112,6 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
         hold = .top(top)
       }
     }
-    model.areBubblesBeside = isBeside
-    if isBeside {
-      addressBubble.frame = NSRect(
-        x: columnEnd - addressWidth, y: top, width: addressWidth,
-        height: height)
-      extensionsBubble.frame = NSRect(
-        x: columnEnd - extensionsWidth,
-        y: top + height + GlassCapsule.spacing, width: extensionsWidth,
-        height: height)
-    } else {
-      let spotRoom = isSpotBeside ? 0 : spot + GlassCapsule.spacing
-      addressWidth = max(
-        min(
-          addressWidth,
-          width - extensionsWidth - GlassCapsule.spacing - spotRoom),
-        0)
-      addressBubble.frame = NSRect(
-        x: x, y: top - above, width: addressWidth, height: height)
-      extensionsBubble.frame = NSRect(
-        x: x + addressWidth + GlassCapsule.spacing, y: top - above,
-        width: extensionsWidth, height: height)
-    }
-    let bubbleFrames = [addressBubble.frame, extensionsBubble.frame]
-    if bubbleFrames != model.bubbleFrames {
-      model.bubbleFrames = bubbleFrames
-    }
-    // Level with the panel's top, or else at the end of the address's row
-    // above it.
-    let spotTop = isSpotBeside ? top : top - above
-    let spotFrame = CGRect(
-      x: isSpotBeside ? x + width + Self.bubbleSpacing : x + width - spot,
-      y: spotTop + (height - spot) / 2, width: spot, height: spot)
-    if spotFrame != model.splitSpotFrame {
-      model.splitSpotFrame = spotFrame
-      updatePinToolTips()
-    }
-
     let frame = CGRect(
       x: x, y: top, width: width, height: footerHeight + listHeight)
     if frame != model.panelFrame {
@@ -1138,26 +1119,77 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       updatePinToolTips()
     }
     setScrollOffset(clamp(model.scrollOffset, to: model.scrollRange))
-    let downloadsWidth = min(downloadsBubble.capsuleWidth, width)
+
+    model.areBubblesBeside = isBeside
+    let addressFrame: CGRect
+    let extensionsFrame: CGRect
+    if isBeside {
+      addressFrame = CGRect(
+        x: columnEnd - addressWidth, y: top, width: addressWidth,
+        height: height)
+      extensionsFrame = CGRect(
+        x: columnEnd - extensionsWidth,
+        y: top + height + GlassCapsule.spacing, width: extensionsWidth,
+        height: height)
+    } else {
+      addressWidth = max(
+        min(addressWidth, width - extensionsWidth - GlassCapsule.spacing), 0)
+      addressFrame = CGRect(
+        x: x, y: top - above, width: addressWidth, height: height)
+      extensionsFrame = CGRect(
+        x: x + addressWidth + GlassCapsule.spacing, y: top - above,
+        width: extensionsWidth, height: height)
+    }
+    for (bubble, frame) in [
+      (addressBubble, addressFrame), (extensionsBubble, extensionsFrame),
+    ] {
+      move(bubble, to: frame, trailing: isBeside, animated: animated)
+    }
+    let bubbleFrames = [addressFrame, extensionsFrame]
+    if bubbleFrames != model.bubbleFrames {
+      model.bubbleFrames = bubbleFrames
+    }
+
+    // Level with the panel's top, or else at the end of the row under it,
+    // after the downloads.
+    let rowTop = frame.maxY + DownloadsLayout.spacing
+    let spotFrame = CGRect(
+      x: isSpotBeside ? frame.maxX + Self.bubbleSpacing : frame.maxX - spot,
+      y: (isSpotBeside ? top : rowTop) + (height - spot) / 2, width: spot,
+      height: spot)
+    if isSpotBeside != model.isSplitSpotBeside {
+      model.isSplitSpotBeside = isSpotBeside
+    }
+    if spotFrame != model.splitSpotFrame {
+      model.splitSpotFrame = spotFrame
+      updatePinToolTips()
+    }
+    let downloadsEnd =
+      isSpotBeside ? frame.maxX : spotFrame.minX - GlassCapsule.spacing
+    let downloadsWidth = min(
+      downloadsBubble.capsuleWidth, downloadsEnd - frame.minX)
     downloadsBubble.setCapsuleFrame(
       CGRect(
-        x: frame.maxX - downloadsWidth, y: frame.maxY + DownloadsLayout.spacing,
-        width: downloadsWidth, height: GlassCapsule.height),
-      animated: animated && isOpen)
-    layoutShelfBar(
-      under: frame, downloadsWidth: downloadsBubble.isShown ? downloadsWidth : 0)
+        x: downloadsEnd - downloadsWidth, y: rowTop, width: downloadsWidth,
+        height: GlassCapsule.height),
+      reaching: frame.maxX, animated: animated)
+    let rowEnd =
+      downloadsBubble.isShown
+      ? downloadsEnd - downloadsWidth
+      : isSpotBeside ? frame.maxX : spotFrame.minX
+    layoutShelfBar(under: frame, endingBefore: rowEnd)
   }
 
-  /// The shelf bar as wide as its segments, or as fits short of the
-  /// downloads with its button after it, scrolling across if narrower.
-  private func layoutShelfBar(under panel: CGRect, downloadsWidth: CGFloat) {
+  /// The shelf bar as wide as its segments, or as fits with its button after
+  /// it short of `end`, where the downloads or the split's spot start,
+  /// scrolling across if narrower.
+  private func layoutShelfBar(under panel: CGRect, endingBefore end: CGFloat) {
     guard hasShelves else {
       return
     }
     let room =
-      panel.width - shelfBar.buttonWidth - GlassCapsule.spacing
-      - (downloadsWidth > 0
-        ? downloadsWidth + ShelfBarLayout.downloadsClearance : 0)
+      (end < panel.maxX ? end - ShelfBarLayout.endClearance : panel.maxX)
+      - panel.minX - shelfBar.buttonWidth - GlassCapsule.spacing
     shelfBar.place(
       at: CGPoint(x: panel.minX, y: panel.maxY + DownloadsLayout.spacing),
       width: max(min(shelfBar.contentWidth, room), ShelfBarLayout.height))
@@ -1167,6 +1199,28 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       model.shelfBarFrame = shelfBar.barFrame
       model.shelfButtonFrame = shelfBar.buttonFrame
     }
+  }
+
+  /// Moves the address's or extensions' capsule to `frame`, following with
+  /// the rest of the overlay if `animated`. Its new width shows at once, so
+  /// it follows by the edge it's aligned by, `trailing` beside the panel.
+  private func move(
+    _ bubble: NSView, to frame: CGRect, trailing: Bool, animated: Bool
+  ) {
+    let from = bubble.frame
+    guard frame != from else {
+      return
+    }
+    bubble.frame = frame
+    guard animated else {
+      TabOverlayMotion.stopFollowing(bubble)
+      return
+    }
+    TabOverlayMotion.follow(
+      bubble,
+      from: CGSize(
+        width: trailing ? from.maxX - frame.maxX : from.minX - frame.minX,
+        height: from.minY - frame.minY))
   }
 
   /// `view` in the middle of a capsule's glass, as wide as its ends allow if
@@ -2189,6 +2243,8 @@ final class TabOverlayModel {
   var split: SplitPair?
   var splitTab: FiberTabState?
   var splitSpotFrame: CGRect = .zero
+  /// Whether the spot is beside the panel, rather than in the row under it.
+  var isSplitSpotBeside = true
   /// What the pins and the panel come and go with (see TabOverlayMotion).
   var isOpen = false
   var selection: TabOverlaySelection?
@@ -2353,6 +2409,13 @@ final class TabOverlayModel {
     return TabOverlayMotion.span(
       lastDelay: max(pinsDelay, bubblesDelay),
       panelReach: PanelWave.reach(of: panelFrame.size))
+  }
+
+  /// What's laid out around the list, which moves to a new layout all
+  /// together; the downloads' glass moves in its own transaction.
+  var layoutFrames: [CGRect] {
+    [panelFrame, splitSpotFrame, shelfBarFrame, shelfButtonFrame]
+      + bubbleFrames
   }
 
   /// How far the nearest pin and the farthest are from the panel's corner.
@@ -2551,30 +2614,36 @@ struct TabOverlayView: View {
       splitSpot
 
     }
-    // Tabs opening and closing grow and shrink the panel, and rows of pins
-    // coming and going can move it.
+    // Tabs opening and closing grow and shrink the panel, rows of pins coming
+    // and going can move it, and the window resizing moves everything.
     .animation(
-      .spring(duration: 0.3, bounce: 0).slowMotion,
+      TabOverlayMotion.layoutAnimation.slowMotion,
       value: model.rows.map(\.id))
     .animation(
-      .spring(duration: 0.3, bounce: 0).slowMotion, value: model.panelPinCount)
+      TabOverlayMotion.layoutAnimation.slowMotion, value: model.panelPinCount)
+    .animation(
+      TabOverlayMotion.layoutAnimation.slowMotion, value: model.layoutFrames)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .accessibilityElement(children: .contain)
   }
 
-  /// Comes from the right, beside the panel, as the wave reaches it.
+  /// Comes from the right beside the panel, or from below under it, as the
+  /// wave reaches it.
   private var splitSpot: some View {
     let frame = model.splitSpotFrame
     let delay = model.motionDelay(belowPanel: frame)
     let span = model.motionSpan
     let tab = model.splitTab
+    let isAway = !model.isOpen && !reduceMotion
     return SplitSpot(
       tab: tab, isActive: tab.map { $0.tabID == model.activeTabID } ?? false,
       isShown: model.isSplitShown, isSelected: model.selection == .split,
       isDropTarget: model.tabDrag?.target == .split
         || model.pinDrag?.isOverSplit == true
     )
-    .offset(x: model.isOpen || reduceMotion ? 0 : TabOverlayMotion.sideTravel)
+    .offset(
+      x: isAway && model.isSplitSpotBeside ? TabOverlayMotion.sideTravel : 0,
+      y: isAway && !model.isSplitSpotBeside ? TabOverlayMotion.travel : 0)
     .animation(
       TabOverlayMotion.animation(
         .offset, delay: delay, span: span, isOpening: model.isOpen),

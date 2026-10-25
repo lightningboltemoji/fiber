@@ -4,13 +4,15 @@ import SwiftUI
 
 /// The layout of the tab overlay's downloads: a capsule under its panel that
 /// opens into a panel over the tabs, growing up and to the left from just past
-/// the capsule's bottom-right corner, with the capsule as its footer.
+/// the tab overlay panel's right edge and the capsule's bottom, with the
+/// capsule's summary in its footer.
 enum DownloadsLayout {
   /// Between the tab overlay's panel and the capsule.
   static let spacing = GlassCapsule.spacing
   static let panelWidth: CGFloat = 360
-  /// How far the open panel reaches past the capsule's right and bottom edges,
-  /// so it stands off the tab overlay's panel rather than lining up with it.
+  /// How far the open panel reaches past the tab overlay panel's right edge
+  /// and the capsule's bottom, so it stands off the tab overlay's panel
+  /// rather than lining up with it.
   /// Within PaletteView's side and bottom margins, both still leave `margin`.
   static let overhang = CGSize(width: 14, height: 8)
   static let cornerRadius = TabListLayout.cornerRadius
@@ -60,11 +62,13 @@ enum DownloadsLayout {
   }
 
   /// The open panel over `capsule`, listing `rows` downloads, as tall as
-  /// fits.
-  static func panelFrame(capsule: CGRect, rows: Int) -> CGRect {
-    let right = capsule.maxX + overhang.width
+  /// fits, reaching past `end`, the tab overlay panel's right edge.
+  static func panelFrame(capsule: CGRect, reaching end: CGFloat, rows: Int)
+    -> CGRect
+  {
+    let right = end + overhang.width
     let bottom = capsule.maxY + overhang.height
-    let width = max(min(panelWidth, right - margin), capsule.width)
+    let width = max(min(panelWidth, right - margin), end - capsule.minX)
     let height = max(
       min(
         footerHeight + listHeight(rows: min(rows, maxVisibleRows)),
@@ -88,7 +92,7 @@ final class DownloadsBubble: NSView {
     duration: expandDuration, bounce: 0.22)
   private static let collapseAnimation = Animation.spring(
     duration: collapseDuration, bounce: 0)
-  /// Downloads coming and going, and the capsule following the panel.
+  /// Downloads coming and going.
   private static let changeAnimation = Animation.spring(
     duration: 0.3, bounce: 0)
   /// How long the capsule shows its check once the last download in progress
@@ -186,17 +190,19 @@ final class DownloadsBubble: NSView {
     downloads.map { "\($0.downloadID) \($0.status.rawValue) \($0.paused)" }
   }
 
-  /// Where the capsule goes, in the overlay; it grows from no width as it
-  /// appears.
-  func setCapsuleFrame(_ frame: CGRect, animated: Bool) {
-    guard frame != model.capsuleFrame else {
+  /// Where the capsule goes, in the overlay, and the tab overlay panel's
+  /// right edge, which the open panel reaches past; it grows from no width as
+  /// it appears.
+  func setCapsuleFrame(_ frame: CGRect, reaching end: CGFloat, animated: Bool) {
+    guard frame != model.capsuleFrame || end != model.end else {
       return
     }
     var transaction = Transaction(
-      animation: animated ? Self.changeAnimation.slowMotion : nil)
+      animation: animated ? TabOverlayMotion.layoutAnimation.slowMotion : nil)
     transaction.disablesAnimations = !animated
     withTransaction(transaction) {
       model.capsuleFrame = frame
+      model.end = end
       onGlassChange()
     }
   }
@@ -316,12 +322,15 @@ final class DownloadsBubbleModel {
   var isVisible = false
   /// In the overlay, y growing down.
   var capsuleFrame: CGRect = .zero
+  /// The tab overlay panel's right edge, which the open panel reaches past.
+  var end: CGFloat = 0
   var hoveredID: String?
   @ObservationIgnored var onAction: (DownloadAction) -> Void = { _ in }
   @ObservationIgnored var onToggle: () -> Void = {}
 
   var panelFrame: CGRect {
-    DownloadsLayout.panelFrame(capsule: capsuleFrame, rows: downloads.count)
+    DownloadsLayout.panelFrame(
+      capsule: capsuleFrame, reaching: end, rows: downloads.count)
   }
 
   var glassFrame: CGRect { isExpanded ? panelFrame : capsuleFrame }

@@ -30,10 +30,11 @@ struct SplitPair: Equatable {
 }
 
 /// Where a split's right tab goes in the tab overlay: a circle of glass like
-/// a pin's, to the right of the panel, that a row dropped on shows on the
-/// right of the page.
+/// a pin's, to the right of the panel or at the end of the row under it, that
+/// a row dropped on shows on the right of the page. As tall as the capsules
+/// around the panel, like the shelf bar's button.
 enum SplitSpotLayout {
-  static let diameter = PinGridLayout.diameter
+  static let diameter = GlassCapsule.height
   /// How far around the circle a dragged row still drops on it.
   static let dropSlop: CGFloat = 16
 

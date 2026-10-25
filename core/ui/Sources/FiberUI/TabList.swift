@@ -293,6 +293,9 @@ private struct TabRow: View {
         Spacer(minLength: 0)
       }
     }
+    // Text that changes as the row resizes, a title truncating further,
+    // changes in place: a crossfade's would travel apart from the row.
+    .contentTransition(.identity)
     .font(.system(size: 13, weight: isActive ? .semibold : .regular))
     .foregroundStyle(
       isActive ? .primary : isClosed ? HierarchicalShapeStyle.tertiary : .secondary)

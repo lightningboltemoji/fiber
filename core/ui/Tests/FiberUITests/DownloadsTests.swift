@@ -108,25 +108,37 @@ struct DownloadsTests {
 
   @Test func opensPanelUpAndLeftFromTheCapsule() {
     let capsule = CGRect(x: 700, y: 600, width: 140, height: 40)
-    let panel = DownloadsLayout.panelFrame(capsule: capsule, rows: 2)
-    #expect(panel.maxX == capsule.maxX)
-    #expect(panel.maxY == capsule.maxY)
+    let panel = DownloadsLayout.panelFrame(
+      capsule: capsule, reaching: capsule.maxX, rows: 2)
+    #expect(panel.maxX == capsule.maxX + DownloadsLayout.overhang.width)
+    #expect(panel.maxY == capsule.maxY + DownloadsLayout.overhang.height)
     #expect(panel.width == DownloadsLayout.panelWidth)
     #expect(
       panel.height
         == DownloadsLayout.footerHeight + DownloadsLayout.listHeight(rows: 2))
   }
 
+  @Test func opensPanelOverWhatEndsTheRowAfterTheCapsule() {
+    let capsule = CGRect(x: 700, y: 600, width: 140, height: 40)
+    let end = capsule.maxX + 44
+    let panel = DownloadsLayout.panelFrame(
+      capsule: capsule, reaching: end, rows: 2)
+    #expect(panel.maxX == end + DownloadsLayout.overhang.width)
+    #expect(panel.minX < capsule.minX)
+  }
+
   @Test func panelScrollsPastAFewRowsAndFitsTheWindow() {
     let capsule = CGRect(x: 700, y: 600, width: 140, height: 40)
-    let many = DownloadsLayout.panelFrame(capsule: capsule, rows: 40)
+    let many = DownloadsLayout.panelFrame(
+      capsule: capsule, reaching: capsule.maxX, rows: 40)
     #expect(
       many.height
         == DownloadsLayout.footerHeight
         + DownloadsLayout.listHeight(rows: DownloadsLayout.maxVisibleRows))
     // Near the window's top-left corner, it stops short of its edges.
     let cramped = CGRect(x: 100, y: 100, width: 140, height: 40)
-    let fitted = DownloadsLayout.panelFrame(capsule: cramped, rows: 40)
+    let fitted = DownloadsLayout.panelFrame(
+      capsule: cramped, reaching: cramped.maxX, rows: 40)
     #expect(fitted.minX == DownloadsLayout.margin)
     #expect(fitted.minY == DownloadsLayout.margin)
   }

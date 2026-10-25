@@ -13,7 +13,8 @@ like bookmarks that open as tabs. How it fits with the rest of the tabs is in
   shelf pages'), one per shelf, and a + that adds one, ready to name. The
   overlay opens on the active tab's list. Left and Right switch lists from
   the rows, and the segments scroll across, fading at the edges, once they
-  don't fit beside the downloads.
+  don't fit beside the downloads (and the split's spot, in a narrow
+  window).
 - **A shelf's list** shows its pages: open ones as their tabs are, the rest
   dimmed, their icons grey. A row's × closes the tab and keeps the page; on a
   page without a tab it's a trash can, which removes it, taking no click

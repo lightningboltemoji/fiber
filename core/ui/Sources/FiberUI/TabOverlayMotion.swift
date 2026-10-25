@@ -14,6 +14,12 @@ enum TabOverlayMotion {
   static let travel: CGFloat = 6
   /// How far the address and extensions move beside the panel.
   static let sideTravel: CGFloat = 9
+  /// How everything on the overlay moves to a new layout, all together: as
+  /// the window resizes, the list grows or shrinks, or a capsule changes
+  /// width. Retargeted mid-flight, it keeps its speed, so a live resize trails.
+  static let layoutAnimation = Animation.spring(
+    duration: layoutDuration, bounce: 0)
+  private static let layoutDuration: TimeInterval = 0.3
   /// How fast the wave spreads as the overlay opens, in points a second:
   /// beside the panel, slow enough for the address and extensions stacked
   /// there to come one after the other, and across it.
@@ -40,6 +46,9 @@ enum TabOverlayMotion {
   private static let fadeOutStart = 0.3
   private static let moveKey = "tabOverlayMotion.move"
   private static let fadeKey = "tabOverlayMotion.fade"
+  private static let followKey = "tabOverlayMotion.follow"
+  /// Tells each of `follow(_:from:)`'s springs apart.
+  private static var follows = 0
 
   /// How long after the overlay starts to open something beside the panel,
   /// `distance` points from its corner, starts to move.
@@ -161,6 +170,38 @@ enum TabOverlayMotion {
       // Out of sight until it opens again.
       animation.isRemovedOnCompletion = isOpening
       layer.add(animation, forKey: key)
+    }
+  }
+
+  /// Has `view`, just moved, follow from `offset` (y growing down) to where it
+  /// is now, as SwiftUI views do with `layoutAnimation`. Each move adds a
+  /// spring; adding up, they keep a view moved mid-flight at its speed.
+  static func follow(_ view: NSView, from offset: CGSize) {
+    guard let layer = view.layer else {
+      return
+    }
+    let isFlipped = layer.superlayer?.contentsAreFlipped() ?? false
+    let spring = CASpringAnimation(
+      perceptualDuration: layoutDuration, bounce: 0)
+    spring.keyPath = "transform.translation"
+    spring.isAdditive = true
+    spring.fromValue = NSValue(
+      size: CGSize(
+        width: offset.width,
+        height: isFlipped ? offset.height : -offset.height))
+    spring.toValue = NSValue(size: .zero)
+    spring.duration = spring.settlingDuration
+    follows += 1
+    layer.add(spring, forKey: "\(followKey).\(follows)")
+  }
+
+  /// Puts `view` where it is at once, if it's following.
+  static func stopFollowing(_ view: NSView) {
+    guard let layer = view.layer else {
+      return
+    }
+    for key in layer.animationKeys() ?? [] where key.hasPrefix(followKey) {
+      layer.removeAnimation(forKey: key)
     }
   }
 
