@@ -2,7 +2,10 @@
 #define FIBER_BROWSER_DIALOGS_TAB_PROMPT_H_
 
 #include <memory>
+#include <optional>
 
+#include "base/functional/callback_helpers.h"
+#include "base/memory/weak_ptr.h"
 #include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "fiber/browser/dialogs/prompt.h"
@@ -13,7 +16,7 @@ namespace fiber {
 
 // A Prompt over a tab's page (Prompt::ShowForTab()). Like Chrome's tab-modal
 // dialogs, it ends without an answer if the tab closes or goes to another
-// site.
+// site, and keeps the page out of fullscreen while it's up.
 class TabPrompt : public content::WebContentsObserver {
  public:
   // Runs `callback`, which may destroy this, when the prompt ends, unless this
@@ -37,6 +40,8 @@ class TabPrompt : public content::WebContentsObserver {
       content::NavigationHandle* navigation_handle) override;
   void WebContentsDestroyed() override;
 
+  // Soon after it shows: leaving fullscreen can end the tab, and so this.
+  void DropFullscreen();
   // May destroy this.
   void OnEnded(std::optional<int> button_id);
   // Takes the prompt down, and ends it without an answer. May destroy this.
@@ -46,6 +51,8 @@ class TabPrompt : public content::WebContentsObserver {
   // The page it was shown over.
   content::WeakDocumentPtr document_;
   std::unique_ptr<Prompt> prompt_;
+  std::optional<base::ScopedClosureRunner> fullscreen_block_;
+  base::WeakPtrFactory<TabPrompt> weak_factory_{this};
 };
 
 }  // namespace fiber

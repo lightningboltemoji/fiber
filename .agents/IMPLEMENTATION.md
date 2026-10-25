@@ -155,7 +155,8 @@ Where Fiber has no replacement yet:
   locks until then (`browser/profiles/profile_picker.cc`); Chrome's sharing
   hub, leaving the Share menu (`hooks/profile_pref_defaults.cc`); Payment
   Request, digital credentials, and Cast with the Presentation API
-  (`hooks/feature_overrides.cc`, with most of their code cut by patches);
+  (`hooks/feature_overrides.cc`, with most of their code cut by patches), and
+  the email verification protocol (also off there);
   Gemini in Chrome (Glic), off in `hooks/feature_overrides.cc`, with its pages
   cut.
 - **Unanswered, or not shown:** offers to save an address, card or IBAN, or to

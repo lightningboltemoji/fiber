@@ -1,8 +1,8 @@
 diff --git a/components/sessions/core/tab_restore_service_helper.h b/components/sessions/core/tab_restore_service_helper.h
-index 41fe1e40c9..b14033e36f 100644
+index bba43ebb4b..981771e6d5 100644
 --- a/components/sessions/core/tab_restore_service_helper.h
 +++ b/components/sessions/core/tab_restore_service_helper.h
-@@ -66,7 +66,12 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
+@@ -67,7 +67,12 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
    };
  
    // Max number of entries we'll keep around.

@@ -78,6 +78,8 @@ final class PromptBubble: NSView {
   /// Counts showings and hidings, so a step left from an earlier one does
   /// nothing.
   private var generation = 0
+  /// When its confirm buttons can next be pressed.
+  private var armTime = DispatchTime.now()
 
   /// Its glass is dark over a page darker than this, in L*, and light
   /// otherwise: light glass reads over anything, dark glass only over dark.
@@ -235,6 +237,25 @@ final class PromptBubble: NSView {
     }
   }
 
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    NotificationCenter.default.removeObserver(self)
+    guard let window else {
+      return
+    }
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(windowDidBecomeKey(_:)),
+      name: NSWindow.didBecomeKeyNotification, object: window)
+  }
+
+  /// A page can raise its window under the pointer (an opener's
+  /// popup.focus()), so a click meant for what was there isn't an answer.
+  @objc private func windowDidBecomeKey(_ notification: Notification) {
+    if isShown {
+      disarm(for: Timing.armDelay)
+    }
+  }
+
   // MARK: Showing
 
   /// Pops in and opens, from wherever it is.
@@ -245,8 +266,7 @@ final class PromptBubble: NSView {
     isShown = true
     generation += 1
     isHidden = false
-    model.isArmed = false
-    after(Timing.stretchDelay + Timing.armDelay) { $0.model.isArmed = true }
+    disarm(for: Timing.stretchDelay + Timing.armDelay)
     if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
       withAnimation(.easeOut(duration: 0.2).slowMotion) {
         model.stage = .open
@@ -300,6 +320,23 @@ final class PromptBubble: NSView {
         bubble.model.stage = .hidden
       } completion: {
         bubble.removeFromSuperview()
+      }
+    }
+  }
+
+  /// Keeps its confirm buttons from being pressed for at least `delay`.
+  private func disarm(for delay: TimeInterval) {
+    let time = max(armTime, .now() + SlowMotion.duration(delay))
+    armTime = time
+    model.isArmed = false
+    let generation = generation
+    DispatchQueue.main.asyncAfter(deadline: time) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, self.generation == generation, self.armTime == time
+        else {
+          return
+        }
+        self.model.isArmed = true
       }
     }
   }

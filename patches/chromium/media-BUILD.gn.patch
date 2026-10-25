@@ -1,5 +1,5 @@
 diff --git a/media/BUILD.gn b/media/BUILD.gn
-index d05d31053b..2f22eb6e0b 100644
+index 1919962dd1..504399f828 100644
 --- a/media/BUILD.gn
 +++ b/media/BUILD.gn
 @@ -87,11 +87,8 @@ buildflag_header("media_buildflags") {

@@ -1,5 +1,5 @@
 diff --git a/media/gpu/mac/vt_video_encode_accelerator_mac.mm b/media/gpu/mac/vt_video_encode_accelerator_mac.mm
-index e13faa9a78..cdf64d862f 100644
+index 9c74fadd43..5dfb214025 100644
 --- a/media/gpu/mac/vt_video_encode_accelerator_mac.mm
 +++ b/media/gpu/mac/vt_video_encode_accelerator_mac.mm
 @@ -266,7 +266,9 @@ static CFStringRef VideoCodecProfileToVTProfile(VideoCodecProfile profile,

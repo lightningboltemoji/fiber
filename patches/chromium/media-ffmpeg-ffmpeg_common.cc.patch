@@ -1,8 +1,8 @@
 diff --git a/media/ffmpeg/ffmpeg_common.cc b/media/ffmpeg/ffmpeg_common.cc
-index 280dce6885..409b108e69 100644
+index 1eeaafafaf..715a3afec0 100644
 --- a/media/ffmpeg/ffmpeg_common.cc
 +++ b/media/ffmpeg/ffmpeg_common.cc
-@@ -14,6 +14,7 @@
+@@ -13,6 +13,7 @@
  #include "base/strings/string_split.h"
  #include "base/strings/string_util.h"
  #include "build/build_config.h"
@@ -10,7 +10,7 @@ index 280dce6885..409b108e69 100644
  #include "media/base/audio_decoder_config.h"
  #include "media/base/audio_timestamp_helper.h"
  #include "media/base/decoder_buffer.h"
-@@ -415,6 +416,11 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
+@@ -409,6 +410,11 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
        sample_format = kSampleFormatMpegHAudio;
        break;
  #endif
@@ -22,7 +22,7 @@ index 280dce6885..409b108e69 100644
  
      default:
        break;
-@@ -443,6 +449,14 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
+@@ -437,6 +443,14 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
          .copy_from_nonoverlapping(AVCodecContextExtraDataToSpan(codec_context));
    }
  
@@ -37,7 +37,7 @@ index 280dce6885..409b108e69 100644
    // FFmpeg exports AAC edit list padding in
    // AVCodecParameters::initial_padding, which propagates to
    // codec_context->delay. AAC does not have a pipeline decoder delay, and
-@@ -483,13 +497,31 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
+@@ -477,13 +491,31 @@ bool AVCodecContextToAudioDecoderConfig(const AVCodecContext* codec_context,
        if (aac_parser.Parse(extra_data, &media_log))
          config->set_profile(aac_parser.GetProfile());
      }

@@ -223,14 +223,15 @@ void TabIndexSource::RestoreClosedWindow(BrowserWindowInterface* browser,
       break;
     }
   }
-  std::vector<sessions::LiveTab*> restored = service->RestoreEntryById(
-      BrowserLiveTabContext::From(browser), id, WindowOpenDisposition::UNKNOWN);
+  std::optional<std::vector<sessions::LiveTab*>> restored =
+      service->RestoreEntryById(BrowserLiveTabContext::From(browser), id,
+                                WindowOpenDisposition::UNKNOWN);
   // Unless one of its tabs didn't come back, they're in order.
-  if (!tab_index || restored.size() != tab_count) {
+  if (!restored || !tab_index || restored->size() != tab_count) {
     return;
   }
   tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(
-      &static_cast<sessions::ContentLiveTab*>(restored[*tab_index])
+      &static_cast<sessions::ContentLiveTab*>((*restored)[*tab_index])
            ->GetWebContents());
   TabStripModel* model =
       tab ? tab->GetBrowserWindowInterface()->GetTabStripModel() : nullptr;

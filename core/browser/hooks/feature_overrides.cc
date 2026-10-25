@@ -47,6 +47,10 @@ void AddFeatureOverrides(
       &features::kWebIdentityDigitalCredentials,
       &features::kWebIdentityDigitalCredentialsCreation,
       &media_router::kMediaRouter,
+      // The email verification protocol, whose only UI is a views popup, and
+      // which asks the address's provider (Google, for Gmail) before showing
+      // it.
+      &features::kEmailVerificationProtocol,
       // Chrome's infobar about restoring on startup, which Fiber does by
       // default and always after a crash, and which Fiber has no UI for.
       &features::kSessionRestoreInfobar,

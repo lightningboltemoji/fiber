@@ -28,22 +28,22 @@ namespace fiber {
 
 namespace {
 
-using MatchType = AutocompleteMatchType;
+using MatchType = omnibox::AutocompleteMatchType;
 
 FiberSuggestionKind KindForMatch(const AutocompleteMatch& match,
                                  const OmniboxClient& client) {
-  if (match.type == MatchType::NULL_RESULT_MESSAGE) {
+  if (match.type == MatchType::kNullResultMessage) {
     return FiberSuggestionKindMessage;
   }
-  if (match.type == MatchType::PEDAL || match.IsToolbelt()) {
+  if (match.type == MatchType::kPedal || match.IsToolbelt()) {
     return FiberSuggestionKindAction;
   }
-  if (match.type == MatchType::CALCULATOR) {
+  if (match.type == MatchType::kCalculator) {
     return FiberSuggestionKindCalculator;
   }
   // An extension's suggestions, through its omnibox keyword or otherwise.
   if (match.provider &&
-      match.provider->type() == AutocompleteProvider::TYPE_UNSCOPED_EXTENSION) {
+      match.provider->type() == AutocompleteProvider::Type::kUnscopedExtension) {
     return FiberSuggestionKindExtension;
   }
   const TemplateURLService* service = client.GetTemplateURLService();
@@ -71,9 +71,9 @@ FiberSuggestionKind KindForMatch(const AutocompleteMatch& match,
 bool ShowsFavicon(const AutocompleteMatch& match) {
   return !AutocompleteMatch::IsSearchType(match.type) &&
          !AutocompleteMatch::IsStarterPackType(match.type) &&
-         match.type != MatchType::HISTORY_CLUSTER &&
-         match.type != MatchType::NULL_RESULT_MESSAGE &&
-         match.type != MatchType::PEDAL && match.destination_url.is_valid();
+         match.type != MatchType::kHistoryCluster &&
+         match.type != MatchType::kNullResultMessage &&
+         match.type != MatchType::kPedal && match.destination_url.is_valid();
 }
 
 FiberTextStyle StyleFromClassification(int style) {
@@ -119,11 +119,11 @@ NSArray<FiberTextRun*>* RunsFromClassifications(
 
 FiberSuggestionPart PartFromLineState(OmniboxPopupSelection::LineState state) {
   switch (state) {
-    case OmniboxPopupSelection::KEYWORD_MODE:
+    case OmniboxPopupSelection::LineState::kKeywordMode:
       return FiberSuggestionPartKeyword;
-    case OmniboxPopupSelection::FOCUSED_BUTTON_ACTION:
+    case OmniboxPopupSelection::LineState::kFocusedButtonAction:
       return FiberSuggestionPartAction;
-    case OmniboxPopupSelection::FOCUSED_BUTTON_REMOVE_SUGGESTION:
+    case OmniboxPopupSelection::LineState::kFocusedButtonRemoveSuggestion:
       return FiberSuggestionPartRemove;
     default:
       return FiberSuggestionPartRow;

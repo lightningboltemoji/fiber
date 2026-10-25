@@ -30,6 +30,7 @@
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "components/input/native_web_keyboard_event.h"
+#include "components/omnibox/browser/location_bar_model.h"
 #include "components/url_formatter/elide_url.h"
 #include "content/public/browser/eye_dropper.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
@@ -206,7 +207,7 @@ class ExtensionWindowLocationBar : public LocationBar {
     return browser_->GetTabStripModel()->GetActiveWebContents();
   }
   LocationBarModel* GetLocationBarModel() override {
-    return browser_->GetFeatures().location_bar_model();
+    return LocationBarModel::From(browser_.get());
   }
   std::optional<bubble_anchor_util::AnchorConfiguration> GetChipAnchor()
       override {
@@ -482,6 +483,10 @@ LocationBar* FiberExtensionWindow::GetLocationBar() const {
 
 ui::AcceleratorProvider* FiberExtensionWindow::GetAcceleratorProvider() {
   return this;
+}
+
+PinnedToolbarActions* FiberExtensionWindow::GetPinnedToolbarActions() {
+  return nullptr;
 }
 
 void FiberExtensionWindow::SetFocusToLocationBar(bool is_user_initiated) {}

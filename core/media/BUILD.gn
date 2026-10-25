@@ -20,34 +20,7 @@ source_set("media") {
   visibility = [ "//media/filters" ]
 }
 
-# H.264 and HEVC through VideoToolbox, in place of Chromium's H264Decoder and
-# H265Decoder. It's part of //media/gpu/mac's media_gpu component (see
-# patches/chromium/media-gpu-mac-BUILD.gn.patch), and includes its headers.
-source_set("video_toolbox") {
-  sources = [
-    "hooks/video_toolbox_decoder.cc",
-    "hooks/video_toolbox_decoder.h",
-    "video/h264_passthrough_decoder.cc",
-    "video/h264_passthrough_decoder.h",
-    "video/h265_passthrough_decoder.cc",
-    "video/h265_passthrough_decoder.h",
-    "video/passthrough_decoder.cc",
-    "video/passthrough_decoder.h",
-  ]
-  defines = [ "MEDIA_GPU_IMPLEMENTATION" ]
-  deps = [
-    "//base",
-    "//media",
-    "//ui/gfx:color_space",
-    "//ui/gfx/geometry",
-  ]
-  frameworks = [
-    "CoreFoundation.framework",
-    "CoreMedia.framework",
-    "VideoToolbox.framework",
-  ]
-  visibility = [ "//media/gpu/mac" ]
-}
+# H.264 and HEVC through VideoToolbox are in video_toolbox.gni.
 
 # AAC for Web Audio's decodeAudioData, which decodes in the renderer, through
 # AudioToolbox in the GPU process. It's linked into //content/renderer (see

@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/webid/identity_dialog_controller.cc b/chrome/browser/ui/webid/identity_dialog_controller.cc
-index 8dc00b5c1e..40d8cd1a7d 100644
+index 65d90863c0..44847f0fb4 100644
 --- a/chrome/browser/ui/webid/identity_dialog_controller.cc
 +++ b/chrome/browser/ui/webid/identity_dialog_controller.cc
 @@ -39,6 +39,7 @@
@@ -10,7 +10,7 @@ index 8dc00b5c1e..40d8cd1a7d 100644
  #endif
  
  using content::webid::FederatedLoginResult;
-@@ -619,6 +620,13 @@ bool IdentityDialogController::TrySetAccountView() {
+@@ -658,6 +659,13 @@ bool IdentityDialogController::TrySetAccountView() {
                    BrowserWindowInterface::Type::TYPE_DEVTOOLS) {
      return false;
    }

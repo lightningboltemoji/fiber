@@ -7,6 +7,7 @@
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
+#include "components/omnibox/browser/location_bar_model.h"
 #include "fiber/browser/omnibox/fiber_omnibox_popup_view.h"
 #include "fiber/browser/omnibox/fiber_omnibox_view.h"
 #include "fiber/browser/window/fiber_browser_window.h"
@@ -79,7 +80,7 @@ content::WebContents* FiberLocationBar::GetWebContents() {
 }
 
 LocationBarModel* FiberLocationBar::GetLocationBarModel() {
-  return GetBrowser()->GetFeatures().location_bar_model();
+  return LocationBarModel::From(GetBrowser());
 }
 
 std::optional<bubble_anchor_util::AnchorConfiguration>

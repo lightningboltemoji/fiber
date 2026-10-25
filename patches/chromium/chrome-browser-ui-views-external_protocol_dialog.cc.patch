@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/external_protocol_dialog.cc b/chrome/browser/ui/views/external_protocol_dialog.cc
-index d648a9fec7..54c49c3c6a 100644
+index 6e5a662267..bbfe17e887 100644
 --- a/chrome/browser/ui/views/external_protocol_dialog.cc
 +++ b/chrome/browser/ui/views/external_protocol_dialog.cc
 @@ -24,6 +24,8 @@

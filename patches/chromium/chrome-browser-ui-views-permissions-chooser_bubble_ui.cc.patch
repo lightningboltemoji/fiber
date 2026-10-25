@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc b/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
-index 31ff36d255..304e812483 100644
+index 6f672ac21a..b94313f7ea 100644
 --- a/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
 +++ b/chrome/browser/ui/views/permissions/chooser_bubble_ui.cc
 @@ -7,6 +7,7 @@
@@ -18,7 +18,7 @@ index 31ff36d255..304e812483 100644
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/base/mojom/dialog_button.mojom.h"
  #include "ui/display/types/display_constants.h"
-@@ -325,6 +327,14 @@ base::OnceClosure ShowDeviceChooserDialog(
+@@ -332,6 +334,14 @@ base::OnceClosure ShowDeviceChooserDialog(
    content::WeakDocumentPtr weak_document = owner->GetWeakDocumentPtr();
    auto* contents = content::WebContents::FromRenderFrameHost(owner);
  

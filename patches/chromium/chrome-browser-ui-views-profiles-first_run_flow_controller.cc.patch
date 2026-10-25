@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/profiles/first_run_flow_controller.cc b/chrome/browser/ui/views/profiles/first_run_flow_controller.cc
-index e6a815e2c0..2e62dc5936 100644
+index b68279bc2b..d57292db32 100644
 --- a/chrome/browser/ui/views/profiles/first_run_flow_controller.cc
 +++ b/chrome/browser/ui/views/profiles/first_run_flow_controller.cc
-@@ -1024,32 +1024,7 @@ void FirstRunFlowController::StartBrowsing() {
+@@ -1002,32 +1002,7 @@ void FirstRunFlowController::StartBrowsing() {
  }
  
  void FirstRunFlowController::Init() {

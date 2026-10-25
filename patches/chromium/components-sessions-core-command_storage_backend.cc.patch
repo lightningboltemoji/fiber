@@ -1,5 +1,5 @@
 diff --git a/components/sessions/core/command_storage_backend.cc b/components/sessions/core/command_storage_backend.cc
-index 5a6aac0d58..63b67d9406 100644
+index 9a35140762..ead01ea7a7 100644
 --- a/components/sessions/core/command_storage_backend.cc
 +++ b/components/sessions/core/command_storage_backend.cc
 @@ -37,6 +37,10 @@
@@ -13,7 +13,7 @@ index 5a6aac0d58..63b67d9406 100644
  namespace sessions {
  
  namespace {
-@@ -606,6 +610,19 @@ CommandStorageBackend::ReadLastSessionCommands() {
+@@ -608,6 +612,19 @@ CommandStorageBackend::ReadLastSessionCommands() {
    return result;
  }
  
@@ -25,7 +25,7 @@ index 5a6aac0d58..63b67d9406 100644
 +      SessionFileReader::Read(path, /*encryptor=*/nullptr);
 +  ReadCommandsResult result;
 +  result.commands = std::move(read_result.commands);
-+  result.error_reading = IsError(read_result.status);
++  result.status = read_result.status;
 +  return result;
 +}
 +#endif
@@ -33,9 +33,9 @@ index 5a6aac0d58..63b67d9406 100644
  void CommandStorageBackend::DeleteLastSession() {
    InitIfNecessary();
    if (last_session_info_) {
-@@ -630,6 +647,12 @@ void CommandStorageBackend::MoveCurrentSessionToLastSession() {
+@@ -632,6 +649,12 @@ void CommandStorageBackend::MoveCurrentSessionToLastSession() {
    } else {
-     last_session_info_ = base::unexpected(ReadStatus::kNoFile);
+     last_session_info_ = base::unexpected(CommandStorageReadStatus::kNoFile);
    }
 +#if BUILDFLAG(IS_MAC)
 +  // Fiber: kept as one of the profile's previous sessions too.
@@ -46,7 +46,7 @@ index 5a6aac0d58..63b67d9406 100644
    VLOG(1) << "CommandStorageBackend::MoveCurrentSessionToLastSession, moved "
               "current session to: "
            << (last_session_info_ ? last_session_info_->path : base::FilePath());
-@@ -680,6 +703,12 @@ void CommandStorageBackend::InitIfNecessary() {
+@@ -682,6 +705,12 @@ void CommandStorageBackend::InitIfNecessary() {
  
    // TODO(sky): this is expensive. See if it can be delayed.
    last_session_info_ = FindLastSessionFile();

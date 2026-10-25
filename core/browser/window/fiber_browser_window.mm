@@ -1008,6 +1008,10 @@ ui::AcceleratorProvider* FiberBrowserWindow::GetAcceleratorProvider() {
   return this;
 }
 
+PinnedToolbarActions* FiberBrowserWindow::GetPinnedToolbarActions() {
+  return nullptr;
+}
+
 void FiberBrowserWindow::SetFocusToLocationBar(bool is_user_initiated) {
   location_bar_->FocusLocation(is_user_initiated,
                                /*clear_focus_if_failed=*/false);
@@ -1029,7 +1033,7 @@ void FiberBrowserWindow::UpdatePageState() {
     return;
   }
   // Chrome's model decides what to show, e.g. nothing on the New Tab page.
-  LocationBarModel* model = browser_->GetFeatures().location_bar_model();
+  LocationBarModel* model = LocationBarModel::From(browser_.get());
   NSString* display_url = @"";
   if (model->ShouldDisplayURL()) {
     display_url = base::SysUTF16ToNSString(

@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/chrome_browser_interface_binders.cc b/chrome/browser/chrome_browser_interface_binders.cc
-index 2a4a67927d..5429236128 100644
+index 455cbfb53c..f8127c43c1 100644
 --- a/chrome/browser/chrome_browser_interface_binders.cc
 +++ b/chrome/browser/chrome_browser_interface_binders.cc
-@@ -523,9 +523,8 @@ void PopulateChromeFrameBinders(
+@@ -526,9 +526,8 @@ void PopulateChromeFrameBinders(
        &badging::BadgeManager::BindFrameReceiverIfAllowed);
    map->Add<blink::mojom::PersistentRendererPrefsService>(
        &PersistentRendererPrefsManager::BindFrameReceiver);

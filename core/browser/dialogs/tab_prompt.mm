@@ -4,10 +4,12 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/task/sequenced_task_runner.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+#include "ui/display/types/display_constants.h"
 
 namespace fiber {
 
@@ -20,6 +22,9 @@ std::unique_ptr<TabPrompt> TabPrompt::Show(content::WebContents* web_contents,
   tab_prompt->prompt_ = Prompt::ShowForTab(
       web_contents, content,
       base::BindOnce(&TabPrompt::OnEnded, base::Unretained(tab_prompt.get())));
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&TabPrompt::DropFullscreen,
+                                tab_prompt->weak_factory_.GetWeakPtr()));
   return tab_prompt;
 }
 
@@ -53,7 +58,20 @@ void TabPrompt::WebContentsDestroyed() {
   EndUnanswered();
 }
 
+void TabPrompt::DropFullscreen() {
+  if (!web_contents() || !callback_) {
+    return;
+  }
+  base::WeakPtr<TabPrompt> weak_this = weak_factory_.GetWeakPtr();
+  std::optional<base::ScopedClosureRunner> block =
+      web_contents()->ForSecurityDropFullscreen(display::kInvalidDisplayId);
+  if (weak_this) {
+    fullscreen_block_ = std::move(block);
+  }
+}
+
 void TabPrompt::OnEnded(std::optional<int> button_id) {
+  fullscreen_block_.reset();
   if (callback_) {
     std::move(callback_).Run(button_id);
   }

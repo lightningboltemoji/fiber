@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc b/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc
-index 028b4ba389..ccf20431b6 100644
+index a084d6b53a..933cca5bd3 100644
 --- a/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc
 +++ b/chrome/browser/ui/autofill/payments/chrome_payments_autofill_client.cc
-@@ -132,6 +132,8 @@
+@@ -133,6 +133,8 @@
  // TODO(crbug.com/407105162): Remove nogncheck when crbug.com/40147906 is fixed.
  #include "components/tabs/public/tab_interface.h"  // nogncheck
  #include "components/webauthn/content/browser/internal_authenticator_impl.h"
@@ -11,7 +11,7 @@ index 028b4ba389..ccf20431b6 100644
  #endif  // BUILDFLAG(IS_ANDROID)
  
  // TODO(crbug.com/407106692): Refactor for Platform-Specific Code Separation.
-@@ -328,6 +330,13 @@ void ChromePaymentsAutofillClient::ShowSaveCreditCardLocally(
+@@ -322,6 +324,13 @@ void ChromePaymentsAutofillClient::ShowSaveCreditCardLocally(
      bridge->RequestShowContent(ui_info, std::move(save_card_delegate));
    }
  #else   // !BUILDFLAG(IS_ANDROID)
@@ -25,7 +25,7 @@ index 028b4ba389..ccf20431b6 100644
    SaveCardBubbleControllerImpl::CreateForWebContents(web_contents());
    SaveCardBubbleControllerImpl::FromWebContents(web_contents())
        ->OfferLocalSave(card, options, std::move(callback));
-@@ -369,6 +378,13 @@ void ChromePaymentsAutofillClient::ShowSaveCreditCardToCloud(
+@@ -363,6 +372,13 @@ void ChromePaymentsAutofillClient::ShowSaveCreditCardToCloud(
      bridge->RequestShowContent(ui_info, std::move(save_card_delegate));
    }
  #else
@@ -39,7 +39,7 @@ index 028b4ba389..ccf20431b6 100644
    // Hide virtual card confirmation bubble showing for a different card.
    HideVirtualCardEnrollBubbleAndIconIfVisible();
  
-@@ -561,6 +577,13 @@ void ChromePaymentsAutofillClient::ConfirmSaveIbanLocally(
+@@ -555,6 +571,13 @@ void ChromePaymentsAutofillClient::ConfirmSaveIbanLocally(
      bridge->RequestShowContent(ui_info, std::move(save_iban_delegate));
    }
  #else
@@ -53,7 +53,7 @@ index 028b4ba389..ccf20431b6 100644
    // Do lazy initialization of IbanBubbleControllerImpl.
    IbanBubbleControllerImpl::CreateForWebContents(web_contents());
    IbanBubbleControllerImpl::FromWebContents(web_contents())
-@@ -586,6 +609,13 @@ void ChromePaymentsAutofillClient::ConfirmUploadIbanToCloud(
+@@ -580,6 +603,13 @@ void ChromePaymentsAutofillClient::ConfirmUploadIbanToCloud(
                                                              web_contents()));
    }
  #else
@@ -67,7 +67,7 @@ index 028b4ba389..ccf20431b6 100644
    // Do lazy initialization of IbanBubbleControllerImpl.
    IbanBubbleControllerImpl::CreateForWebContents(web_contents());
    IbanBubbleControllerImpl::FromWebContents(web_contents())
-@@ -841,6 +871,14 @@ void ChromePaymentsAutofillClient::ShowMandatoryReauthOptInPrompt(
+@@ -835,6 +865,14 @@ void ChromePaymentsAutofillClient::ShowMandatoryReauthOptInPrompt(
      base::OnceClosure accept_mandatory_reauth_callback,
      base::OnceClosure cancel_mandatory_reauth_callback,
      base::RepeatingClosure close_mandatory_reauth_callback) {
@@ -82,7 +82,7 @@ index 028b4ba389..ccf20431b6 100644
    MandatoryReauthBubbleControllerImpl::CreateForWebContents(web_contents());
    MandatoryReauthBubbleControllerImpl::FromWebContents(web_contents())
        ->SetupAndShowBubble(std::move(accept_mandatory_reauth_callback),
-@@ -1181,6 +1219,12 @@ SaveAndFillManager* ChromePaymentsAutofillClient::GetSaveAndFillManager() {
+@@ -1177,6 +1215,12 @@ SaveAndFillManager* ChromePaymentsAutofillClient::GetSaveAndFillManager() {
  #if BUILDFLAG(IS_ANDROID)
    return nullptr;
  #else

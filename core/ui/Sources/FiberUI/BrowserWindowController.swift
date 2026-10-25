@@ -1410,6 +1410,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     guard !shown.isMeasuringBackdrop else {
       return
     }
+    // An extension's popup mustn't cover what the page or Chrome is asking.
+    extensionsController.closePopup()
     shown.isMeasuringBackdrop = true
     returnFromQuit()
     measureBackdrop(behind: shown) { [weak self, weak shown] in

@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
-index 19b58e1126..1b5b61e0d8 100644
+index 14f5a7598d..186c73a18a 100644
 --- a/chrome/browser/ui/browser_commands.cc
 +++ b/chrome/browser/ui/browser_commands.cc
-@@ -199,6 +199,8 @@
+@@ -204,6 +204,8 @@
  #include "content/public/common/url_constants.h"
  #include "content/public/common/url_utils.h"
  #include "extensions/buildflags/buildflags.h"
@@ -11,7 +11,7 @@ index 19b58e1126..1b5b61e0d8 100644
  #include "pdf/buildflags.h"
  #include "printing/buildflags/buildflags.h"
  #include "rlz/buildflags/buildflags.h"
-@@ -1253,9 +1255,22 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(
+@@ -1261,9 +1263,22 @@ base::WeakPtr<content::NavigationHandle> OpenCurrentURL(
      return nullptr;
    }
  
@@ -34,7 +34,7 @@ index 19b58e1126..1b5b61e0d8 100644
    // Use ADD_INHERIT_OPENER so that all pages opened by the omnibox at least
    // inherit the opener. In some cases the tabstrip will determine the group
    // should be inherited, in which case the group is inherited instead of the
-@@ -1485,6 +1500,13 @@ void CloseTab(BrowserWindowInterface* browser) {
+@@ -1493,6 +1508,13 @@ void CloseTab(BrowserWindowInterface* browser) {
  #endif
  
    ToastController* toast_controller = ToastController::From(browser);

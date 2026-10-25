@@ -1,5 +1,5 @@
 diff --git a/components/omnibox/browser/builtin_provider.cc b/components/omnibox/browser/builtin_provider.cc
-index 04fb056ed1..63050b143e 100644
+index ea54a7ac14..b8345bcefe 100644
 --- a/components/omnibox/browser/builtin_provider.cc
 +++ b/components/omnibox/browser/builtin_provider.cc
 @@ -16,6 +16,8 @@

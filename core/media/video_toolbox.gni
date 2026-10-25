@@ -1,0 +1,13 @@
+# H.264 and HEVC through VideoToolbox, in place of Chromium's H264Decoder and
+# H265Decoder: compiled into //media/gpu/mac, which calls them and whose headers
+# they include (see patches/chromium/media-gpu-mac-BUILD.gn.patch).
+fiber_video_toolbox_sources = [
+  "//fiber/media/hooks/video_toolbox_decoder.cc",
+  "//fiber/media/hooks/video_toolbox_decoder.h",
+  "//fiber/media/video/h264_passthrough_decoder.cc",
+  "//fiber/media/video/h264_passthrough_decoder.h",
+  "//fiber/media/video/h265_passthrough_decoder.cc",
+  "//fiber/media/video/h265_passthrough_decoder.h",
+  "//fiber/media/video/passthrough_decoder.cc",
+  "//fiber/media/video/passthrough_decoder.h",
+]

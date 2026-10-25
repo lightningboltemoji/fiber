@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/devtools/devtools_window.cc b/chrome/browser/devtools/devtools_window.cc
-index 464cf1ba17..19b4c6185c 100644
+index 7613579e79..8fab5b2b25 100644
 --- a/chrome/browser/devtools/devtools_window.cc
 +++ b/chrome/browser/devtools/devtools_window.cc
 @@ -98,6 +98,7 @@
@@ -10,7 +10,7 @@ index 464cf1ba17..19b4c6185c 100644
  #include "net/cert/x509_certificate.h"
  #include "services/metrics/public/cpp/ukm_builders.h"
  #include "services/metrics/public/cpp/ukm_recorder.h"
-@@ -1080,6 +1081,8 @@ void DevToolsWindow::Show(const DevToolsToggleAction& action) {
+@@ -1079,6 +1080,8 @@ void DevToolsWindow::Show(const DevToolsToggleAction& action) {
              DevtoolsUIController::From(inspected_browser)) {
        devtools_ui_controller->UpdateDevtools(inspected_web_contents);
      }
@@ -19,7 +19,7 @@ index 464cf1ba17..19b4c6185c 100644
      main_web_contents_->SetInitialFocus();
      inspected_window->Show();
      // On Aura, focusing once is not enough. Do it again.
-@@ -1403,7 +1406,10 @@ DevToolsWindow* DevToolsWindow::Create(
+@@ -1402,7 +1405,10 @@ DevToolsWindow* DevToolsWindow::Create(
  #endif  // BUILDFLAG(IS_MAC)
      DevtoolsUIController* devtools_ui_controller =
          browser ? DevtoolsUIController::From(browser) : nullptr;

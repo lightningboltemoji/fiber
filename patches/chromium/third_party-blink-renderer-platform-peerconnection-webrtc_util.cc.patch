@@ -1,8 +1,8 @@
 diff --git a/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc b/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc
-index 63011d9d02..9b61a6cc08 100644
+index d96940b08f..4e522aa9d7 100644
 --- a/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc
 +++ b/third_party/blink/renderer/platform/peerconnection/webrtc_util.cc
-@@ -125,13 +125,19 @@ IsH264ConstrainedBaselineProfileAvailableForAcceleratedEncoder() {
+@@ -129,13 +129,19 @@ IsH264ConstrainedBaselineProfileAvailableForAcceleratedEncoder() {
  #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || \
      BUILDFLAG(IS_ANDROID)
    return base::FeatureList::IsEnabled(kPlatformH264CbpEncoding);

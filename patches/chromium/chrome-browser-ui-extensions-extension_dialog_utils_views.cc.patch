@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/extensions/extension_dialog_utils_views.cc b/chrome/browser/ui/extensions/extension_dialog_utils_views.cc
-index c05fd2bb22..d00c172e35 100644
+index 12c3bc947d..1d59d372ff 100644
 --- a/chrome/browser/ui/extensions/extension_dialog_utils_views.cc
 +++ b/chrome/browser/ui/extensions/extension_dialog_utils_views.cc
 @@ -8,7 +8,10 @@
@@ -10,10 +10,10 @@ index c05fd2bb22..d00c172e35 100644
  #include "components/constrained_window/constrained_window_views.h"
 +#include "fiber/browser/hooks/browser_window_factory.h"
 +#include "fiber/browser/hooks/dialog_models.h"
+ #include "ui/views/bubble/bubble_dialog_delegate_view.h"
  #include "ui/views/bubble/bubble_dialog_model_host.h"
  #include "ui/views/widget/widget.h"
- 
-@@ -39,11 +42,25 @@ void ShowDialog(gfx::NativeWindow parent,
+@@ -40,11 +43,25 @@ void ShowDialog(gfx::NativeWindow parent,
  
  void ShowModalDialog(gfx::NativeWindow parent,
                       std::unique_ptr<ui::DialogModel> dialog_model) {

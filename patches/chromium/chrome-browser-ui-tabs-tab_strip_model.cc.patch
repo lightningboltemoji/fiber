@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
-index 01f863a9f4..10a883718f 100644
+index e03b98f928..589127b6e8 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -118,6 +118,10 @@
@@ -13,18 +13,18 @@ index 01f863a9f4..10a883718f 100644
  using base::UserMetricsAction;
  using content::WebContents;
  
-@@ -5793,6 +5797,14 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
+@@ -5906,6 +5910,14 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
+       }
      }
-   }
  
 +#if BUILDFLAG(IS_MAC)
-+  // Fiber: past the openers, closing never lands on a pin's tab.
-+  if (std::optional<int> fiber_index =
-+          fiber::TabToActivateAfterClosing(*this, block_tabs)) {
-+    return GetTabIndexAfterClosing(*fiber_index, block_tabs);
-+  }
++    // Fiber: past the openers, closing never lands on a pin's tab.
++    if (std::optional<int> fiber_index =
++            fiber::TabToActivateAfterClosing(*this, block_tabs)) {
++      return GetTabIndexAfterClosing(*fiber_index, block_tabs);
++    }
 +#endif
 +
-   // Fourth preference is a tab that belongs in the same parent collection as
-   // `tab_or_collection`.
-   const tabs::TabCollection* parent_collection_detached_object = nullptr;
+     // Fourth preference is a tab that belongs in the same parent collection as
+     // `tab_or_collection`. A sibling is used even when it is collapsed, because
+     // the block itself was collapsed in that case, so only the focus

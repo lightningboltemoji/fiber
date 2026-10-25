@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/cocoa/share_menu_controller.mm b/chrome/browser/ui/cocoa/share_menu_controller.mm
-index 8b50f511f8..9cb6538c51 100644
+index 534fe0c016..7bc38f8ef3 100644
 --- a/chrome/browser/ui/cocoa/share_menu_controller.mm
 +++ b/chrome/browser/ui/cocoa/share_menu_controller.mm
-@@ -207,6 +207,9 @@ bool CanShare() {
+@@ -209,6 +209,9 @@ bool CanShare() {
    _windowForShare = browser->GetWindow()->GetNativeWindow().GetNativeNSWindow();
    BrowserView* browserView = BrowserView::GetBrowserViewForBrowser(browser);
    if (!browserView) {

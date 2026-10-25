@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/startup/startup_browser_creator.cc b/chrome/browser/ui/startup/startup_browser_creator.cc
-index 661831f8e9..ec730eb2d5 100644
+index be05049fb5..b157e0ea0b 100644
 --- a/chrome/browser/ui/startup/startup_browser_creator.cc
 +++ b/chrome/browser/ui/startup/startup_browser_creator.cc
 @@ -124,6 +124,7 @@
@@ -10,7 +10,7 @@ index 661831f8e9..ec730eb2d5 100644
  #endif
  
  #if BUILDFLAG(IS_WIN)
-@@ -1597,6 +1598,12 @@ bool StartupBrowserCreator::ActivatedProfile() {
+@@ -1596,6 +1597,12 @@ bool StartupBrowserCreator::ActivatedProfile() {
  }
  
  bool HasPendingUncleanExit(Profile* profile) {

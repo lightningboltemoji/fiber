@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/omnibox/omnibox_controller.cc b/chrome/browser/ui/omnibox/omnibox_controller.cc
-index 9387a024ce..7324eed3c6 100644
+index e0018a3bb6..8acb3ba0c8 100644
 --- a/chrome/browser/ui/omnibox/omnibox_controller.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_controller.cc
 @@ -30,6 +30,7 @@

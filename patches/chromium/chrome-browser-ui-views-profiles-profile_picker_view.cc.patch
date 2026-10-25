@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/profiles/profile_picker_view.cc b/chrome/browser/ui/views/profiles/profile_picker_view.cc
-index 36ac5f7a79..45de549677 100644
+index bce0ed42f9..f647e50aaa 100644
 --- a/chrome/browser/ui/views/profiles/profile_picker_view.cc
 +++ b/chrome/browser/ui/views/profiles/profile_picker_view.cc
 @@ -159,134 +159,8 @@ void ClearLockedProfilesFirstBrowserKeepAlive() {

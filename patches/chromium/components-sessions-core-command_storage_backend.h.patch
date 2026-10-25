@@ -1,5 +1,5 @@
 diff --git a/components/sessions/core/command_storage_backend.h b/components/sessions/core/command_storage_backend.h
-index 66b3f544d8..c891ef9960 100644
+index a2e33ceef0..1660561d18 100644
 --- a/components/sessions/core/command_storage_backend.h
 +++ b/components/sessions/core/command_storage_backend.h
 @@ -20,6 +20,7 @@
@@ -9,8 +9,8 @@ index 66b3f544d8..c891ef9960 100644
 +#include "build/build_config.h"
  #include "components/os_crypt/async/common/encryptor.h"
  #include "components/sessions/core/command_storage_manager.h"
- #include "components/sessions/core/session_command.h"
-@@ -124,6 +125,12 @@ class SESSIONS_EXPORT CommandStorageBackend
+ #include "components/sessions/core/command_storage_read_status.h"
+@@ -127,6 +128,12 @@ class SESSIONS_EXPORT CommandStorageBackend
    // Returns the commands from the last session file.
    ReadCommandsResult ReadLastSessionCommands();
  

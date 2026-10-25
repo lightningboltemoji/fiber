@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
-index c3020dfdea..bcec4f41f9 100644
+index 2bfbf5ab97..eb4a36b901 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
-@@ -50,6 +50,7 @@
+@@ -48,6 +48,7 @@
  #include "content/public/common/url_utils.h"
  #include "crypto/crypto_buildflags.h"
  #include "extensions/buildflags/buildflags.h"
@@ -10,7 +10,7 @@ index c3020dfdea..bcec4f41f9 100644
  #include "media/media_buildflags.h"
  #include "ui/accessibility/accessibility_features.h"
  #include "ui/base/resource/resource_bundle.h"
-@@ -314,8 +315,9 @@ void ChromeWebUIControllerFactory::GetFaviconForURL(
+@@ -315,8 +316,9 @@ void ChromeWebUIControllerFactory::GetFaviconForURL(
      ui::ResourceScaleFactor selected_resource_scale =
          resource_scale_factors[selected_index];
  

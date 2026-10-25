@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
-index 2653e37bec..b2da3d2ad1 100644
+index 35b02686a1..d2c9a7d922 100644
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -223,6 +223,8 @@
+@@ -224,6 +224,8 @@
  #include "content/public/browser/render_process_host.h"
  #include "content/public/common/buildflags.h"
  #include "extensions/buildflags/buildflags.h"
@@ -11,7 +11,7 @@ index 2653e37bec..b2da3d2ad1 100644
  #include "net/http/http_server_properties_manager.h"
  #include "pdf/buildflags.h"
  #include "printing/buildflags/buildflags.h"
-@@ -1738,6 +1740,9 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+@@ -1846,6 +1848,9 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
        policy::policy_prefs::kLocalNetworkAccessPermissionsPolicyDefaultEnabled,
        false);
  
@@ -21,8 +21,8 @@ index 2653e37bec..b2da3d2ad1 100644
    // This is intentionally last.
    RegisterLocalStatePrefsForMigration(registry);
  }
-@@ -2006,7 +2011,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
-   MicrosoftAuthPageHandler::RegisterProfilePrefs(registry);
+@@ -2113,7 +2118,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+   media_router::RegisterProfilePrefs(registry);
    MicrosoftFilesPageHandler::RegisterProfilePrefs(registry);
    OutlookCalendarPageHandler::RegisterProfilePrefs(registry);
 +#if !BUILDFLAG(IS_MAC)
@@ -32,7 +32,7 @@ index 2653e37bec..b2da3d2ad1 100644
    promos_utils::RegisterProfilePrefs(registry);
    RegisterReadAnythingProfilePrefs(registry);
    settings::SettingsUI::RegisterProfilePrefs(registry);
-@@ -2279,6 +2287,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -2383,6 +2391,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
  #endif  // BUILDFLAG(IS_ANDROID)
  
    registry->RegisterBooleanPref(prefs::kStaticStorageQuotaEnabled, false);

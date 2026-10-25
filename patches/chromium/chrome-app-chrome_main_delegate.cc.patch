@@ -1,8 +1,8 @@
 diff --git a/chrome/app/chrome_main_delegate.cc b/chrome/app/chrome_main_delegate.cc
-index c027a43eb3..6aef4efb0c 100644
+index c6dfce70e6..d23ec1cee8 100644
 --- a/chrome/app/chrome_main_delegate.cc
 +++ b/chrome/app/chrome_main_delegate.cc
-@@ -121,6 +121,8 @@
+@@ -125,6 +125,8 @@
  #include "chrome/browser/mac/code_sign_clone_manager.h"
  #include "chrome/browser/mac/relauncher.h"
  #include "components/crash/core/common/objc_zombie.h"
@@ -11,7 +11,7 @@ index c027a43eb3..6aef4efb0c 100644
  #include "ui/base/l10n/l10n_util_mac.h"
  #endif  // BUILDFLAG(IS_MAC)
  
-@@ -849,6 +851,19 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
+@@ -904,6 +906,19 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
    }
  #endif
  
@@ -31,7 +31,7 @@ index c027a43eb3..6aef4efb0c 100644
  #if BUILDFLAG(IS_WIN)
    // Initialize the cleaner of left-behind tmp files now that the main thread
    // has its SequencedTaskRunner; see https://crbug.com/40687964.
-@@ -1481,7 +1496,11 @@ void ChromeMainDelegate::PreSandboxStartup() {
+@@ -1553,7 +1568,11 @@ void ChromeMainDelegate::PreSandboxStartup() {
  #endif
  
  #if BUILDFLAG(IS_MAC)

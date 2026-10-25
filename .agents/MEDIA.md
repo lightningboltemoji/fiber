@@ -102,8 +102,10 @@ Chromium's `AudioToolboxAudioDecoder` (GPU process) takes all AAC
 - **The decoder's delay.** AudioToolbox leaves the SBR decoder's delay (962
   frames) out of a stream's first output, while the stream's trims, per
   packet, assume it's there; the decoder puts it back as silence and has
-  `AudioDiscardHelper` drop it, as it does for MP3. At the end of the stream
-  it tells AudioToolbox so, which puts out the frames it held back.
+  `AudioDiscardHelper` drop it, as it does for MP3, stamping the first output
+  earlier by as much when it's before zero, since the helper then counts what
+  it drops as time. At the end of the stream it tells AudioToolbox so, which
+  puts out the frames it held back.
 - **Channel order** (5.1 and up) is AudioToolbox's, mapped to Chromium's by the
   output layout Chromium's decoder sets.
 

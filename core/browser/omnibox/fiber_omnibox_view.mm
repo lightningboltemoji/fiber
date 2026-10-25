@@ -41,15 +41,15 @@ WindowOpenDisposition DispositionFromClick(NSEvent* event) {
 OmniboxPopupSelection::LineState LineStateFromPart(FiberSuggestionPart part) {
   switch (part) {
     case FiberSuggestionPartRow:
-      return OmniboxPopupSelection::NORMAL;
+      return OmniboxPopupSelection::LineState::kNormal;
     case FiberSuggestionPartKeyword:
-      return OmniboxPopupSelection::KEYWORD_MODE;
+      return OmniboxPopupSelection::LineState::kKeywordMode;
     case FiberSuggestionPartAction:
-      return OmniboxPopupSelection::FOCUSED_BUTTON_ACTION;
+      return OmniboxPopupSelection::LineState::kFocusedButtonAction;
     case FiberSuggestionPartRemove:
-      return OmniboxPopupSelection::FOCUSED_BUTTON_REMOVE_SUGGESTION;
+      return OmniboxPopupSelection::LineState::kFocusedButtonRemoveSuggestion;
   }
-  return OmniboxPopupSelection::NORMAL;
+  return OmniboxPopupSelection::LineState::kNormal;
 }
 
 // A range from the palette's field, clamped to its `length`.
@@ -257,7 +257,7 @@ void FiberOmniboxView::OpenCurrentSelection(WindowOpenDisposition disposition) {
 
 void FiberOmniboxView::OpenSelection(OmniboxPopupSelection selection,
                                      WindowOpenDisposition disposition) {
-  if (selection.state == OmniboxPopupSelection::KEYWORD_MODE) {
+  if (selection.state == OmniboxPopupSelection::LineState::kKeywordMode) {
     // The keyword button doesn't open anything: it starts keyword mode.
     edit_model()->SetPopupSelection(selection);
     edit_model()->AcceptKeyword(metrics::OmniboxEventProto::CLICK_HINT_VIEW);

@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
-index cbf3b6c563..ce30acc64c 100644
+index b2619baa8f..494f96dee1 100644
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
 @@ -230,6 +230,7 @@
@@ -10,7 +10,7 @@ index cbf3b6c563..ce30acc64c 100644
  
  #if defined(ARCH_CPU_X86_64)
  #include "base/mac/mac_util.h"
-@@ -1568,12 +1569,8 @@ void ChromeBrowserMainParts::PreProfileInit() {
+@@ -1559,12 +1560,8 @@ void ChromeBrowserMainParts::PreProfileInit() {
  #endif
  
  #if BUILDFLAG(IS_MAC)

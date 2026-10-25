@@ -32,7 +32,10 @@ Preview the rebase without changing the checkout (this fetches `NEW`):
 ## 2. Before syncing
 
 - `git status` is clean, and running `make patches` leaves it clean, so
-  `chromium/src` has no edits that aren't in a patch.
+  `chromium/src` has no edits that aren't in a patch. If it doesn't, put
+  `patches/` back with `git checkout -- patches/` and `git clean -f patches/`
+  before going on: the rebase takes every file there as a patch, untracked ones
+  too.
 - For a milestone, run `make size` while `out/Release` is still built at `OLD`.
   The run after the upgrade then reports what moved since.
 
@@ -110,6 +113,11 @@ The first is what `make size` and `make install` use; the second has DCHECKs
 on, for step 7, and catches what only breaks in a component build (a missing
 export). A new release rebuilds nearly everything in each, which takes hours
 for a milestone.
+
+To see `//fiber`'s errors first, in minutes, compile just its sources, as
+`../../fiber/<path>.cc^` (or `.mm^`) targets to `autoninja -C out/Release`,
+after `scripts/apply_patches.sh` and the bindings step `build_chromium.sh` runs
+first. Never run a second build in an out directory while one is running there.
 Errors in `//fiber` come from changes to Chromium's API. Fix them the way
 Chrome's own callers changed in the same release (`git -C chromium/src grep`).
 A new pure virtual method in an interface Fiber implements (`BrowserWindow`,
@@ -148,7 +156,7 @@ Split the reading among subagents working in parallel, each writing its part
 to the scratch directory:
 - the patches,
 - `core/browser/` in two halves,
-- `hooks/` with `media/`, `renderer/`, `branding/` and the docs.
+- `hooks/` with `media/`, `branding/` and the docs.
 
 This is the one time all of Fiber is read at once, so also report anything
 that contradicts the docs or `PRINCIPLES.md`, even where it has nothing to do
@@ -178,8 +186,10 @@ a milestone, give each batch to its own subagent, in parallel. Flag:
 
 When a subject doesn't say enough, read the commit's message and diff:
 `changes.py --show <hash> --watch <watch file>` shows only the hunks in watched
-files, then names the commit's other files. Each flag gives the commit, what it changes, the
-touch point or kind it affects, and why.
+files, then names the commit's other files. A dozen subagents at once run into
+Gitiles' rate limit (HTTP 429); what a file became is also in the checkout,
+which has both tags (`git -C chromium/src diff OLD NEW -- <path>`). Each flag
+gives the commit, what it changes, the touch point or kind it affects, and why.
 
 **Investigate** each flag in the new tree, and decide what it needs: a hook, a
 cut, a feature or pref turned off, a fail-safe, or nothing. Make the change,

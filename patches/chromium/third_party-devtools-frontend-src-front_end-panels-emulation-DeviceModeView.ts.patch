@@ -1,5 +1,5 @@
 diff --git a/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts b/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
-index 867dc98b..759e06e1 100644
+index d31b7a74..2bea1a7f 100644
 --- a/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
 +++ b/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
 @@ -272,7 +272,10 @@ export class DeviceModeView extends UI.Widget.VBox {
