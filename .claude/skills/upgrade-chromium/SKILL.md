@@ -128,7 +128,8 @@ Chromium file there, then run `make patches`.
 If the user leaves the build to CI, skip this step and the checks in step 7
 that need a build, and say which ones you skipped. Note that the local
 `out/Release` and `out/Default` are then stale, and their next builds rebuild
-most of Chromium.
+most of Chromium. Without a build, `git -C chromium/src diff --stat OLD NEW --`
+over the headers `core/` includes (step 6) shows whether `//fiber`'s API moved.
 
 ## 6. Review the release against what Fiber depends on
 
@@ -157,6 +158,9 @@ to the scratch directory:
 - the patches,
 - `core/browser/` in two halves,
 - `hooks/` with `media/`, `branding/` and the docs.
+
+Subagents running during `make sync` read the patches from `git show HEAD:…`,
+since the sync rewrites `patches/`.
 
 This is the one time all of Fiber is read at once, so also report anything
 that contradicts the docs or `PRINCIPLES.md`, even where it has nothing to do
