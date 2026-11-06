@@ -135,6 +135,13 @@ Each surface Fiber replaces, and where it lives:
 | Native messaging hosts, found in Chrome's folders as well as Fiber's, since apps only register them with browsers they know | `hooks/native_messaging.cc` | |
 | Media codecs | `media/` | |
 
+Glass keeps the appearance it's given. macOS 26 flips each piece between light
+and dark by the luma behind it, on its own and seconds apart, so pieces side by
+side disagree. Appearances, containers and tints don't stop it, and
+`.glassEffect` has no switch, so `GlassLuma.swift` has the layer all glass draws
+with ignore the luma. macOS 27 doesn't track it, so that's only on 26, whose
+material stays brighter over dark content than 27's.
+
 Where Fiber has no replacement yet:
 
 - **Chrome's UI, kept:** DevTools windows (for what can't dock, like

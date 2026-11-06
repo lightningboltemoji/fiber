@@ -145,6 +145,8 @@ jobs:
           git -C "$dir" fetch --quiet origin main
           git -C "$dir" reset --quiet --hard origin/main
 
+          brew trust --tap lightningboltemoji/tap
+
           # Authored as the app's bot account, whose numeric id makes the noreply address resolve to
           # it. A failing `gh api` prints its error to stdout, hence `|| uid=""`.
           uid="$(gh api "/users/$TAP_APP_SLUG%5Bbot%5D" --jq .id 2>/dev/null)" || uid=""

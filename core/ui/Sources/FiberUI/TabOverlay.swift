@@ -305,6 +305,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       model.tabDrag = nil
       stopAutoscroll()
       shelfBar.setDropTarget(nil)
+      shelfBar.endHover()
       shelfBar.endRename(keep: true)
       commitShelfRemoval()
       hideBead()

@@ -93,6 +93,28 @@ run it on a throwaway profile:
   `NSApp.appearance = NSAppearance(named: .aqua)` in the same place. Don't pass
   `-NSRequiresAquaSystemAppearance YES`: Chrome opens `YES` as a URL.
 
+## On macOS 26
+
+Glass differs between macOS releases, so check it on the oldest one too, in a
+Tart VM. Keystrokes are safe there, unlike on the host.
+
+- **Getting in:** `tart exec <vm> bash -lc '…'` runs in its login session, so
+  GUI launches and `screencapture -x` work. `tart exec -i` takes stdin, so
+  `tar -cf - Fiber.app | tart exec -i <vm> tar -xf -` copies the app, and
+  `tart exec <vm> cat shot.png > shot.png` brings a capture back.
+- **Launching:** with `open -n -a`, or clicks don't bring the app forward.
+- **Keys and clicks:** a small tool posting `CGEvent`s, built on the host with
+  `-target arm64-apple-macos26.0`. The guest agent has Accessibility but not
+  Automation, so `osascript` hangs on a prompt nobody sees.
+- **Dark appearance:** `SLSSetAppearanceThemeLegacy` from SkyLight.
+  `defaults write -g AppleInterfaceStyle` doesn't reach the window server.
+- **Trying a fix without a build:** a dylib of the same hook, with
+  `open --env DYLD_INSERT_LIBRARIES=…`.
+- **Adaptive glass:** a window's pieces sample one at a time, seconds apart, so
+  one that's still light may just not have flipped yet. Put a piece alone over
+  black, and read `_adaptationDebugDescription` on an `NSGlassEffectView` for its
+  `contentColorScheme`.
+
 ## Restoring windows
 
 What to try after changing how Fiber restores windows (see

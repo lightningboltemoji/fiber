@@ -11,6 +11,9 @@ enum ShelfBarLayout {
   static let segmentHeight = height - 2 * rimWidth
   static let homeWidth: CGFloat = 40
   static let titleInset: CGFloat = 13
+  /// How far each segment's capsule reaches under the next, as the menu bar's
+  /// do: titles sit closer together than their capsules would side by side.
+  static let segmentOverlap: CGFloat = 8
   /// While renaming, the least a segment's field has to type in.
   static let minFieldWidth: CGFloat = 60
   /// Between the bar's button and what ends the row after it: the downloads,
@@ -21,6 +24,8 @@ enum ShelfBarLayout {
   /// While a row's dragged to it, how far above and below the bar it still
   /// takes the drop.
   static let dropSlop: CGFloat = 12
+  /// How far the light under the pointer reaches.
+  static let glowRadius: CGFloat = 56
   @MainActor static let font = NSFont.systemFont(ofSize: 13, weight: .medium)
   /// The button's undo symbol and title, and their insets.
   static let undoTitle = "Undo"
@@ -35,23 +40,31 @@ enum ShelfBarLayout {
 
   static func contentWidth(segmentWidths widths: [CGFloat]) -> CGFloat {
     widths.reduce(2 * rimWidth, +)
+      - CGFloat(max(widths.count - 1, 0)) * segmentOverlap
   }
 
   static func segmentFrames(widths: [CGFloat]) -> [CGRect] {
     var x = rimWidth
     return widths.map { width in
-      defer { x += width }
+      defer { x += width - segmentOverlap }
       return CGRect(x: x, y: rimWidth, width: width, height: segmentHeight)
     }
   }
 
-  /// The segment at `x` across the capsule, scrolled `scroll` along.
+  /// The segment at `x` across the capsule, scrolled `scroll` along. Two that
+  /// overlap divide at its middle, halfway between their titles.
   static func segment(at x: CGFloat, scroll: CGFloat, widths: [CGFloat])
     -> Int?
   {
-    segmentFrames(widths: widths).firstIndex {
-      ($0.minX...$0.maxX).contains(x + scroll)
+    let frames = segmentFrames(widths: widths)
+    let x = x + scroll
+    guard let first = frames.first, let last = frames.last,
+      (first.minX...last.maxX).contains(x)
+    else {
+      return nil
     }
+    return frames.firstIndex { x < $0.maxX - segmentOverlap / 2 }
+      ?? frames.indices.last
   }
 
   /// A circle, or a capsule while it undoes a deletion.
@@ -227,6 +240,11 @@ final class ShelfBar: NSView {
     if segment != model.dropTarget {
       model.dropTarget = segment
     }
+  }
+
+  /// For the bar going away with the pointer on it, which no event reports.
+  func endHover() {
+    hover(at: nil)
   }
 
   /// Puts a field over the shelf's segment, with its name selected.
@@ -418,9 +436,16 @@ final class ShelfBar: NSView {
   }
 
   private func hover(at point: CGPoint?) {
+    let wasGlowing = model.isGlowing
     let part = point.flatMap(part(at:))
     if part != model.hoveredPart {
       model.hoveredPart = part
+    }
+    if case .segment? = part, let point {
+      model.pointerX = point.x - model.barFrame.minX
+    }
+    if model.isGlowing, !wasGlowing {
+      model.glowCount += 1
     }
   }
 
@@ -457,6 +482,10 @@ final class ShelfBarModel {
   /// How far the segments are scrolled across the capsule.
   var scroll: CGFloat = 0
   var hoveredPart: ShelfBarPart?
+  /// Across the capsule, where the pointer was last on a segment.
+  var pointerX: CGFloat = 0
+  /// How many times the light under the pointer has come on.
+  var glowCount = 0
   var dropTarget: ShelfSegment?
   var renaming: ShelfRename?
   var undoName: String?
@@ -469,6 +498,15 @@ final class ShelfBarModel {
     renaming.flatMap { segments.firstIndex(of: .shelf($0.shelfID)) }
   }
 
+  /// Whether the pointer's on a segment the capsule isn't, with no row being
+  /// dragged.
+  var isGlowing: Bool {
+    guard case .segment(let hovered)? = hoveredPart else {
+      return false
+    }
+    return hovered != segment && dropTarget == nil
+  }
+
   var scrollRange: ClosedRange<CGFloat> {
     0...max(
       ShelfBarLayout.contentWidth(segmentWidths: segmentWidths)
@@ -476,11 +514,12 @@ final class ShelfBarModel {
   }
 }
 
-/// Draws the shelf bar where its model has it; ShelfBar takes its input. The
-/// selected segment's highlight glides, and a segment a row is dragged onto
-/// lights up.
+/// Draws the shelf bar where its model has it; ShelfBar takes its input. Its
+/// one capsule glides from the selected segment to one a row is dragged onto;
+/// the pointer's a light in the glass, since two capsules would overlap.
 struct ShelfBarView: View {
   let model: ShelfBarModel
+  @Environment(\.colorScheme) private var colorScheme
 
   var body: some View {
     let bar = model.barFrame
@@ -494,14 +533,10 @@ struct ShelfBarView: View {
         .offset(x: bar.minX, y: bar.minY)
         .accessibilityHidden(true)
 
+      pointerGlow(bar: bar)
+
       ZStack(alignment: .topLeading) {
-        if let index = segments.firstIndex(of: model.segment),
-          frames.indices.contains(index)
-        {
-          highlight(frames[index], fill: Color.primary.opacity(0.13))
-            .animation(
-              .spring(duration: 0.3, bounce: 0.15).slowMotion, value: index)
-        }
+        highlight(frames)
         if let index = model.renamingSegmentIndex, frames.indices.contains(index)
         {
           Capsule()
@@ -509,24 +544,9 @@ struct ShelfBarView: View {
             .frame(width: frames[index].width, height: frames[index].height)
             .offset(x: frames[index].minX, y: frames[index].minY)
         }
-        if let target = model.dropTarget,
-          let index = segments.firstIndex(of: target),
-          frames.indices.contains(index)
-        {
-          highlight(frames[index], fill: Color.accentColor.opacity(0.55))
-            .transition(.opacity)
-        }
         ForEach(Array(zip(segments, frames)), id: \.0) { segment, frame in
           label(of: segment)
             .frame(width: frame.width, height: frame.height)
-            .background {
-              Capsule()
-                .fill(Color.primary.opacity(0.07))
-                .opacity(
-                  model.hoveredPart == .segment(segment)
-                    && segment != model.segment && model.dropTarget == nil
-                    ? 1 : 0)
-            }
             .offset(x: frame.minX, y: frame.minY)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(
@@ -560,26 +580,72 @@ struct ShelfBarView: View {
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 
-  private func highlight(_ frame: CGRect, fill: some ShapeStyle) -> some View {
-    Capsule()
-      .fill(fill)
-      .frame(width: frame.width, height: frame.height)
-      .offset(x: frame.minX, y: frame.minY)
+  /// The capsule, on the segment a dragged row would drop on, or else the
+  /// selected one.
+  @ViewBuilder private func highlight(_ frames: [CGRect]) -> some View {
+    let target = model.dropTarget ?? model.segment
+    if let index = model.segments.firstIndex(of: target),
+      frames.indices.contains(index)
+    {
+      Capsule()
+        .fill(
+          model.dropTarget == nil
+            ? Color.primary.opacity(0.13) : Color.accentColor.opacity(0.55)
+        )
+        .frame(width: frames[index].width, height: frames[index].height)
+        .offset(x: frames[index].minX, y: frames[index].minY)
+        .animation(
+          .spring(duration: 0.3, bounce: 0.15).slowMotion, value: index)
+    }
+  }
+
+  /// A soft light under the pointer, in the inner glass. Each time it comes on
+  /// it's a new view, so it rises where the pointer came in, and the last one
+  /// fades where it left rather than sliding across.
+  private func pointerGlow(bar: CGRect) -> some View {
+    let rim = ShelfBarLayout.rimWidth
+    let radius = ShelfBarLayout.glowRadius
+    let height = bar.height - 2 * rim
+    // White has less to stand out from on light glass.
+    let strength = colorScheme == .dark ? 0.17 : 0.6
+    return ZStack(alignment: .topLeading) {
+      if model.isGlowing {
+        RadialGradient(
+          colors: [.white.opacity(strength), .white.opacity(0)],
+          center: .center, startRadius: 0, endRadius: radius
+        )
+        .frame(width: 2 * radius, height: 2 * radius)
+        .offset(x: model.pointerX - rim - radius, y: height / 2 - radius)
+        .animation(.easeOut(duration: 0.08).slowMotion, value: model.pointerX)
+        .id(model.glowCount)
+        .transition(
+          .asymmetric(
+            insertion: .opacity.animation(.easeInOut(duration: 0.4).slowMotion),
+            removal: .opacity.animation(.easeOut(duration: 0.25).slowMotion)))
+      }
+    }
+    .frame(
+      width: max(bar.width - 2 * rim, 0), height: height, alignment: .topLeading
+    )
+    .clipShape(Capsule())
+    .offset(x: bar.minX + rim, y: bar.minY + rim)
+    .accessibilityHidden(true)
   }
 
   @ViewBuilder private func label(of segment: ShelfSegment) -> some View {
-    let isSelected = segment == model.segment
+    let isBright =
+      segment == model.segment || model.hoveredPart == .segment(segment)
     switch segment {
     case .home:
       Image(systemName: "house.fill")
         .font(.system(size: 13))
-        .foregroundStyle(isSelected ? .primary : .secondary)
+        .foregroundStyle(isBright ? .primary : .secondary)
         .accessibilityLabel("Home")
     case .shelf(let shelfID):
       let name = model.shelves.first { $0.shelfID == shelfID }?.name ?? ""
       Text(name)
         .font(Font(ShelfBarLayout.font as CTFont))
-        .foregroundStyle(isSelected ? .primary : .secondary)
+        .foregroundStyle(isBright ? .primary : .secondary)
         .lineLimit(1)
         .fixedSize()
         // The field over it shows the name being typed.

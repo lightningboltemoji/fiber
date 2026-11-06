@@ -198,6 +198,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     frame: NSRect, actions: (any FiberWindowActions)?,
     tabIndex: (any FiberTabIndex)?, isIncognito: Bool
   ) {
+    _ = GlassLuma.ignored
     self.actions = actions
     self.tabIndex = tabIndex
     tabOverlay = TabOverlay(isIncognito: isIncognito)

@@ -22,6 +22,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/FiberMark.swift",
     "Sources/FiberUI/FindBar.swift",
     "Sources/FiberUI/GlassCapsule.swift",
+    "Sources/FiberUI/GlassLuma.swift",
     "Sources/FiberUI/HistorySwipe.swift",
     "Sources/FiberUI/JavaScriptDialog.swift",
     "Sources/FiberUI/KeyPassthroughBubble.swift",

@@ -10,7 +10,10 @@ like bookmarks that open as tabs. How it fits with the rest of the tabs is in
 
 - **The shelf bar**, under the tab overlay's panel at the left, opposite the
   downloads: a segment for Home (the window's tabs that aren't pins' or
-  shelf pages'), one per shelf, and a + that adds one, ready to name. The
+  shelf pages'), one per shelf, and a + that adds one, ready to name. Their
+  capsules overlap a little, as the menu bar's do, so names sit closer, and
+  like the menu bar's only one shows at a time: the selected segment's, with
+  a soft light in the glass under the pointer instead of a second capsule. The
   overlay opens on the active tab's list. Left and Right switch lists from
   the rows, and the segments scroll across, fading at the edges, once they
   don't fit beside the downloads (and the split's spot, in a narrow
@@ -20,10 +23,11 @@ like bookmarks that open as tabs. How it fits with the rest of the tabs is in
   page without a tab it's a trash can, which removes it, taking no click
   until the pointer has left it after closing the tab. Delete removes the
   selected page.
-- **Dragging a row** onto a segment moves it there: a tab onto a shelf keeps
-  its page there, a page onto another shelf moves it, and a page onto Home
-  stops keeping it (its tab stays, or opens behind). Dragged up or down the
-  list, a page moves to another place on its shelf.
+- **Dragging a row** onto a segment, which the capsule glides to and turns
+  blue, moves it there: a tab onto a shelf keeps its page there, a page onto
+  another shelf moves it, and a page onto Home stops keeping it (its tab
+  stays, or opens behind). Dragged up or down the list, a page moves to
+  another place on its shelf.
 - **A page is kept as a pin is.** Its tab can wander; right-click offers Back
   to saved page and Replace with this page, and opening its URL (the omnibox,
   another app) goes to it. Move to and Remove are there too, and Home's tabs
