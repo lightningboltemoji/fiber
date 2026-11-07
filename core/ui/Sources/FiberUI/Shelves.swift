@@ -35,21 +35,27 @@ enum ShelfSegment: Hashable {
 }
 
 /// A row of the tab overlay's list being dragged: to another place in the
-/// list, or onto the shelf bar or the split's spot.
+/// list, or onto the shelf bar or the split's spot. So is the spot's tab, which
+/// drags off it as if it were a row dropped there.
 struct TabDrag: Equatable {
   let rowID: TabListRow.ID
+  /// Whether it's the spot's tab, which the list doesn't have.
+  var isFromSpot = false
   /// From the row's top to where the pointer pressed it.
   let grabOffset: CGFloat
   /// Where the pointer is, in the overlay.
   var point: CGPoint
   /// Where it would go if dropped now.
   var target: TabDropTarget?
+
+  /// Whether dropping it now changes nothing: the spot's tab is back on it.
+  var staysOnSpot: Bool { isFromSpot && (target == nil || target == .split) }
 }
 
 enum TabDropTarget: Equatable {
   /// A place among the list's other rows.
   case list(Int)
-  /// A segment other than the list's.
+  /// A segment other than the list's, or any for the spot's tab.
   case shelf(ShelfSegment)
   /// The split's spot (see SplitSpot).
   case split

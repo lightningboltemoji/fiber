@@ -8,10 +8,11 @@ import SwiftUI
 /// and the extensions beside it, the split's spot (SplitSpot) on its other
 /// side, and under it the shelves (ShelfBar), whose lists it shows in place
 /// of the tabs, and the downloads (DownloadsBubble). Rows drag to a new place
-/// in the list, onto a shelf, or onto the split's spot. The arrow keys,
-/// Return and Command-W move through, switch to and close them, and holding
-/// Option numbers the tabs, for Option and a number to switch to one. This
-/// view takes the events and keeps the model; TabOverlayView draws.
+/// in the list, onto a shelf, or onto the split's spot, and the spot's tab
+/// drags back off it the same way. The arrow keys, Return and Command-W move
+/// through, switch to and close them, and holding Option numbers the tabs, for
+/// Option and a number to switch to one. This view takes the events and keeps
+/// the model; TabOverlayView draws.
 @MainActor
 final class TabOverlay: NSView, NSViewToolTipOwner {
   /// Called with a tab to switch to, never the active one unless it's to go
@@ -36,6 +37,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   var onSplit: (Int, Int) -> Void = { _, _ in }
   /// The same for a pin or a shelf's page, which a copy of goes there.
   var onSplitCopy: (String, Int) -> Void = { _, _ in }
+  /// Called as the spot's tab is dropped off it, before it goes where it was
+  /// dropped.
+  var onEndSplit: () -> Void = {}
   /// Right-clicks on the split's spot, while it has a tab.
   var onSplitMenu: (NSEvent) -> Void = { _ in }
   var onUnpin: (String) -> Void = { _ in }
@@ -714,11 +718,19 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   }
 
   private func drop(_ drag: TabDrag) {
+    if case .shelf = drag.target {
+      holdShelfBar()
+    }
+    if drag.isFromSpot {
+      guard !drag.staysOnSpot, model.spotRow?.id == drag.rowID else {
+        return
+      }
+      onEndSplit()
+    }
     switch drag.target {
     case .list(let index)?:
       move(drag.rowID, to: index)
     case .shelf(let segment)?:
-      holdShelfBar()
       let shelfID: String
       if case .shelf(let id) = segment {
         shelfID = id
@@ -790,11 +802,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       beside: tabID, in: split, tabs: tabs, activeTabID: model.activeTabID)
   }
 
-  /// A pressed row dragged far enough lifts, to a new place in the list, or
-  /// off it, for the shelf bar or the split's spot.
+  /// A pressed row, or the spot's tab, dragged far enough lifts: to a new
+  /// place in the list, or off it, for the shelf bar or the split's spot.
   private func dragRow(to point: CGPoint) -> Bool {
-    guard let rowID = pressedRowID, let start = pressedRowPoint,
-      let index = model.rows.firstIndex(where: { $0.id == rowID })
+    guard let start = pressedRowPoint,
+      var drag = model.tabDrag ?? drag(pressedAt: start)
     else {
       return false
     }
@@ -804,47 +816,71 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     else {
       return true
     }
-    let grabOffset =
-      model.tabDrag?.grabOffset
-      ?? model.listContentY(at: start) - TabListLayout.rowCenter(index)
-      + TabListLayout.rowHeight / 2
-    let target = dropTarget(
-      for: rowID, at: point, grabOffset: grabOffset,
-      isLifted: model.tabDrag == nil || model.liftedRowTop != nil)
+    let isLifted = model.tabDrag == nil || model.liftedRowTop != nil
+    drag.point = point
+    drag.target = dropTarget(for: drag, isLifted: isLifted)
     model.closeButton = nil
-    model.tabDrag = TabDrag(
-      rowID: rowID, grabOffset: grabOffset, point: point, target: target)
-    shelfBar.setDropTarget(target?.segment)
+    setTabDrag(drag)
+    shelfBar.setDropTarget(drag.target?.segment)
     updateAutoscroll()
     return true
   }
 
-  /// Where a row dragged to `point` would go: the split's spot, a shelf's
-  /// segment, or a place in the list, if any of them takes it. `isLifted` is
-  /// whether it's within the list now.
-  private func dropTarget(
-    for rowID: TabListRow.ID, at point: CGPoint, grabOffset: CGFloat,
-    isLifted: Bool
-  ) -> TabDropTarget? {
-    if splitLeftTab(for: rowID) != nil,
+  /// A drag of what's pressed at `point`, yet to move.
+  private func drag(pressedAt point: CGPoint) -> TabDrag? {
+    if isSpotPressed {
+      return model.spotRow.map {
+        TabDrag(
+          rowID: $0.id, isFromSpot: true,
+          grabOffset: TabListLayout.rowHeight / 2, point: point)
+      }
+    }
+    guard let rowID = pressedRowID,
+      let index = model.rows.firstIndex(where: { $0.id == rowID })
+    else {
+      return nil
+    }
+    return TabDrag(
+      rowID: rowID,
+      grabOffset: model.listContentY(at: point)
+        - TabListLayout.rowCenter(index) + TabListLayout.rowHeight / 2,
+      point: point)
+  }
+
+  /// A row from the spot adds to the list's height while it's within it.
+  private func setTabDrag(_ drag: TabDrag) {
+    let height = model.listContentHeight
+    model.tabDrag = drag
+    if model.listContentHeight != height {
+      layoutPanel()
+    }
+  }
+
+  /// Where `drag`'s row would go: the split's spot, a shelf's segment, or a
+  /// place in the list, if any of them takes it. `isLifted` is whether it's
+  /// within the list now. The spot's tab is on no segment, and only Home's
+  /// list has a place for it.
+  private func dropTarget(for drag: TabDrag, isLifted: Bool) -> TabDropTarget? {
+    let point = drag.point
+    if splitLeftTab(for: drag.rowID) != nil,
       SplitSpotLayout.takesDrop(at: point, frame: model.splitSpotFrame)
     {
       return .split
     }
     if hasShelves, let segment = shelfBar.segment(forDropAt: point),
-      segment != shelfBar.segment
+      drag.isFromSpot || segment != shelfBar.segment
     {
       return .shelf(segment)
     }
     let list = model.panelFrame.insetBy(
       dx: isLifted ? Self.pullOutInset : Self.pullInInset,
       dy: -Self.listDropSlop)
-    guard model.rows.count > 1, list.contains(point) else {
+    guard drag.isFromSpot ? shelfBar.segment == .home : model.rows.count > 1,
+      list.contains(point)
+    else {
       return nil
     }
-    return .list(
-      model.dropIndex(
-        forLiftedTop: model.liftedRowTop(at: point, grabOffset: grabOffset)))
+    return .list(model.dropIndex(of: drag))
   }
 
   /// While a row's lifted within the list near its top or bottom edge, the
@@ -909,10 +945,8 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     guard var drag = model.tabDrag else {
       return
     }
-    drag.target = dropTarget(
-      for: drag.rowID, at: drag.point, grabOffset: drag.grabOffset,
-      isLifted: model.liftedRowTop != nil)
-    model.tabDrag = drag
+    drag.target = dropTarget(for: drag, isLifted: model.liftedRowTop != nil)
+    setTabDrag(drag)
   }
 
   /// A flourish where each pin that came or went is, or was.
@@ -1852,6 +1886,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
     if isOnSpot(point) {
       isSpotPressed = true
+      pressedRowPoint = point
       return
     }
     pressedCloseButtonRowID = closeButtonRow(at: point)
@@ -1913,10 +1948,11 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       stopAutoscroll()
       shelfBar.setDropTarget(nil)
       // The browser moves the tab before this returns, so a row dropped in
-      // the list settles into its new place from under the pointer.
+      // the list settles into its new place from under the pointer. The drag
+      // ends after that, or the list would lose the spot's tab's row meanwhile.
       withAnimation(.spring(duration: 0.3, bounce: 0.15).slowMotion) {
-        model.tabDrag = nil
         drop(drag)
+        model.tabDrag = nil
       }
       hover(at: location(of: event))
       return
@@ -2287,16 +2323,29 @@ final class TabOverlayModel {
   /// Whether the split shows, its left or right tab being active.
   var isSplitShown: Bool { split?.contains(activeTabID) ?? false }
 
+  /// The split's right tab, as a row for dragging it off its spot.
+  var spotRow: TabListRow? { splitTab.map(TabListRow.init(tab:)) }
+
+  /// The row being dragged, if it's still in the list or on the spot.
+  var draggedRow: TabListRow? {
+    guard let tabDrag else {
+      return nil
+    }
+    if tabDrag.isFromSpot {
+      return spotRow?.id == tabDrag.rowID ? spotRow : nil
+    }
+    return rows.first { $0.id == tabDrag.rowID }
+  }
+
   /// The rows as the list shows them: one dragged within it where it would
   /// drop.
   var shownRows: [TabListRow] {
     guard let tabDrag, case .list(let index) = tabDrag.target,
-      let from = rows.firstIndex(where: { $0.id == tabDrag.rowID })
+      let row = draggedRow
     else {
       return rows
     }
-    var shown = rows
-    let row = shown.remove(at: from)
+    var shown = rows.filter { $0.id != row.id }
     shown.insert(row, at: min(index, shown.count))
     return shown
   }
@@ -2306,7 +2355,7 @@ final class TabOverlayModel {
     guard let tabDrag, case .list = tabDrag.target else {
       return nil
     }
-    return liftedRowTop(at: tabDrag.point, grabOffset: tabDrag.grabOffset)
+    return liftedRowTop(of: tabDrag)
   }
 
   /// How far down the list's rows `point` is, where it's scrolled to now.
@@ -2314,25 +2363,31 @@ final class TabOverlayModel {
     point.y - panelFrame.minY - listRect.minY + scrollOffset
   }
 
-  /// Where a row's top is with the pointer at `point`, `grabOffset` below it,
-  /// kept to the list's rows.
-  func liftedRowTop(at point: CGPoint, grabOffset: CGFloat) -> CGFloat {
-    let first = TabListLayout.contentInset
-    let last = first + CGFloat(max(rows.count - 1, 0)) * TabListLayout.rowStep
-    return min(max(listContentY(at: point) - grabOffset, first), last)
+  /// How many places `drag`'s row has in the list.
+  private func placeCount(for drag: TabDrag) -> Int {
+    rows.count + (drag.isFromSpot ? 1 : 0)
   }
 
-  /// The place among the other rows a row lifted to `top` would drop in.
-  func dropIndex(forLiftedTop top: CGFloat) -> Int {
+  /// Where the top of `drag`'s row is, kept to the list's places for it.
+  func liftedRowTop(of drag: TabDrag) -> CGFloat {
+    let first = TabListLayout.contentInset
+    let last =
+      first + CGFloat(max(placeCount(for: drag) - 1, 0)) * TabListLayout.rowStep
+    return min(max(listContentY(at: drag.point) - drag.grabOffset, first), last)
+  }
+
+  /// The place among the other rows `drag`'s row would drop in.
+  func dropIndex(of drag: TabDrag) -> Int {
+    let top = liftedRowTop(of: drag)
     let index = Int(
       ((top - TabListLayout.contentInset) / TabListLayout.rowStep).rounded())
-    return min(max(index, 0), max(rows.count - 1, 0))
+    return min(max(index, 0), max(placeCount(for: drag) - 1, 0))
   }
 
   /// How many rows aren't wholly in sight below the list's bottom edge.
   var rowsBelow: Int {
     let bottom = scrollOffset + listRect.height
-    return rows.indices.filter {
+    return shownRows.indices.filter {
       TabListLayout.contentInset + CGFloat($0) * TabListLayout.rowStep
         + TabListLayout.rowHeight > bottom + 0.5
     }.count
@@ -2505,8 +2560,9 @@ final class TabOverlayModel {
   /// With no tabs, the top rim's, so the hints sit as far from the panel's top
   /// as from its bottom; an empty shelf's, a row for what to do with it.
   var listContentHeight: CGFloat {
-    rows.isEmpty && listedShelfName == nil
-      ? PaletteView.rimWidth : TabListLayout.panelHeight(rows: rows.count)
+    let count = shownRows.count
+    return count == 0 && listedShelfName == nil
+      ? PaletteView.rimWidth : TabListLayout.panelHeight(rows: count)
   }
 
   /// From the panel's top-left corner.
@@ -2640,7 +2696,8 @@ struct TabOverlayView: View {
       tab: tab, isActive: tab.map { $0.tabID == model.activeTabID } ?? false,
       isShown: model.isSplitShown, isSelected: model.selection == .split,
       isDropTarget: model.tabDrag?.target == .split
-        || model.pinDrag?.isOverSplit == true
+        || model.pinDrag?.isOverSplit == true,
+      isDragged: model.tabDrag?.isFromSpot == true
     )
     .offset(
       x: isAway && model.isSplitSpotBeside ? TabOverlayMotion.sideTravel : 0,
@@ -2705,7 +2762,7 @@ private struct TabDragView: View {
   var body: some View {
     ZStack(alignment: .topLeading) {
       if let drag = model.tabDrag, model.liftedRowTop == nil,
-        let row = model.rows.first(where: { $0.id == drag.rowID })
+        let row = model.draggedRow
       {
         let isOverTarget = drag.target != nil
         DraggedRow(row: row, isOverTarget: isOverTarget)

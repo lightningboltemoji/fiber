@@ -50,7 +50,8 @@ enum SplitSpotLayout {
 
 /// The split's spot: the split glyph while it's empty, and the right tab's
 /// icon once it has one, ringed while that tab is active, and dimmed while
-/// the split doesn't show. A row dragged over it swells it.
+/// the split doesn't show or the tab's being dragged off it. A row dragged
+/// over it swells it.
 struct SplitSpot: View {
   /// The right tab, if there's a split.
   let tab: FiberTabState?
@@ -59,6 +60,8 @@ struct SplitSpot: View {
   let isShown: Bool
   let isSelected: Bool
   let isDropTarget: Bool
+  /// Whether its tab is being dragged, as a row off the list is.
+  let isDragged: Bool
 
   var body: some View {
     let rim = GlassCapsule.rimWidth
@@ -68,13 +71,13 @@ struct SplitSpot: View {
       RimmedGlass(cornerRadius: diameter / 2, rimWidth: rim)
       inner
         .fill(Color.primary.opacity(0.22))
-        .opacity(isSelected || isDropTarget ? 1 : 0)
+        .opacity((isSelected && !isDragged) || isDropTarget ? 1 : 0)
       inner
         .strokeBorder(Color.primary.opacity(0.5), lineWidth: 1.5)
         .opacity(isActive || isDropTarget ? 1 : 0)
       icon
         .frame(width: 16, height: 16)
-        .opacity(tab == nil || isShown ? 1 : 0.5)
+        .opacity(isDragged ? 0.3 : tab == nil || isShown ? 1 : 0.5)
         .contentTransition(.opacity)
     }
     .frame(width: diameter, height: diameter)
@@ -83,6 +86,7 @@ struct SplitSpot: View {
       .spring(duration: 0.3, bounce: 0.35).slowMotion, value: isDropTarget)
     .animation(.easeInOut(duration: 0.15).slowMotion, value: isSelected)
     .animation(.easeInOut(duration: 0.15).slowMotion, value: isActive)
+    .animation(.easeInOut(duration: 0.15).slowMotion, value: isDragged)
     .animation(
       .spring(duration: 0.35, bounce: 0.3).slowMotion, value: tab?.tabID)
   }

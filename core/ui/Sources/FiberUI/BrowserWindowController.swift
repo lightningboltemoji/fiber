@@ -559,6 +559,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     tabOverlay.onSplitCopy = { [weak self] pinID, leftTabID in
       self?.actions?.splitCopyOfPin(withID: pinID, besideTabWithID: leftTabID)
     }
+    tabOverlay.onEndSplit = { [weak self] in self?.actions?.endSplit() }
     tabOverlay.onSplitMenu = { [weak self] event in
       guard let self, let actions = self.actions, let split = self.split else {
         return
