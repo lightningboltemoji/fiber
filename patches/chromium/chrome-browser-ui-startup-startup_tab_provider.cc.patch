@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/startup/startup_tab_provider.cc b/chrome/browser/ui/startup/startup_tab_provider.cc
-index 0ce9c12106..086e8f31c3 100644
+index 5aba180705..d635323acc 100644
 --- a/chrome/browser/ui/startup/startup_tab_provider.cc
 +++ b/chrome/browser/ui/startup/startup_tab_provider.cc
 @@ -125,10 +125,15 @@ StartupTabs StartupTabProviderImpl::GetResetTriggerTabs(

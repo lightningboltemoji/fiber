@@ -37,7 +37,9 @@ Preview the rebase without changing the checkout (this fetches `NEW`):
   before going on: the rebase takes every file there as a patch, untracked ones
   too.
 - For a milestone, run `make size` while `out/Release` is still built at `OLD`.
-  The run after the upgrade then reports what moved since.
+  The run after the upgrade then reports what moved since. Each run replaces
+  `out/Release/size/` and prints only the 20 largest moves, so copy its `.tsv`
+  files and `link.map` to the scratch directory for step 7.
 
 ## 3. Sync
 
@@ -180,8 +182,18 @@ A `*` marks a commit that touches a file Fiber patches or watches. A point
 release is a single batch of a few hundred commits; a milestone is about a
 dozen batches.
 
+**Diff the defaults** too. A subject rarely shows a default flipping, and
+`changes.py` can't see inside nested repositories, so compare the two tags
+directly: every `BASE_FEATURE`'s default, each Blink feature's `status` in
+`runtime_enabled_features.json5`, and GN defaults in `*.gni`, the nested
+repositories' included. Fiber's builds aren't official, so a default keyed on
+`!is_official_build` ships in Fiber though it never does in Chrome. A flag Fiber
+relies on being off can also stop mattering when a sibling flag turns on the
+same surface, as `IsContextualTasksUIEnabled()` does, so read what consumes it.
+
 **Triage** each batch against the inventory and `.agents/PRINCIPLES.md`. For
-a milestone, give each batch to its own subagent, in parallel. Flag:
+a milestone, give each batch to its own subagent, in parallel, at most a dozen
+at a time. Flag:
 
 - any marked commit whose change could move or bypass a touch point, or change
   what Fiber relies on there;
@@ -194,6 +206,9 @@ files, then names the commit's other files. A dozen subagents at once run into
 Gitiles' rate limit (HTTP 429); what a file became is also in the checkout,
 which has both tags (`git -C chromium/src diff OLD NEW -- <path>`). Each flag
 gives the commit, what it changes, the touch point or kind it affects, and why.
+`--show` needs the batch file's 12-character hash. The shell is zsh, where
+`"$TAG:chrome/..."` is a modifier (write `"${TAG}:chrome/..."`), and macOS's grep
+has no `\b` (use `-w`). Both fail quietly, as an empty result.
 
 **Investigate** each flag in the new tree, and decide what it needs: a hook, a
 cut, a feature or pref turned off, a fail-safe, or nothing. Make the change,
@@ -204,10 +219,16 @@ the docs don't describe yet, add it to `IMPLEMENTATION.md`.
 
 - `make size`: what Fiber cut stays cut. `chrome/browser/ui/views` and the New
   Tab page's directories mustn't grow back. For media, check the decoders
-  `.agents/MEDIA.md` lists as dead-stripped.
+  `.agents/MEDIA.md` lists as dead-stripped. A flag being off doesn't keep code
+  out: when a directory grows, list its live objects from
+  `out/Release/size/link.map` and find what references them. Upstream's keyed
+  service factories are a common way in, since each is registered at startup
+  whether or not its feature is on.
 - Launch `out/Default`'s app as described under The real app in
   `.agents/TESTING.md`. It should open a window and load a page with no crash
-  or DCHECK on stderr.
+  or DCHECK on stderr. Only this build has sequence checks, so only it shows
+  Chrome's thread-bound code reaching what Fiber moved off the main thread
+  (`hooks/crash_reporter.h`).
 - Run the media tests (`tests/media/README.md`).
 - Ask the user to try the parts you can't drive: tabs, the tab overlay and
   pins, the omnibar, the command palette, the find bar, a JavaScript dialog, a

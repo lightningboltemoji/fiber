@@ -43,7 +43,7 @@ void FiberExtensionActionDelegate::HidePopup() {
   }
 }
 
-gfx::NativeView FiberExtensionActionDelegate::GetPopupNativeView() {
+gfx::NativeView FiberExtensionActionDelegate::GetPopupNativeViewForTesting() {
   return IsShowingPopup() ? gfx::NativeView(toolbar_->GetPopupNativeView())
                           : gfx::NativeView();
 }

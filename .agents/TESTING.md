@@ -83,6 +83,14 @@ run it on a throwaway profile:
   where `item.tag` is its `IDC_` value, or a main menu item with
   `menu.performActionForItem(at:)`. For the tab overlay, a delayed
   `toggleTabOverlay()`.
+- **Driving it without a hook:** with `--remote-debugging-port`, DevTools reads
+  state (`/json`, `Runtime.evaluate`) and navigates (`Page.navigate`: a script's
+  navigation with no user gesture leaves Back disabled). The Accessibility API
+  runs commands, with `AXPress` on a menu item of that PID. Many items are only
+  enabled while its window is key, so set `AXMain`, `AXRaise` and `activate()`
+  first, and put the frontmost app back afterward.
+- **After a crash,** macOS leaves its "quit unexpectedly" dialog on screen, owned
+  by `UserNotificationCenter`. Press its Ignore button the same way.
 - **Shortcuts, as a page gets them:** after `NSApp.activate()` (a page only
   gets keys while its window is key), send a key event made with
   `NSEvent(cgEvent:)` from `CGEvent(keyboardEventSource:virtualKey:keyDown:)`

@@ -1,8 +1,8 @@
 diff --git a/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts b/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
-index d31b7a74..2bea1a7f 100644
+index f77ba26a..d17f7032 100644
 --- a/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
 +++ b/third_party/devtools-frontend/src/front_end/panels/emulation/DeviceModeView.ts
-@@ -272,7 +272,10 @@ export class DeviceModeView extends UI.Widget.VBox {
+@@ -288,7 +288,10 @@ export class DeviceModeView extends UI.Widget.VBox {
      super(element, {useShadowDom: true});
      this.#view = view;
  

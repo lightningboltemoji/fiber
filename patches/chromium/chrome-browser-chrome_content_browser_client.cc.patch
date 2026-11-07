@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
-index aa8b16f467..d497a25c22 100644
+index 565bd580ba..eb3f8a1017 100644
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -5149,11 +5149,9 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
+@@ -5245,11 +5245,9 @@ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
    // Handler to rewrite chrome://newtab on Android.
    handler->AddHandlerPair(&chrome::android::HandleAndroidNativePageURL,
                            BrowserURLHandler::null_handler());
@@ -16,7 +16,7 @@ index aa8b16f467..d497a25c22 100644
  
    // chrome: & friends.
    handler->AddHandlerPair(&ChromeContentBrowserClient::HandleWebUI,
-@@ -8607,7 +8605,9 @@ ChromeContentBrowserClient::CreateDigitalIdentityProvider() {
+@@ -8804,7 +8802,9 @@ ChromeContentBrowserClient::CreateDigitalIdentityProvider() {
  #if BUILDFLAG(IS_ANDROID)
    return std::make_unique<DigitalIdentityProviderAndroid>();
  #else

@@ -44,7 +44,6 @@ bool IsCommandSupported(BrowserWindowInterface* browser, int command) {
     case IDC_CLOSE_TAB_GROUP:
     case IDC_FOCUS_NEXT_TAB_GROUP:
     case IDC_FOCUS_PREV_TAB_GROUP:
-    case IDC_UNFOCUS_TAB_GROUP:
     case IDC_GROUP_UNGROUPED_TABS:
     case IDC_NEW_SPLIT_TAB:
     // Side panels, including the reading list's.

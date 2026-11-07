@@ -1,10 +1,10 @@
 diff --git a/content/renderer/media/audio_decoder.cc b/content/renderer/media/audio_decoder.cc
-index bf0c1c3895..eff30fb819 100644
+index d7ca1c3111..65ed45f05c 100644
 --- a/content/renderer/media/audio_decoder.cc
 +++ b/content/renderer/media/audio_decoder.cc
-@@ -10,12 +10,14 @@
+@@ -9,12 +9,14 @@
+ #include <vector>
  
- #include "base/compiler_specific.h"
  #include "base/containers/span_writer.h"
 +#include "base/functional/bind.h"
  #include "base/logging.h"
@@ -17,7 +17,7 @@ index bf0c1c3895..eff30fb819 100644
  #include "media/base/audio_bus.h"
  #include "media/base/audio_timestamp_helper.h"
  #include "media/base/limits.h"
-@@ -39,7 +41,9 @@ std::unique_ptr<blink::WebAudioBus> DecodeAudioFileData(
+@@ -38,7 +40,9 @@ std::unique_ptr<blink::WebAudioBus> DecodeAudioFileData(
    const base::TimeTicks start_time = base::TimeTicks::Now();
  
    InMemoryUrlProtocol url_protocol(base::as_byte_span(data), false);

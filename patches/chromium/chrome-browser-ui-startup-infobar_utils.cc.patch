@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/startup/infobar_utils.cc b/chrome/browser/ui/startup/infobar_utils.cc
-index 598e361a29..d957a77815 100644
+index 94d977bdfc..28940263f3 100644
 --- a/chrome/browser/ui/startup/infobar_utils.cc
 +++ b/chrome/browser/ui/startup/infobar_utils.cc
 @@ -50,6 +50,10 @@
@@ -21,7 +21,7 @@ index 598e361a29..d957a77815 100644
 +    // Fiber: Fiber's prompt, in place of Chrome's bubble.
 +    fiber::OfferRestoreAfterCrash(browser);
 +#else
-     SessionCrashedBubble::ShowIfNotOffTheRecordProfile(
+     ShowSessionCrashedBubbleIfNotOffTheRecordProfile(
          browser,
          /*skip_tab_checking=*/false);
 +#endif

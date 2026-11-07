@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/browser/metrics/chrome_feature_list_creator.cc
-index 90e572fe4e..955548f14f 100644
+index dbf10a26ea..8bfbcb6cb2 100644
 --- a/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ b/chrome/browser/metrics/chrome_feature_list_creator.cc
-@@ -37,6 +37,7 @@
+@@ -39,6 +39,7 @@
  #include "components/webui/flags/pref_service_flags_storage.h"
  #include "content/public/common/content_switch_dependent_feature_overrides.h"
  #include "content/public/common/content_switches.h"
@@ -10,7 +10,7 @@ index 90e572fe4e..955548f14f 100644
  #include "services/network/public/cpp/network_switches.h"
  #include "services/network/public/cpp/shared_url_loader_factory.h"
  #include "ui/base/resource/resource_bundle.h"
-@@ -238,11 +239,14 @@ void ChromeFeatureListCreator::SetUpFieldTrials() {
+@@ -256,11 +257,14 @@ void ChromeFeatureListCreator::SetUpFieldTrials() {
  
    variations::VariationsService* variations_service =
        metrics_services_manager_->GetVariationsService();
@@ -26,6 +26,6 @@ index 90e572fe4e..955548f14f 100644
 +  variations_service->SetUpFieldTrials(variation_ids, extra_overrides,
 +                                       std::move(feature_list),
 +                                       browser_field_trials_.get());
-   variations::InitCrashKeys();
- }
+   metrics_services_manager_client_->OnFieldTrialsInitialized();
  
+   initial_seed_.reset();

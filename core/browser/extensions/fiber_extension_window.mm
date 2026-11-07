@@ -98,7 +98,7 @@
 
 - (void)commandDispatch:(id)sender {
   if (_owner) {
-    _owner->ExecuteCommand([sender tag], WindowOpenDisposition::CURRENT_TAB);
+    _owner->ExecuteCommand([sender tag], WindowOpenDisposition::kCurrentTab);
   }
 }
 
@@ -619,10 +619,6 @@ FiberExtensionWindow::GetWebContentsModalDialogHostFor(
 
 void FiberExtensionWindow::ShowAvatarBubbleFromAvatarButton(
     bool is_source_accelerator) {}
-
-void FiberExtensionWindow::MaybeShowProfileSwitchIPH() {}
-
-void FiberExtensionWindow::MaybeShowSupervisedUserProfileSignInIPH() {}
 
 void FiberExtensionWindow::ShowHatsDialog(
     const std::string& site_id,

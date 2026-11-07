@@ -1,5 +1,5 @@
 diff --git a/components/favicon/core/favicon_driver_impl.cc b/components/favicon/core/favicon_driver_impl.cc
-index 5419347488..ffef37fe9c 100644
+index ad95d1ee49..72b71b1eb6 100644
 --- a/components/favicon/core/favicon_driver_impl.cc
 +++ b/components/favicon/core/favicon_driver_impl.cc
 @@ -12,6 +12,7 @@

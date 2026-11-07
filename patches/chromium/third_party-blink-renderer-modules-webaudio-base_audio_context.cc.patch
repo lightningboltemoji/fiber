@@ -1,8 +1,8 @@
 diff --git a/third_party/blink/renderer/modules/webaudio/base_audio_context.cc b/third_party/blink/renderer/modules/webaudio/base_audio_context.cc
-index c5756bd985..8da8cc4c6c 100644
+index 7897de4154..63169f7e8b 100644
 --- a/third_party/blink/renderer/modules/webaudio/base_audio_context.cc
 +++ b/third_party/blink/renderer/modules/webaudio/base_audio_context.cc
-@@ -430,8 +430,12 @@ ScriptPromise<AudioBuffer> BaseAudioContext::decodeAudioData(
+@@ -429,8 +429,12 @@ ScriptPromise<AudioBuffer> BaseAudioContext::decodeAudioData(
      // on the main thread.  Must not modify any of the parameters except
      // `audio_data_contents`.  They are used to associate this decoding instance
      // with the caller to process the decoding appropriately when finished.

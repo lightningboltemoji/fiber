@@ -1234,10 +1234,6 @@ void FiberBrowserWindow::ShowAvatarBubbleFromAvatarButton(
   ShowProfileSwitcher(browser_, ProfileSwitcherPage::kProfiles);
 }
 
-void FiberBrowserWindow::MaybeShowProfileSwitchIPH() {}
-
-void FiberBrowserWindow::MaybeShowSupervisedUserProfileSignInIPH() {}
-
 void FiberBrowserWindow::ShowHatsDialog(
     const std::string& site_id,
     const std::optional<std::string>& hats_histogram_name,

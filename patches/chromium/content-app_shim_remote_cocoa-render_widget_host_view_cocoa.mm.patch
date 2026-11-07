@@ -1,8 +1,8 @@
 diff --git a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm
-index 5b05de02f0..ce2666702e 100644
+index 53bc6fac1a..30d56d0ae9 100644
 --- a/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm
 +++ b/content/app_shim_remote_cocoa/render_widget_host_view_cocoa.mm
-@@ -1025,12 +1025,11 @@ static NSWindow* __weak _deferredResignKeyWindow;
+@@ -1040,12 +1040,11 @@ static NSWindow* __weak _deferredResignKeyWindow;
      }
    }
  
@@ -20,7 +20,7 @@ index 5b05de02f0..ce2666702e 100644
    // Traverse the superview hierarchy as the hitTest will return the frontmost
    // view, such as an NSTextView, while nonWebContentView may be specified by
    // its parent view.
-@@ -3142,7 +3141,9 @@ extern NSString* NSTextInputReplacementRangeAttributeName;
+@@ -3170,7 +3169,9 @@ extern NSString* NSTextInputReplacementRangeAttributeName;
  // native_app_window_cocoa.mm). This requires the render host view to be
  // draggable by default.
  - (BOOL)mouseDownCanMoveWindow {

@@ -18,12 +18,15 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 GITILES = "https://chromium.googlesource.com/chromium/src"
 BATCH = 450
 SHOWN_PATHS = 6
+RETRIES = 8
 
 # Paths that never build into Fiber (other platforms, tests, translations,
 # docs, tooling, third-party code it doesn't patch), and ones whose changes are
@@ -43,8 +46,15 @@ OUT_OF_SCOPE = re.compile(r"""
 
 
 def get(url):
-    with urllib.request.urlopen(url) as response:
-        return response.read()
+    # Gitiles turns requests away at random (503) and when busy (429).
+    for attempt in range(RETRIES):
+        try:
+            with urllib.request.urlopen(url) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            if error.code not in (429, 503) or attempt == RETRIES - 1:
+                raise
+            time.sleep(2 ** attempt)
 
 
 def gitiles_json(url):

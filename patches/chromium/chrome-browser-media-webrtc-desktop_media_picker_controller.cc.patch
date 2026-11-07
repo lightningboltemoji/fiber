@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/media/webrtc/desktop_media_picker_controller.cc b/chrome/browser/media/webrtc/desktop_media_picker_controller.cc
-index e609845089..6dd6d89347 100644
+index ab4dfb7d3e..71ce8d90dd 100644
 --- a/chrome/browser/media/webrtc/desktop_media_picker_controller.cc
 +++ b/chrome/browser/media/webrtc/desktop_media_picker_controller.cc
 @@ -26,6 +26,7 @@
@@ -10,7 +10,7 @@ index e609845089..6dd6d89347 100644
  #include "media/audio/audio_features.h"
  #include "media/base/media_switches.h"
  #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
-@@ -144,7 +145,11 @@ void DesktopMediaPickerController::OnInitialMediaListFound() {
+@@ -148,7 +149,11 @@ void DesktopMediaPickerController::OnInitialMediaListFound() {
  }
  
  void DesktopMediaPickerController::ShowPickerDialog() {

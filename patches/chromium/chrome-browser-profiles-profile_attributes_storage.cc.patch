@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/profiles/profile_attributes_storage.cc b/chrome/browser/profiles/profile_attributes_storage.cc
-index bba21bed41..d4c5650ea0 100644
+index 56fba018ce..925b4f40ef 100644
 --- a/chrome/browser/profiles/profile_attributes_storage.cc
 +++ b/chrome/browser/profiles/profile_attributes_storage.cc
-@@ -977,7 +977,8 @@ void ProfileAttributesStorage::DisableProfileMetricsForTesting() {
+@@ -980,7 +980,8 @@ void ProfileAttributesStorage::DisableProfileMetricsForTesting() {
  void ProfileAttributesStorage::DownloadHighResAvatarIfNeeded(
      size_t icon_index,
      const base::FilePath& profile_path) {
@@ -11,4 +11,4 @@ index bba21bed41..d4c5650ea0 100644
 +  // Fiber: its own avatars stand in for Chrome's, which aren't downloaded.
    return;
  #endif
-   DCHECK(!disable_avatar_download_for_testing_);
+   CHECK(!disable_avatar_download_for_testing_, base::NotFatalUntil::M162);

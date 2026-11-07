@@ -23,7 +23,7 @@ namespace {
 // background, Shift for a new window.
 WindowOpenDisposition DispositionFromReturn(NSEvent* event) {
   if (!event) {
-    return WindowOpenDisposition::CURRENT_TAB;
+    return WindowOpenDisposition::kCurrentTab;
   }
   NSEventModifierFlags flags = event.modifierFlags;
   return searchbox::ComputeOpenDispositionFromModifiersAndLogToUma(
@@ -35,7 +35,7 @@ WindowOpenDisposition DispositionFromReturn(NSEvent* event) {
 // button, as for a link.
 WindowOpenDisposition DispositionFromClick(NSEvent* event) {
   return event ? ui::WindowOpenDispositionFromNSEvent(event)
-               : WindowOpenDisposition::CURRENT_TAB;
+               : WindowOpenDisposition::kCurrentTab;
 }
 
 OmniboxPopupSelection::LineState LineStateFromPart(FiberSuggestionPart part) {

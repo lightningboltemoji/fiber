@@ -17,7 +17,7 @@ namespace {
 // Where to open a page, from the modifier keys of the event that asked for it.
 WindowOpenDisposition DispositionFromEvent(NSEvent* event) {
   return event ? ui::WindowOpenDispositionFromNSEvent(event)
-               : WindowOpenDisposition::CURRENT_TAB;
+               : WindowOpenDisposition::kCurrentTab;
 }
 
 int CommandID(FiberCommand command) {
@@ -76,7 +76,7 @@ int CommandID(FiberCommand command) {
 }
 
 - (void)stopLoading {
-  [self executeCommand:IDC_STOP disposition:WindowOpenDisposition::CURRENT_TAB];
+  [self executeCommand:IDC_STOP disposition:WindowOpenDisposition::kCurrentTab];
 }
 
 - (void)focusPage {
@@ -227,7 +227,7 @@ int CommandID(FiberCommand command) {
     return;
   }
   [self executeCommand:CommandID(command)
-           disposition:WindowOpenDisposition::CURRENT_TAB];
+           disposition:WindowOpenDisposition::kCurrentTab];
 }
 
 - (void)endKeyPassthrough {
@@ -333,7 +333,7 @@ int CommandID(FiberCommand command) {
 
 - (void)commandDispatch:(id)sender {
   [self executeCommand:[sender tag]
-           disposition:WindowOpenDisposition::CURRENT_TAB];
+           disposition:WindowOpenDisposition::kCurrentTab];
 }
 
 // For items that open their page where the modifier keys say, like History

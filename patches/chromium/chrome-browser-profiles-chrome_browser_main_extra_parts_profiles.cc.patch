@@ -1,8 +1,21 @@
 diff --git a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-index 352402767d..a3da22e50d 100644
+index a03bb1d355..42ad67a49f 100644
 --- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
 +++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
-@@ -1314,7 +1314,11 @@ void ChromeBrowserMainExtraPartsProfiles::
+@@ -1206,9 +1206,9 @@ void ChromeBrowserMainExtraPartsProfiles::
+ #endif
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   AimEligibilityExtensionBridgeFactory::GetInstance();
+-#if BUILDFLAG(ENABLE_WEBUI_NTP)
+-  NewTabPageExtensionBridgeFactory::GetInstance();
+-#endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
++  // Fiber: NewTabPageExtensionBridgeFactory cut. The New Tab page's component
++  // extension is off (kNtpComponentExtension), and it keeps the page's handlers
++  // linked.
+   if (base::FeatureList::IsEnabled(
+           contextual_tasks::kContextualTasksRearchitecture)) {
+     contextual_tasks::ContextualTasksExtensionBridgeFactory::GetInstance();
+@@ -1292,7 +1292,11 @@ void ChromeBrowserMainExtraPartsProfiles::
    PersonalContextFirstRunServiceFactory::GetInstance();
    PersonalContextServiceFactory::GetInstance();
  #if !BUILDFLAG(IS_ANDROID)

@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
-index b2619baa8f..494f96dee1 100644
+index 9aa6f338c7..969a484b2f 100644
 --- a/chrome/browser/chrome_browser_main.cc
 +++ b/chrome/browser/chrome_browser_main.cc
-@@ -230,6 +230,7 @@
+@@ -233,6 +233,7 @@
  #include "chrome/browser/ui/cocoa/keystone_infobar_delegate.h"
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
  #include "chrome/browser/ui/ui_features.h"
@@ -10,7 +10,7 @@ index b2619baa8f..494f96dee1 100644
  
  #if defined(ARCH_CPU_X86_64)
  #include "base/mac/mac_util.h"
-@@ -1559,12 +1560,8 @@ void ChromeBrowserMainParts::PreProfileInit() {
+@@ -1568,12 +1569,8 @@ void ChromeBrowserMainParts::PreProfileInit() {
  #endif
  
  #if BUILDFLAG(IS_MAC)

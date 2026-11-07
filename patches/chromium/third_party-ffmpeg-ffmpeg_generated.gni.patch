@@ -1,8 +1,8 @@
 diff --git a/third_party/ffmpeg/ffmpeg_generated.gni b/third_party/ffmpeg/ffmpeg_generated.gni
-index 6dd28da..3cbd31e 100644
+index ba2c2b2..22b4ff4 100644
 --- a/third_party/ffmpeg/ffmpeg_generated.gni
 +++ b/third_party/ffmpeg/ffmpeg_generated.gni
-@@ -597,3 +597,17 @@ if ((is_android && (current_cpu == "arm64" || current_cpu == "arm64e")) ||
+@@ -613,3 +613,17 @@ if ((is_android && (current_cpu == "arm64" || current_cpu == "arm64e")) ||
      (is_android && current_cpu == "x86")) {
    ffmpeg_c_sources += [ "compat/strtod.c" ]
  }

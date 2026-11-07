@@ -1,8 +1,8 @@
 diff --git a/content/shell/BUILD.gn b/content/shell/BUILD.gn
-index b469f34869..49fe9a46d8 100644
+index 8b63714816..6806faaa54 100644
 --- a/content/shell/BUILD.gn
 +++ b/content/shell/BUILD.gn
-@@ -934,8 +934,12 @@ if (is_mac) {
+@@ -936,8 +936,12 @@ if (is_mac) {
      bundle_deps = [
        ":content_shell_framework_helpers",
        ":content_shell_framework_resources",
@@ -16,7 +16,7 @@ index b469f34869..49fe9a46d8 100644
      bundle_deps += [ ":content_shell_vulkan_binaries" ]
  
      if (!is_component_build) {
-@@ -1070,14 +1074,17 @@ if (is_mac) {
+@@ -1072,14 +1076,17 @@ if (is_mac) {
      }
    }
  

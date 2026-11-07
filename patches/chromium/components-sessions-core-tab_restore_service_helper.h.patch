@@ -1,5 +1,5 @@
 diff --git a/components/sessions/core/tab_restore_service_helper.h b/components/sessions/core/tab_restore_service_helper.h
-index bba43ebb4b..981771e6d5 100644
+index 75aad4ba40..bb13af0ca6 100644
 --- a/components/sessions/core/tab_restore_service_helper.h
 +++ b/components/sessions/core/tab_restore_service_helper.h
 @@ -67,7 +67,12 @@ class SESSIONS_EXPORT TabRestoreServiceHelper

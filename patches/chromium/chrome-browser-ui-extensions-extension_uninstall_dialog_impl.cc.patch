@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc b/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc
-index 9bc1098150..a8a212cb88 100644
+index a31c6083e8..7c2a9a35d6 100644
 --- a/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc
 +++ b/chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc
 @@ -7,12 +7,14 @@

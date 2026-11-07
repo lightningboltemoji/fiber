@@ -98,7 +98,7 @@ void TestType(BrowserWindowInterface* browser, int index, std::string text) {
                                 ->edit_model();
   model->SetUserText(base::UTF8ToUTF16(text));
   model->OpenCurrentSelection(base::TimeTicks::Now(),
-                              WindowOpenDisposition::CURRENT_TAB,
+                              WindowOpenDisposition::kCurrentTab,
                               /*via_keyboard=*/true);
 }
 void TestStep(BrowserWindowInterface* browser, int step) {
@@ -273,7 +273,7 @@ void PinnedTabs::Open(std::string_view pin_id) {
   }
   NavigateParams params(browser_, store_->pins()[*pin_index].url,
                         ui::PAGE_TRANSITION_AUTO_BOOKMARK);
-  params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+  params.disposition = WindowOpenDisposition::kNewForegroundTab;
   params.tabstrip_index = index;
   params.tabstrip_add_types = AddTabTypes::ADD_ACTIVE |
                               AddTabTypes::ADD_PINNED |
@@ -381,7 +381,7 @@ void PinnedTabs::MoveToShelf(std::string_view pin_id,
   if (!TabForPin(pin_id)) {
     NavigateParams params(browser_, pin->url,
                           ui::PAGE_TRANSITION_AUTO_BOOKMARK);
-    params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    params.disposition = WindowOpenDisposition::kNewBackgroundTab;
     Navigate(&params);
   }
   // Each window lets go of its tab in OnPinsChanged().

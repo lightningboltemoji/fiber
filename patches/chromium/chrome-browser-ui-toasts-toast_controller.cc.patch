@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/toasts/toast_controller.cc b/chrome/browser/ui/toasts/toast_controller.cc
-index 4b17a93554..1f36e46f94 100644
+index 77b520e599..c10182d585 100644
 --- a/chrome/browser/ui/toasts/toast_controller.cc
 +++ b/chrome/browser/ui/toasts/toast_controller.cc
-@@ -323,9 +323,7 @@ void ToastController::CreateToast(ToastParams params,
+@@ -336,9 +336,7 @@ void ToastController::CreateToast(ToastParams params,
    if (!anchor_view) {
      // Don't actually create the toast in unit tests
      // TODO(webium): show toast in webui browser.

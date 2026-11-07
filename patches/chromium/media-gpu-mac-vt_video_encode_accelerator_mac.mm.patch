@@ -1,8 +1,8 @@
 diff --git a/media/gpu/mac/vt_video_encode_accelerator_mac.mm b/media/gpu/mac/vt_video_encode_accelerator_mac.mm
-index 9c74fadd43..5dfb214025 100644
+index 86f3ca0bfb..9fcc4c7db2 100644
 --- a/media/gpu/mac/vt_video_encode_accelerator_mac.mm
 +++ b/media/gpu/mac/vt_video_encode_accelerator_mac.mm
-@@ -266,7 +266,9 @@ static CFStringRef VideoCodecProfileToVTProfile(VideoCodecProfile profile,
+@@ -265,7 +265,9 @@ static CFStringRef VideoCodecProfileToVTProfile(VideoCodecProfile profile,
                                                  VideoPixelFormat input_format) {
    switch (profile) {
      case H264PROFILE_BASELINE:

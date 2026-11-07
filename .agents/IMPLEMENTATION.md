@@ -154,7 +154,9 @@ Where Fiber has no replacement yet:
   saved password, gets none; quiet permission requests (Chrome's location bar
   chip) are ignored (`hooks/permission_prompt.h`, `hooks/webauthn_dialog.h`,
   and patches marked `Fiber:` in Chrome's views code).
-- **Not offered:** installing a page as an app; Save and fill on card forms;
+- **Not offered:** installing a page as an app (`navigator.install()` and
+  `<install>`, off in `hooks/feature_overrides.cc`, so pages don't find them);
+  Save and fill on card forms;
   Task Manager, tab groups, Chrome's ways into a split (New Split Tab, and
   its toolbar button's promos, off in `hooks/feature_overrides.cc`) and side
   panels (`hooks/commands.cc`); the profile switcher at startup
@@ -164,8 +166,9 @@ Where Fiber has no replacement yet:
   Request, digital credentials, and Cast with the Presentation API
   (`hooks/feature_overrides.cc`, with most of their code cut by patches), and
   the email verification protocol (also off there);
-  Gemini in Chrome (Glic), off in `hooks/feature_overrides.cc`, with its pages
-  cut.
+  Gemini in Chrome (Glic) and its component extension, off in
+  `hooks/feature_overrides.cc`, with its pages cut; contextual tasks' side
+  panel and the Lens results that go to it, off there too.
 - **Unanswered, or not shown:** offers to save an address, card or IBAN, or to
   ask for Touch ID before filling a card (`hooks/autofill_prompts.h`); the hung
   page dialog, Safety Tips and the low storage notice.

@@ -1,8 +1,8 @@
 diff --git a/chrome/chrome_paks.gni b/chrome/chrome_paks.gni
-index 12a5e53584..552331345b 100644
+index 918f760012..461d1a67ca 100644
 --- a/chrome/chrome_paks.gni
 +++ b/chrome/chrome_paks.gni
-@@ -126,9 +126,9 @@ template("chrome_extra_paks") {
+@@ -142,9 +142,9 @@ template("chrome_extra_paks") {
        "$root_gen_dir/chrome/browser_resources.pak",
        "$root_gen_dir/chrome/chrome_unscaled_resources.pak",
        "$root_gen_dir/chrome/common_resources.pak",
@@ -15,7 +15,7 @@ index 12a5e53584..552331345b 100644
        "$root_gen_dir/chrome/saved_tab_groups_unsupported_resources.pak",
        "$root_gen_dir/components/autofill/core/browser/geo/autofill_address_rewriter_resources.pak",
        "$root_gen_dir/components/autofill/core/browser/geo/autofill_alternative_state_name_map_resources.pak",
-@@ -154,14 +154,9 @@ template("chrome_extra_paks") {
+@@ -170,14 +170,9 @@ template("chrome_extra_paks") {
      ]
  
      if (enable_webui_ntp) {
@@ -33,7 +33,7 @@ index 12a5e53584..552331345b 100644
      }
  
      # side_panel/shared is not NTP-specific; see chrome/browser/resources.
-@@ -208,9 +203,10 @@ template("chrome_extra_paks") {
+@@ -234,9 +229,10 @@ template("chrome_extra_paks") {
  
      if (!is_android) {
        # New paks should be added here by default.
@@ -45,7 +45,7 @@ index 12a5e53584..552331345b 100644
          "$root_gen_dir/chrome/actor_overlay_resources.pak",
          "$root_gen_dir/chrome/app_service_internals_resources.pak",
          "$root_gen_dir/chrome/autofill_ml_internals_resources.pak",
-@@ -234,34 +230,20 @@ template("chrome_extra_paks") {
+@@ -260,33 +256,20 @@ template("chrome_extra_paks") {
          "$root_gen_dir/chrome/key_value_pair_viewer_shared_resources.pak",
          "$root_gen_dir/chrome/lens_shared_resources.pak",
          "$root_gen_dir/chrome/lens_untrusted_resources.pak",
@@ -70,7 +70,6 @@ index 12a5e53584..552331345b 100644
          "$root_gen_dir/chrome/tab_group_home_resources.pak",
 -        "$root_gen_dir/chrome/tab_group_shared_resources.pak",
 -        "$root_gen_dir/chrome/tab_search_resources.pak",
--        "$root_gen_dir/chrome/tab_strip_api_resources.pak",
          "$root_gen_dir/chrome/web_app_internals_resources.pak",
          "$root_gen_dir/chrome/webnn_internals_resources.pak",
 -        "$root_gen_dir/chrome/webui_browser_resources.pak",
@@ -80,7 +79,7 @@ index 12a5e53584..552331345b 100644
          "$root_gen_dir/chrome/whats_new_resources.pak",
          "$root_gen_dir/components/headless/command_handler/headless_command_resources.pak",
          "$root_gen_dir/content/browser/tracing/tracing_resources.pak",
-@@ -484,16 +466,10 @@ template("chrome_extra_paks") {
+@@ -507,16 +490,10 @@ template("chrome_extra_paks") {
        }
      }
      if (!is_android && !is_chromeos) {
@@ -101,19 +100,29 @@ index 12a5e53584..552331345b 100644
      }
  
      if (is_win || is_mac || is_linux || is_chromeos || is_android) {
-@@ -519,8 +495,9 @@ template("chrome_extra_paks") {
+@@ -542,8 +519,10 @@ template("chrome_extra_paks") {
  
      if (enable_extensions_core) {
        sources += [
 -        "$root_gen_dir/chrome/aim_eligibility_extension_resources.pak",
 -        "$root_gen_dir/chrome/contextual_tasks_extension_resources.pak",
-+        # Fiber: not the AIM eligibility and contextual tasks component
-+        # extensions', which are off (kAimEligibilityComponentExtension,
-+        # kApiContextualTasksPrivate).
++        # Fiber: not the AIM eligibility, contextual tasks and New Tab page
++        # component extensions', which are off
++        # (kAimEligibilityComponentExtension, kApiContextualTasksPrivate,
++        # kNtpComponentExtension).
          "$root_gen_dir/chrome/extensions_resources.pak",
          "$root_gen_dir/extensions/extensions_renderer_generated_resources.pak",
          "$root_gen_dir/extensions/extensions_renderer_resources.pak",
-@@ -578,7 +555,8 @@ template("chrome_extra_paks") {
+@@ -556,8 +535,6 @@ template("chrome_extra_paks") {
+         "//extensions:extensions_resources",
+       ]
+       if (enable_webui_ntp) {
+-        sources +=
+-            [ "$root_gen_dir/chrome/new_tab_page_extension_resources.pak" ]
+         deps +=
+             [ "//chrome/browser/resources/new_tab_page_extension:resources" ]
+       }
+@@ -607,7 +584,8 @@ template("chrome_extra_paks") {
          "$root_gen_dir/chrome/browser_switch_resources.pak",
          "$root_gen_dir/chrome/on_device_translation_internals_resources.pak",
          "$root_gen_dir/chrome/signin_history_sync_optin_resources.pak",
@@ -123,7 +132,7 @@ index 12a5e53584..552331345b 100644
        ]
        deps += [
          "//chrome/browser/resources/app_home:resources",
-@@ -595,14 +573,12 @@ template("chrome_extra_paks") {
+@@ -624,14 +602,12 @@ template("chrome_extra_paks") {
      }
  
      if (enable_dice_support) {
@@ -143,4 +152,4 @@ index 12a5e53584..552331345b 100644
 +          [ "//chrome/browser/resources/signin/signout_confirmation:resources" ]
      }
  
-     if (enable_webui_generate_code_cache) {
+     # On Mac the code cache goes into its own per-architecture pak, see

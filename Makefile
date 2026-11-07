@@ -28,8 +28,10 @@ run:
 
 # What Chrome's layer costs, by source directory, and how much the linker strips (scripts/size.py).
 # Run it before and after a change and it reports what moved. `make size PATHS=…` adds directories.
+# It relinks under autoninja's Python: /usr/bin/python3 is an xcrun shim that sets LIBRARY_PATH, and
+# the link's -fatal_warnings makes a missing /usr/local/lib an error.
 size:
-	scripts/size.py --out $(OUT) $(PATHS)
+	PATH="$(CURDIR)/depot_tools/python-bin:$$PATH" scripts/size.py --out $(OUT) $(PATHS)
 
 # --- The UI on its own ---------------------------------------------------------------------------
 # SwiftPM builds core/ui without Chromium; if it builds here, FiberUI doesn't depend on Chromium.

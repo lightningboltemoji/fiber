@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/devtools/devtools_window_views.cc b/chrome/browser/devtools/devtools_window_views.cc
-index 9331bad3ad..e6b7738ed7 100644
+index 937debfe3f..dd271c0ada 100644
 --- a/chrome/browser/devtools/devtools_window_views.cc
 +++ b/chrome/browser/devtools/devtools_window_views.cc
 @@ -14,6 +14,7 @@
@@ -10,7 +10,7 @@ index 9331bad3ad..e6b7738ed7 100644
  #include "printing/buildflags/buildflags.h"
  
  #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
-@@ -139,6 +140,8 @@ void DevToolsWindow::UpdateBrowserWindow() {
+@@ -141,6 +142,8 @@ void DevToolsWindow::UpdateBrowserWindow() {
            DevtoolsUIController::From(inspected_browser)) {
      devtools_ui_controller->UpdateDevtools(inspected_web_contents);
    }

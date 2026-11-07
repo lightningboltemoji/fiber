@@ -1,0 +1,14 @@
+diff --git a/components/metrics/system_profile_user_stream.cc b/components/metrics/system_profile_user_stream.cc
+index 8b548b7cf3..282bca9c75 100644
+--- a/components/metrics/system_profile_user_stream.cc
++++ b/components/metrics/system_profile_user_stream.cc
+@@ -55,7 +55,8 @@ void SystemProfileUserStream::Initialize() {
+ 
+ base::ReadOnlySharedMemoryRegion
+ SystemProfileUserStream::DuplicateSharedMemoryRegion() const {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  // Fiber: the browser's crash reporter starts on a thread of its own, after
++  // Initialize(). WritePayload() changes the mapped memory, not the region.
+   if (!user_stream_writer_) {
+     return base::ReadOnlySharedMemoryRegion();
+   }

@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/webui/help/BUILD.gn b/chrome/browser/ui/webui/help/BUILD.gn
-index 17d8d3e283..20b4d31345 100644
+index 45aa60407f..d713c025f3 100644
 --- a/chrome/browser/ui/webui/help/BUILD.gn
 +++ b/chrome/browser/ui/webui/help/BUILD.gn
 @@ -2,6 +2,7 @@
@@ -10,7 +10,7 @@ index 17d8d3e283..20b4d31345 100644
  import("//chrome/common/features.gni")
  
  source_set("help") {
-@@ -35,7 +36,13 @@ source_set("help") {
+@@ -39,7 +40,13 @@ source_set("help") {
      ]
    }
  

@@ -29,8 +29,8 @@ bool OpenURLInPin(BrowserWindowInterface* browser,
                   const GURL& url,
                   WindowOpenDisposition disposition) {
   PinnedTabs* pinned_tabs = PinnedTabsFor(browser);
-  if (!pinned_tabs || (disposition != WindowOpenDisposition::CURRENT_TAB &&
-                       disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB)) {
+  if (!pinned_tabs || (disposition != WindowOpenDisposition::kCurrentTab &&
+                       disposition != WindowOpenDisposition::kNewForegroundTab)) {
     return false;
   }
   const Pin* pin = pinned_tabs->PinForURL(url);
@@ -59,7 +59,7 @@ WindowOpenDisposition DispositionForOmniboxURL(
   PinnedTabs* pinned_tabs = PinnedTabsFor(browser);
   tabs::TabInterface* tab = browser->GetTabStripModel()->GetActiveTab();
   if (!pinned_tabs || !tab ||
-      disposition != WindowOpenDisposition::CURRENT_TAB ||
+      disposition != WindowOpenDisposition::kCurrentTab ||
       url.SchemeIs(url::kJavaScriptScheme)) {
     return disposition;
   }
@@ -70,7 +70,7 @@ WindowOpenDisposition DispositionForOmniboxURL(
           url.GetWithoutRef()) {
     return disposition;
   }
-  return WindowOpenDisposition::NEW_FOREGROUND_TAB;
+  return WindowOpenDisposition::kNewForegroundTab;
 }
 
 StartupTabs OpenStartupTabsInPins(BrowserWindowInterface* browser,

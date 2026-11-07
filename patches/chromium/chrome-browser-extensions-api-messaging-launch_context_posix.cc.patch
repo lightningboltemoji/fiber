@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/extensions/api/messaging/launch_context_posix.cc b/chrome/browser/extensions/api/messaging/launch_context_posix.cc
-index ebc06e1203..d899d53aab 100644
+index 686da41336..1c0bec2e69 100644
 --- a/chrome/browser/extensions/api/messaging/launch_context_posix.cc
 +++ b/chrome/browser/extensions/api/messaging/launch_context_posix.cc
-@@ -19,10 +19,16 @@
+@@ -20,10 +20,16 @@
  #include "chrome/common/chrome_paths.h"
  #include "net/base/file_stream.h"
  
@@ -19,7 +19,7 @@ index ebc06e1203..d899d53aab 100644
  base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
    base::FilePath base_path;
    if (base::PathService::Get(dir_key, &base_path)) {
-@@ -33,6 +39,7 @@ base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
+@@ -34,6 +40,7 @@ base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
    }
    return base::FilePath();
  }
@@ -27,7 +27,7 @@ index ebc06e1203..d899d53aab 100644
  
  }  // namespace
  
-@@ -40,6 +47,11 @@ base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
+@@ -41,6 +48,11 @@ base::FilePath FindManifestInDir(int dir_key, const std::string& host_name) {
  base::FilePath LaunchContext::FindManifest(const std::string& host_name,
                                             bool allow_user_level_hosts,
                                             std::string& error_message) {
@@ -39,7 +39,7 @@ index ebc06e1203..d899d53aab 100644
    base::FilePath result;
    if (allow_user_level_hosts) {
      result = FindManifestInDir(chrome::DIR_USER_NATIVE_MESSAGING, host_name);
-@@ -47,6 +59,7 @@ base::FilePath LaunchContext::FindManifest(const std::string& host_name,
+@@ -48,6 +60,7 @@ base::FilePath LaunchContext::FindManifest(const std::string& host_name,
    if (result.empty()) {
      result = FindManifestInDir(chrome::DIR_NATIVE_MESSAGING, host_name);
    }

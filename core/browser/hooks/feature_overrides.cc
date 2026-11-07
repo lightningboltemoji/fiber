@@ -8,10 +8,16 @@
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_features.h"
 #include "components/autofill/core/common/autofill_features.h"
+#include "components/contextual_tasks/public/features.h"
 #include "components/feature_engagement/public/feature_constants.h"
+#include "components/lens/lens_features.h"
 #include "components/omnibox/browser/aim_eligibility_service_features.h"
+#include "components/optimization_guide/core/delivery/prediction_model_component_configs.h"
 #include "components/security_interstitials/core/features.h"
 #include "content/public/common/content_features.h"
+#include "extensions/common/extension_features.h"
+#include "third_party/blink/public/common/features_generated.h"
+#include "ui/accessibility/accessibility_features.h"
 
 namespace fiber {
 
@@ -35,6 +41,13 @@ void AddFeatureOverrides(
       // Gemini in Chrome (Glic), which needs a Google account and whose pages
       // Fiber cuts. On, Chrome offers it to signed-out profiles too.
       &features::kGlic,
+      // Glic's component extension, which google.com's pages can message.
+      &extensions_features::kApiGlicPrivate,
+      // Contextual tasks' side panel, and the Lens results that go to it: its
+      // throttle takes AI Mode pages out of the tab, for a panel Fiber doesn't
+      // have.
+      &contextual_tasks::kContextualTasksSidePanel,
+      &lens::features::kLensSidePanelUnification,
       // HTTPS-First's views dialog before loading a site over HTTP; its
       // warning page shows in the tab instead.
       &security_interstitials::features::kHttpsFirstDialogUi,
@@ -62,6 +75,23 @@ void AddFeatureOverrides(
       // split doesn't have.
       &feature_engagement::kIPHSideBySidePinnableFeature,
       &feature_engagement::kIPHSideBySideTabSwitchFeature,
+      // navigator.install() and <install>: Fiber doesn't offer installing a
+      // page as an app, so pages don't find them.
+      &blink::features::kWebAppInstallation,
+      &blink::features::kInstallElement,
+      // Chrome's install dialog with custom views, which Fiber's prompts can't
+      // show, for the ways to install that remain.
+      &features::kWebAppInstallDialog,
+      // Pinning an extension as it installs, which Fiber's install prompt
+      // offers as a choice.
+      &features::kExtensionsPinnedByDefault,
+      // Reading mode's chip, which the omnibar doesn't have.
+      &features::kReadAnythingOmniboxChip,
+      // Downloads permission prediction models Fiber's prompts don't use.
+      &optimization_guide::kPredictionModelComponentDelivery,
+      // Restarting unasked as the screen locks, once a newer version is
+      // installed.
+      &features::kSmartRestartLockScreen,
   };
   for (const base::Feature* feature : disabled) {
     overrides.emplace_back(std::cref(*feature),

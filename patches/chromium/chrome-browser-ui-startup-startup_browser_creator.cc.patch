@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/startup/startup_browser_creator.cc b/chrome/browser/ui/startup/startup_browser_creator.cc
-index be05049fb5..b157e0ea0b 100644
+index 0c7f221246..13fa5e53e9 100644
 --- a/chrome/browser/ui/startup/startup_browser_creator.cc
 +++ b/chrome/browser/ui/startup/startup_browser_creator.cc
-@@ -124,6 +124,7 @@
+@@ -126,6 +126,7 @@
  
  #if BUILDFLAG(IS_MAC)
  #include "chrome/browser/web_applications/os_integration/mac/app_shim_registry.h"
@@ -10,7 +10,7 @@ index be05049fb5..b157e0ea0b 100644
  #endif
  
  #if BUILDFLAG(IS_WIN)
-@@ -1596,6 +1597,12 @@ bool StartupBrowserCreator::ActivatedProfile() {
+@@ -1656,6 +1657,12 @@ bool StartupBrowserCreator::ActivatedProfile() {
  }
  
  bool HasPendingUncleanExit(Profile* profile) {

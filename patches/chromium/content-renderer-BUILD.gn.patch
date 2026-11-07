@@ -1,8 +1,8 @@
 diff --git a/content/renderer/BUILD.gn b/content/renderer/BUILD.gn
-index a63c3bea22..5aca932481 100644
+index cf78814644..9380ed3bfc 100644
 --- a/content/renderer/BUILD.gn
 +++ b/content/renderer/BUILD.gn
-@@ -354,6 +354,11 @@ target(link_target_type, "renderer") {
+@@ -353,6 +353,11 @@ target(link_target_type, "renderer") {
      deps += [ "//components/services/font/public/cpp" ]
    }
  

@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc b/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc
-index 99d7e35de0..332d368f59 100644
+index fea57ab793..6574d292dd 100644
 --- a/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc
 +++ b/chrome/browser/media/router/providers/cast/dual_media_sink_service.cc
 @@ -5,7 +5,9 @@
@@ -14,7 +14,7 @@ index 99d7e35de0..332d368f59 100644
  #include "chrome/browser/media/router/discovery/mdns/cast_media_sink_service.h"
 @@ -25,7 +27,13 @@ DualMediaSinkService* g_dual_media_sink_service = nullptr;
  DualMediaSinkService* DualMediaSinkService::GetInstance() {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+   CHECK_CURRENTLY_ON(content::BrowserThread::UI, base::NotFatalUntil::M161);
    if (!g_dual_media_sink_service) {
 +#if BUILDFLAG(IS_MAC)
 +    // Fiber: cut, as kMediaRouter is off

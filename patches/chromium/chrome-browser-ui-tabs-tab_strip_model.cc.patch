@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
-index e03b98f928..589127b6e8 100644
+index 4a85ea7e9e..8b5cba51cb 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
-@@ -118,6 +118,10 @@
+@@ -129,6 +129,10 @@
  #include "ui/base/page_transition_types.h"
  #include "ui/gfx/range/range.h"
  
@@ -13,7 +13,7 @@ index e03b98f928..589127b6e8 100644
  using base::UserMetricsAction;
  using content::WebContents;
  
-@@ -5906,6 +5910,14 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
+@@ -5994,6 +5998,14 @@ std::optional<int> TabStripModel::DetermineNewSelectedIndex(
        }
      }
  

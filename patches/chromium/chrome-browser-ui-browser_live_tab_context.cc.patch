@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
-index d48ee3c659..0603d8b432 100644
+index cc8786f0d1..f6e1fac187 100644
 --- a/chrome/browser/ui/browser_live_tab_context.cc
 +++ b/chrome/browser/ui/browser_live_tab_context.cc
 @@ -16,6 +16,7 @@
@@ -8,9 +8,9 @@ index d48ee3c659..0603d8b432 100644
  #include "base/values.h"
 +#include "build/build_config.h"
  #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
  #include "chrome/browser/glic/glic_tab_restore_helper.h"
- #include "chrome/browser/performance_manager/public/background_tab_loading_policy.h"
-@@ -62,6 +63,10 @@
+@@ -64,6 +65,10 @@
  #include "ui/base/mojom/window_show_state.mojom.h"
  #include "ui/base/window_open_disposition.h"
  
@@ -21,10 +21,10 @@ index d48ee3c659..0603d8b432 100644
  using content::NavigationController;
  using content::SessionStorageNamespaceHandle;
  using content::WebContents;
-@@ -200,6 +205,11 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
- 
-   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
-                               &extra_data);
+@@ -207,6 +212,11 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
+               &browser_.get())) {
+     extra_data.merge(contextual_tasks_controller->GetTabRestoreData(tab));
+   }
 +#if BUILDFLAG(IS_MAC)
 +  // Fiber: its data for the tab.
 +  extra_data.merge(

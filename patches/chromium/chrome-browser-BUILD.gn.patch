@@ -1,14 +1,14 @@
 diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
-index 5aa5b0447d..c52c68e679 100644
+index f0f529901a..05b481de8f 100644
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -3221,6 +3221,9 @@ source_set("browser") {
-   if (is_mac) {
-     deps += [ "//chrome/browser/ui/webui/unexportable_keys_internals" ]
- 
+@@ -4056,6 +4056,9 @@ source_set("browser") {
+       "Carbon.framework",
+       "Quartz.framework",
+     ]
++
 +    # Fiber: Fiber's integration (see browser_window_factory.cc).
 +    deps += [ "//fiber/browser" ]
-+
-     # TODO(crbug.com/364667553, crbug.com/365680821): Remove once
-     # modularizations of `//c/b/signin` and `//c/b/profiles` are complete.
-     deps += [ "//chrome/browser/ui/webui/unexportable_keys_internals:impl" ]
+   } else {
+     public_deps += [ "//chrome/browser/privacy:traffic_annotation_proto" ]
+   }

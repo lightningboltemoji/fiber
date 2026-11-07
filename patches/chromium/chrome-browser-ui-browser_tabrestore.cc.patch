@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
-index 6aca93a450..6dd3fd27f1 100644
+index f2a9542aea..676682e80d 100644
 --- a/chrome/browser/ui/browser_tabrestore.cc
 +++ b/chrome/browser/ui/browser_tabrestore.cc
-@@ -40,6 +40,10 @@
+@@ -41,6 +41,10 @@
  #include "ui/gfx/geometry/size.h"
  #include "ui/gfx/range/range.h"
  
@@ -13,8 +13,8 @@ index 6aca93a450..6dd3fd27f1 100644
  using content::NavigationEntry;
  using content::RestoreType;
  using content::WebContents;
-@@ -85,6 +89,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
-   glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+@@ -88,6 +92,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+       web_contents.get(), extra_data);
    send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
        web_contents.get(), extra_data);
 +#if BUILDFLAG(IS_MAC)

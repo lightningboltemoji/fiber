@@ -225,7 +225,7 @@ void TabIndexSource::RestoreClosedWindow(BrowserWindowInterface* browser,
   }
   std::optional<std::vector<sessions::LiveTab*>> restored =
       service->RestoreEntryById(BrowserLiveTabContext::From(browser), id,
-                                WindowOpenDisposition::UNKNOWN);
+                                WindowOpenDisposition::kUnknown);
   // Unless one of its tabs didn't come back, they're in order.
   if (!restored || !tab_index || restored->size() != tab_count) {
     return;

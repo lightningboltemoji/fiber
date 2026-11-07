@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/sad_tab_controller.cc b/chrome/browser/ui/sad_tab_controller.cc
-index 804a89c558..aa3e41ee92 100644
+index 7a1dfbc6e4..c4bd38ad97 100644
 --- a/chrome/browser/ui/sad_tab_controller.cc
 +++ b/chrome/browser/ui/sad_tab_controller.cc
 @@ -4,12 +4,15 @@

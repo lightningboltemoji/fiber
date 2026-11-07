@@ -1,8 +1,8 @@
 diff --git a/media/filters/BUILD.gn b/media/filters/BUILD.gn
-index f97b5a3672..f9b9c0a312 100644
+index cda49de26d..5c67cc1afb 100644
 --- a/media/filters/BUILD.gn
 +++ b/media/filters/BUILD.gn
-@@ -258,6 +258,9 @@ source_set("filters") {
+@@ -264,6 +264,9 @@ source_set("filters") {
        "mac/audio_toolbox_audio_encoder.h",
      ]
      deps += [ "//media/base/mac" ]

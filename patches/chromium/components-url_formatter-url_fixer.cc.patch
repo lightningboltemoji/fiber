@@ -1,5 +1,5 @@
 diff --git a/components/url_formatter/url_fixer.cc b/components/url_formatter/url_fixer.cc
-index d5d9a14c8d..93b4ef4052 100644
+index f707431519..5390347f41 100644
 --- a/components/url_formatter/url_fixer.cc
 +++ b/components/url_formatter/url_fixer.cc
 @@ -20,6 +20,7 @@
@@ -10,7 +10,7 @@ index d5d9a14c8d..93b4ef4052 100644
  #include "net/base/filename_util.h"
  #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
  #include "url/third_party/mozilla/url_parse.h"
-@@ -460,8 +461,10 @@ std::string SegmentURLInternal(std::string* text, url::Parsed* parts) {
+@@ -461,8 +462,10 @@ std::string SegmentURLInternal(std::string* text, url::Parsed* parts) {
  
    // Proceed with about, chrome, and devtools schemes,
    // but not file or nonstandard schemes.
@@ -22,7 +22,7 @@ index d5d9a14c8d..93b4ef4052 100644
      return scheme;
    }
  
-@@ -613,12 +616,14 @@ GURL FixupURLInternal(const std::string& text,
+@@ -614,12 +617,14 @@ GURL FixupURLInternal(const std::string& text,
    }
  
    // For some schemes whose layouts we understand, we rebuild the URL.
@@ -40,7 +40,7 @@ index d5d9a14c8d..93b4ef4052 100644
      url.append(url::kStandardSchemeSeparator);
  
      // We need to check whether the |username| is valid because it is our
-@@ -741,7 +746,10 @@ bool IsEquivalentScheme(const std::string& scheme1,
+@@ -742,7 +747,10 @@ bool IsEquivalentScheme(const std::string& scheme1,
                          const std::string& scheme2) {
    return scheme1 == scheme2 ||
           (scheme1 == url::kAboutScheme && scheme2 == kChromeUIScheme) ||

@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/media/router/chrome_media_router_factory.cc b/chrome/browser/media/router/chrome_media_router_factory.cc
-index cd46c00538..e786238034 100644
+index a1136c4cbf..4697815c40 100644
 --- a/chrome/browser/media/router/chrome_media_router_factory.cc
 +++ b/chrome/browser/media/router/chrome_media_router_factory.cc
 @@ -82,6 +82,9 @@ ChromeMediaRouterFactory::BuildServiceInstanceForBrowserContext(

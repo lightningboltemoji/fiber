@@ -1,17 +1,17 @@
 diff --git a/chrome/browser/ui/views/browser_dialogs_views.cc b/chrome/browser/ui/views/browser_dialogs_views.cc
-index aa32008d34..13c36f6f25 100644
+index 003681cbb6..9fc5eb1c97 100644
 --- a/chrome/browser/ui/views/browser_dialogs_views.cc
 +++ b/chrome/browser/ui/views/browser_dialogs_views.cc
-@@ -17,6 +17,8 @@
+@@ -20,6 +20,8 @@
  #include "chrome/browser/ui/views/task_manager_view.h"
  #include "components/constrained_window/constrained_window_views.h"
  #include "components/permissions/chooser_controller.h"
 +#include "fiber/browser/hooks/browser_window_factory.h"
 +#include "fiber/browser/hooks/dialog_models.h"
+ #include "ui/base/class_property.h"
  #include "ui/base/interaction/element_identifier.h"
- #include "ui/views/bubble/bubble_dialog_delegate_view.h"
- #include "ui/views/bubble/bubble_dialog_model_host.h"
-@@ -60,6 +62,15 @@ void HideTaskManager() {
+ #include "ui/base/interaction/element_tracker.h"
+@@ -113,6 +115,15 @@ void HideTaskManager() {
  
  views::Widget* ShowBrowserModal(BrowserWindowInterface* browser,
                                  std::unique_ptr<ui::DialogModel> dialog_model) {

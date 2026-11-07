@@ -1,8 +1,8 @@
 diff --git a/third_party/devtools-frontend/src/front_end/entrypoints/main/MainImpl.ts b/third_party/devtools-frontend/src/front_end/entrypoints/main/MainImpl.ts
-index 4dce0bb6..ed8a226b 100644
+index 05ab898d..e4bbaa78 100644
 --- a/third_party/devtools-frontend/src/front_end/entrypoints/main/MainImpl.ts
 +++ b/third_party/devtools-frontend/src/front_end/entrypoints/main/MainImpl.ts
-@@ -813,26 +813,6 @@ export class MainMenuItem implements UI.Toolbar.Provider {
+@@ -789,26 +789,6 @@ export class MainMenuItem implements UI.Toolbar.Provider {
            ${i18nString(UIStrings.dockSide)}
          </span>
          <devtools-toolbar @mousedown=${(event: Event) => event.consume()}>

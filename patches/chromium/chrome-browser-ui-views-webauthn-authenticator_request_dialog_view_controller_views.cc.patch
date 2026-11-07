@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/webauthn/authenticator_request_dialog_view_controller_views.cc b/chrome/browser/ui/views/webauthn/authenticator_request_dialog_view_controller_views.cc
-index d90e0f67c7..adb92020f8 100644
+index 427ded25ec..db5f450b1d 100644
 --- a/chrome/browser/ui/views/webauthn/authenticator_request_dialog_view_controller_views.cc
 +++ b/chrome/browser/ui/views/webauthn/authenticator_request_dialog_view_controller_views.cc
 @@ -8,6 +8,7 @@

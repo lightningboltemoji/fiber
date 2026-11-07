@@ -22,9 +22,19 @@ fresh profile, and prints each test as it finishes, then a summary. It exits
 1 if a test failed. `?only=<regex>` after the page runs some of it:
 `./runner.py 'video/video.html?only=^mse_'`. Fiber's log goes to `fiber.log`.
 
+Started from a shell, Fiber borrows the terminal's Local Network permission, and
+without it `video/webrtc.html`'s peers can't resolve each other's `.local`
+candidates (error -105). Those failures aren't the codecs': use real addresses
+with `./runner.py video/webrtc.html -- --disable-features=WebRtcHideLocalIpsWithMdns`.
+
 A page's `known` tests are limitations `.agents/MEDIA.md` describes: they
 run, show as `KNOWN`, and don't fail the page. One that starts passing is
 listed under `fixed`.
+
+`mse_seek_h264_open` fails now and then, more often under load, with
+`outOfOrder: 1` and `wrong: 0`: one repeat at the first frame after the seek,
+which looks like `meta.mediaTime` and `new VideoFrame(video)` disagreeing about
+the current frame. Compare against the previous release before suspecting decode.
 
 ## Real sites
 

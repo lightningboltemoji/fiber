@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
-index 83ce5b59c1..ad3bd43c61 100644
+index 396b18bf34..5ddb33d487 100644
 --- a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
 +++ b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
 @@ -12,6 +12,7 @@
@@ -36,7 +36,7 @@ index 83ce5b59c1..ad3bd43c61 100644
  
  }  // namespace
  
-@@ -732,5 +738,10 @@ END_METADATA
+@@ -762,5 +768,10 @@ END_METADATA
  // static
  ExtensionInstallPrompt::ShowDialogCallback
  ExtensionInstallPrompt::GetDefaultShowDialogCallback() {

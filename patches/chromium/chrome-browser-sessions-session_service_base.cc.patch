@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
-index 2e2a9d24d7..81c69c5556 100644
+index ee887add6a..2c5f63c76e 100644
 --- a/chrome/browser/sessions/session_service_base.cc
 +++ b/chrome/browser/sessions/session_service_base.cc
-@@ -62,6 +62,7 @@
+@@ -63,6 +63,7 @@
  
  #if BUILDFLAG(IS_MAC)
  #include "chrome/browser/app_controller_mac.h"
@@ -10,7 +10,7 @@ index 2e2a9d24d7..81c69c5556 100644
  #endif
  
  #if BUILDFLAG(IS_CHROMEOS)
-@@ -672,6 +673,14 @@ void SessionServiceBase::BuildCommandsForTab(
+@@ -675,6 +676,14 @@ void SessionServiceBase::BuildCommandsForTab(
          sessions::CreatePinnedStateCommand(session_id, true));
    }
  

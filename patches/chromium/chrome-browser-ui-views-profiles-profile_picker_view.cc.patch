@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/profiles/profile_picker_view.cc b/chrome/browser/ui/views/profiles/profile_picker_view.cc
-index bce0ed42f9..f647e50aaa 100644
+index 9380cb042a..eb3996a010 100644
 --- a/chrome/browser/ui/views/profiles/profile_picker_view.cc
 +++ b/chrome/browser/ui/views/profiles/profile_picker_view.cc
-@@ -159,134 +159,8 @@ void ClearLockedProfilesFirstBrowserKeepAlive() {
+@@ -159,135 +159,8 @@ void ClearLockedProfilesFirstBrowserKeepAlive() {
  
  }  // namespace
  
@@ -129,8 +129,9 @@ index bce0ed42f9..f647e50aaa 100644
 -// static
 -void ProfilePicker::AddOnProfilePickerOpenedCallbackForTesting(
 -    base::OnceClosure callback) {
--  DCHECK(!g_profile_picker_opened_callback_for_testing);
--  DCHECK(!callback.is_null());
+-  CHECK(!g_profile_picker_opened_callback_for_testing,
+-        base::NotFatalUntil::M162);
+-  CHECK(!callback.is_null(), base::NotFatalUntil::M162);
 -  g_profile_picker_opened_callback_for_testing =
 -      new base::OnceClosure(std::move(callback));
 -}

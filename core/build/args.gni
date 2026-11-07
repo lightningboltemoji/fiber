@@ -27,6 +27,13 @@ ffmpeg_branding = "Chromium"
 media_use_openh264 = false
 enable_ffmpeg_video_decoders = false
 
+# On in builds that aren't official for upstream's test coverage, but unfinished:
+# Chrome doesn't ship it, and neither does Fiber, whose builds aren't official.
+media_use_symphonia_demuxer = false
+
+# Bytecode for the side panels and WebUI toolbar, which Fiber doesn't register.
+enable_webui_generate_code_cache = false
+
 enable_swiftshader = false
 enable_swiftshader_vulkan = false
 angle_enable_swiftshader = false
