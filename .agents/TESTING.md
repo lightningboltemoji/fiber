@@ -52,9 +52,12 @@ together, never in the mock alone.
   app, so even mouse events posted to its process do nothing. Set the hover
   state from a hook (a model's `hoveredID`). An inactive harness also dims
   glass buttons and drops prominent tints.
-- **Animations:** `--slow-motion 10`, with captures about 0.45 s apart
-  (`CGWindowListCreateImage` is unavailable). Open what animates from a
-  delayed hook, once the window has settled.
+- **Animations:** `--slow-motion 10`, with `screencapture -t jpg` in a tight
+  loop, about 7 fps (`CGWindowListCreateImage` is unavailable). Open what
+  animates from a delayed hook, once the window has settled.
+- **A resize at launch:** a window manager can resize the harness just as
+  `--overlay` opens. That one jump animates things a resize by hand doesn't, so
+  film it on the host: a VM's window keeps its size.
 - **Vibrant text:** sample pixels with `NSBitmapImageRep` to tell it apart
   from flat gray on glass.
 

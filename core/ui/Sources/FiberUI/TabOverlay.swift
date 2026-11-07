@@ -2651,6 +2651,9 @@ struct TabOverlayView: View {
             y: panel.height - TabOverlayModel.footerHeight)
       }
       .frame(width: panel.width, height: panel.height, alignment: .topLeading)
+      // One piece: otherwise each leaf takes its own path to a new layout, and
+      // a row's icon can land at once, ahead of its title and the glass.
+      .geometryGroup()
       .mask {
         PanelWave(progress: model.isOpen ? 1 : 0, size: panel.size)
           .animation(
@@ -2711,6 +2714,8 @@ struct TabOverlayView: View {
       TabOverlayMotion.animation(
         .opacity, delay: delay, span: span, isOpening: model.isOpen),
       value: model.isOpen)
+    // One piece, as the panel is.
+    .geometryGroup()
     .offset(x: frame.minX, y: frame.minY)
     .accessibilityElement()
     .accessibilityLabel(
