@@ -4,7 +4,17 @@
 
 # Fiber
 
-a Chromium-based browser for macOS that optimizes for content area and playful animations
+a Chromium-based browser for macOS that maximizes content area
+
+## Install
+
+[Homebrew](https://brew.sh) is recommended:
+
+```bash
+brew install --cask lightningboltemoji/tap/fiber
+```
+
+or manually from the [releases page](https://github.com/lightningboltemoji/fiber/releases).
 
 ## Development
 
