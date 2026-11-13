@@ -378,10 +378,18 @@ void FiberBrowserWindow::ExecuteCommand(int command,
       // one (chrome::CloseTab()).
       tabs::TabInterface* active = model->GetActiveTab();
       const auto& selected = model->selection_model().selected_tabs();
-      if (!WillCloseTabs(active && active->IsSplit()
-                             ? std::vector<tabs::TabInterface*>{active}
-                             : std::vector<tabs::TabInterface*>(
-                                   selected.begin(), selected.end()))) {
+      const std::vector<tabs::TabInterface*> closing =
+          active && active->IsSplit()
+              ? std::vector<tabs::TabInterface*>{active}
+              : std::vector<tabs::TabInterface*>(selected.begin(),
+                                                 selected.end());
+      // A pin's tab that has wandered goes back to the pin first; it closes
+      // from there.
+      if (closing.size() == 1 && pinned_tabs_ &&
+          pinned_tabs_->ReturnToPage(closing.front())) {
+        return;
+      }
+      if (!WillCloseTabs(closing)) {
         return;
       }
       break;

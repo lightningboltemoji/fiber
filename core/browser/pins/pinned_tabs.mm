@@ -42,17 +42,19 @@ gfx::Image TabFavicon(content::WebContents* contents) {
                                             : gfx::Image();
 }
 
-// Whether the tab is on the page at `url`, or one `url` redirected to,
+// Whether the entry is the page at `url`, or one `url` redirected to,
 // fragments aside.
-bool IsOnPage(content::WebContents* contents, const GURL& url) {
-  content::NavigationEntry* entry =
-      contents->GetController().GetLastCommittedEntry();
+bool IsAt(content::NavigationEntry* entry, const GURL& url) {
   if (!entry || entry->IsInitialEntry()) {
     return false;
   }
   const GURL page = url.GetWithoutRef();
   return entry->GetURL().GetWithoutRef() == page ||
          entry->GetOriginalRequestURL().GetWithoutRef() == page;
+}
+
+bool IsOnPage(content::WebContents* contents, const GURL& url) {
+  return IsAt(contents->GetController().GetLastCommittedEntry(), url);
 }
 
 NSString* DisplayURL(const GURL& url) {
@@ -288,9 +290,33 @@ void PinnedTabs::Reset(std::string_view pin_id) {
   if (!tab || !pin) {
     return;
   }
-  tab->GetContents()->GetController().LoadURL(
-      pin->url, content::Referrer(), ui::PAGE_TRANSITION_AUTO_BOOKMARK,
-      std::string());
+  // Back to where the tab was last on the page, as it was left, scroll and
+  // all; afresh if its history doesn't have it.
+  content::NavigationController& controller =
+      tab->GetContents()->GetController();
+  for (int i = controller.GetLastCommittedEntryIndex() - 1; i >= 0; --i) {
+    if (IsAt(controller.GetEntryAtIndex(i), pin->url)) {
+      controller.GoToIndex(i);
+      return;
+    }
+  }
+  controller.LoadURL(pin->url, content::Referrer(),
+                     ui::PAGE_TRANSITION_AUTO_BOOKMARK, std::string());
+}
+
+bool PinnedTabs::ReturnToPage(tabs::TabInterface* tab) {
+  const Pin* pin = PinForTab(tab);
+  if (!pin) {
+    return false;
+  }
+  // A tab already on its way back counts as there, so pressing twice closes.
+  content::WebContents* contents = tab->GetContents();
+  if (IsOnPage(contents, pin->url) ||
+      IsAt(contents->GetController().GetPendingEntry(), pin->url)) {
+    return false;
+  }
+  Reset(pin->id);
+  return true;
 }
 
 void PinnedTabs::UpdateURL(std::string_view pin_id) {

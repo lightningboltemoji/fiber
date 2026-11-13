@@ -49,6 +49,9 @@ class PinnedTabs : public PinStore::Observer, public TabStripModelObserver {
   // Goes to the pin as Open() does, bringing its tab back to its page if it
   // has left it.
   void Show(std::string_view pin_id);
+  // Takes a pin's tab that has left its page back there, as Reset() does.
+  // Returns whether it did.
+  bool ReturnToPage(tabs::TabInterface* tab);
 
   // What the user does with the window's pins (see FiberWindowActions).
   void PinTab(int32_t tab_id);

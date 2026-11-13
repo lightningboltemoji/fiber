@@ -268,6 +268,11 @@ everything below holds for it too (see [SHELVES.md](SHELVES.md)).
   tab-switching shortcuts go round the window's other tabs, and ⌘1–⌘9 count
   them as the tab overlay numbers them, leaving out the split's right tab,
   which stays where it is.
+- Taking a pin's tab back to its page (the bead's Back, its menu's, ⌘W on
+  the tab once it has left the page) goes back through the tab's history to
+  where it was last on it, as it was left, or loads it afresh if the history
+  doesn't have it (`PinnedTabs::Reset()`). ⌘W on the page, or on its way
+  back to it, closes the tab; the tab overlay's ⌘W and ×s close outright.
 - A window shows one of Chrome's splits (two adjacent tabs), the active tab's
   or else its first (`split/tab_split.h`). A split takes its first tab's
   pinning, so beside a pin's or shelf page's tab, the right tab is
