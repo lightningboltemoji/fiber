@@ -94,15 +94,32 @@ BUNDLE   := $(DIST)/$(APP_NAME).app
 RELEASE  := $(SRC)/out/Release
 
 # Chromium's build assembles the bundle; `ditto` copies it with the framework's symlinks intact.
-# Signed ad hoc as a whole: with only the linker's signatures (no bundle ID), macOS's Local Network
-# privacy blocks the app from the local network even after the user allows it.
+# It is signed as a whole (`--deep`), because with only the linker's signatures (no bundle ID),
+# macOS's Local Network privacy blocks the app from the local network even after the user allows it.
+#
+# Signed with the self-signed `fiber` certificate when it's in the login keychain, so TCC grants
+# survive a rebuild (ad hoc, the fallback, loses them every time). CI signs releases with the same
+# certificate from the `production` environment's secrets, through a throwaway keychain named in
+# `CODESIGN_KEYCHAIN`. Its p12 is backed up outside the repo; a new certificate means every user grants
+# again. It doesn't stop the Keychain asking once per build for "Fiber Safe Storage": that needs a Team
+# ID, which only a Developer ID has. No hardened runtime: Chromium needs per-helper entitlements under
+# it, and without a Developer ID there's nothing to notarize.
 # TODO: sign for distribution (Developer ID, chrome/installer/mac/sign_chrome.py).
+#
+# By hash, since codesign matches a name as a substring.
+ifeq ($(origin CODESIGN_IDENTITY),undefined)
+  FIBER_CERT        := $(shell security find-identity -p codesigning 2>/dev/null | awk '/"fiber"/ { print $$2; exit }')
+  CODESIGN_IDENTITY := $(or $(FIBER_CERT),-)
+endif
+CODESIGN_KEYCHAIN ?=
+
 app:
 	scripts/build_chromium.sh Release
 	rm -rf $(BUNDLE)
 	mkdir -p $(DIST)
 	ditto $(RELEASE)/$(APP_NAME).app $(BUNDLE)
-	codesign --force --deep --sign - $(BUNDLE)
+	codesign --force --deep --timestamp=none --sign "$(CODESIGN_IDENTITY)" \
+		$(if $(CODESIGN_KEYCHAIN),--keychain "$(CODESIGN_KEYCHAIN)") $(BUNDLE)
 	@echo "built $(BUNDLE), version $$($(BUNDLE_VERSION))"
 
 # `ditto`, not `zip`: a bundle carries symlinks and xattrs that plain zip mangles. CI's tip build
