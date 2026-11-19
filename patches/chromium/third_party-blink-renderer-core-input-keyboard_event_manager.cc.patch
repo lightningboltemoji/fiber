@@ -1,0 +1,40 @@
+diff --git a/third_party/blink/renderer/core/input/keyboard_event_manager.cc b/third_party/blink/renderer/core/input/keyboard_event_manager.cc
+index 6d86e2c502..4c0a18c3f1 100644
+--- a/third_party/blink/renderer/core/input/keyboard_event_manager.cc
++++ b/third_party/blink/renderer/core/input/keyboard_event_manager.cc
+@@ -46,6 +46,10 @@
+ #import <Carbon/Carbon.h>
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/renderer/page_keys.h"
++#endif
++
+ namespace blink {
+ 
+ namespace {
+@@ -357,6 +361,11 @@ WebInputEventResult KeyboardEventManager::KeyEvent(
+         node->UpdateHadKeyboardEvent(*event);
+       }
+ 
++#if BUILDFLAG(IS_MAC)
++      // Fiber: before its listeners run (see fiber/renderer/page_keys.h).
++      const bool fiber_is_page_key = fiber::IsPageKey(initial_key_event, *node);
++#endif
++
+       if (dispatch_result = node->DispatchEvent(*event);
+           dispatch_result != DispatchEventResult::kNotCanceled) {
+         break;
+@@ -372,6 +381,12 @@ WebInputEventResult KeyboardEventManager::KeyEvent(
+ 
+       // kRawKeyDown doesn't trigger `keypress`es, so we end the logic here.
+       if (initial_key_event.GetType() != WebInputEvent::Type::kKeyDown) {
++#if BUILDFLAG(IS_MAC)
++        // Fiber: the page's, though no listener cancelled it.
++        if (fiber_is_page_key) {
++          return WebInputEventResult::kHandledApplication;
++        }
++#endif
+         return WebInputEventResult::kNotHandled;
+       }
+ 

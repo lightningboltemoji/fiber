@@ -1,0 +1,19 @@
+diff --git a/third_party/blink/renderer/core/BUILD.gn b/third_party/blink/renderer/core/BUILD.gn
+index a96e9c9df2..18368fa3d8 100644
+--- a/third_party/blink/renderer/core/BUILD.gn
++++ b/third_party/blink/renderer/core/BUILD.gn
+@@ -314,6 +314,14 @@ component("core") {
+       rebase_path(blink_core_sources_image_replacement, "", "image_replacement")
+   sources += rebase_path(blink_core_sources_imagebitmap, "", "imagebitmap")
+   sources += rebase_path(blink_core_sources_input, "", "input")
++  if (is_mac) {
++    # Fiber: a key a page listens for is the page's (see
++    # //fiber/renderer/page_keys.h).
++    sources += [
++      "//fiber/renderer/page_keys.cc",
++      "//fiber/renderer/page_keys.h",
++    ]
++  }
+   sources += rebase_path(blink_core_sources_inspector, "", "inspector")
+   sources += rebase_path(blink_core_sources_intersection_observer,
+                          "",

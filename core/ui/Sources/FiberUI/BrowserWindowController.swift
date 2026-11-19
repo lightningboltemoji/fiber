@@ -63,7 +63,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   private let openedTabNotice = OpenedTabNotice()
   /// In the opened-tab notice's place, but over the omnibar, which a New Tab
   /// page opens, and everything else but the veil.
-  private let closeWindowNotice = CloseWindowNotice()
+  private let pressAgainNotice = PressAgainNotice()
   /// Toggled with Command-S. Over everything but the window controls bar and
   /// the veil, one at a time with the omnibar and the command palette.
   fileprivate let tabOverlay: TabOverlay
@@ -394,8 +394,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     configureWindowControls()
     updateWindowControls(animated: false)
 
-    closeWindowNotice.autoresizingMask = [.minXMargin, .minYMargin]
-    content.addSubview(closeWindowNotice)
+    pressAgainNotice.autoresizingMask = [.minXMargin, .minYMargin]
+    content.addSubview(pressAgainNotice)
 
     // Over everything; what the window waits on goes over it.
     veil.dimView.frame = content.bounds
@@ -421,7 +421,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     omnibar.view.autoresizingMask = [.width, .height]
     omnibar.view.isHeld = isPageHeld
     content.addSubview(
-      omnibar.view, positioned: .below, relativeTo: closeWindowNotice)
+      omnibar.view, positioned: .below, relativeTo: pressAgainNotice)
     omnibar.onOpen = { [weak self] in
       self?.openedTabNotice.dismiss()
       self?.commandPalette?.close()
@@ -527,13 +527,13 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     let frame = OpenedTabNotice.frame(in: controlsView.bounds, inset: inset)
     // That one's in the content view, beside the controls.
-    let closeWindowFrame = CloseWindowNotice.frame(
+    let closeWindowFrame = PressAgainNotice.frame(
       in: controlsView.frame, inset: inset)
     NSAnimationContext.runAnimationGroup { context in
       context.duration = animated ? 0.3 : 0
       context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
       openedTabNotice.animator().frame = frame
-      closeWindowNotice.animator().frame = closeWindowFrame
+      pressAgainNotice.animator().frame = closeWindowFrame
     }
   }
 
@@ -906,7 +906,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     window.title = state.title.isEmpty ? "Fiber" : state.title
     isNewTabPage = state.isNewTabPage
     if !isNewTabPage {
-      closeWindowNotice.dismiss()
+      pressAgainNotice.dismiss(.closeWindow)
     }
     newTabView.isHidden = !isNewTabPage || state.sadTab != nil
     if let sadTab = state.sadTab {
@@ -937,8 +937,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     windowTabs = tabs
     let didSwitchTabs = activeTabID != self.activeTabID
     self.activeTabID = activeTabID
-    if didSwitchTabs || tabs.count != 1 {
-      closeWindowNotice.dismiss()
+    if didSwitchTabs {
+      pressAgainNotice.dismiss()
+    } else if tabs.count != 1 {
+      pressAgainNotice.dismiss(.closeWindow)
     }
     commandPalette?.setWindowTabs(tabs, activeTabID: activeTabID)
     removeClosedTabsBubbles()
@@ -1001,6 +1003,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
       if shownPeek != nil {
         shownPeek = nil
         showPeekEffects(animated: false)
+        pressAgainNotice.dismiss(.closePeek)
       }
       return
     }
@@ -1014,6 +1017,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
       return peek.lowerView === contentsView || peek.peekView === contentsView
     }
     shownPeek = shown
+    if shown?.peekTabID != previous?.peekTabID {
+      pressAgainNotice.dismiss(.closePeek)
+    }
     let other = shown.flatMap {
       $0.lowerView === contentsView ? $0.peekView : $0.lowerView
     }
@@ -1110,12 +1116,23 @@ final class BrowserWindowController: NSObject, FiberWindow {
     // stops at the notice.
     let event = NSApp.currentEvent
     let isRepeat = event?.type == .keyDown && event?.isARepeat == true
-    if closeWindowNotice.isShown && !isRepeat {
+    if pressAgainNotice.isShown(for: .closeWindow) && !isRepeat {
       return true
     }
     openedTabNotice.dismiss()
-    closeWindowNotice.show()
+    pressAgainNotice.show(.closeWindow)
     return false
+  }
+
+  func confirmClosePeek() -> Bool {
+    let event = NSApp.currentEvent
+    let isRepeat = event?.type == .keyDown && event?.isARepeat == true
+    return pressAgainNotice.isShown(for: .closePeek) && !isRepeat
+  }
+
+  func peekDidUseEscape() {
+    openedTabNotice.dismiss()
+    pressAgainNotice.show(.closePeek)
   }
 
   func setPins(_ pins: [FiberPinState]) {
@@ -1721,7 +1738,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     self.veilContent = veilContent
     openedTabNotice.dismiss()
-    closeWindowNotice.dismiss()
+    pressAgainNotice.dismiss()
     closeOmnibar()
     closeCommandPalette()
     replaceTabOverlay()

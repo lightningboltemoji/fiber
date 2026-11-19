@@ -1,11 +1,18 @@
 import AppKit
 import SwiftUI
 
-/// In OpenedTabNotice's place and glass, after the user tries to close the
-/// window's last tab, a New Tab page, which stays: that Command-W again closes
-/// the window. Clicks go through it, and it goes after a moment.
+/// In OpenedTabNotice's place and glass, after a key that would close
+/// something doesn't: that pressing it again does. Command-W on the window's
+/// last tab, a New Tab page, which stays, then closes the window, and Escape
+/// that a peek's page used closes the peek. Clicks go through it, and it goes
+/// after a moment.
 @MainActor
-final class CloseWindowNotice: NSView {
+final class PressAgainNotice: NSView {
+  enum Action {
+    case closeWindow
+    case closePeek
+  }
+
   private enum Metrics {
     /// How long it stays after the last try.
     static let holdDuration: TimeInterval = 2.5
@@ -14,7 +21,7 @@ final class CloseWindowNotice: NSView {
   }
 
   private(set) var isShown = false
-  private let model = CloseWindowNoticeModel()
+  private let model = PressAgainNoticeModel()
   private var pendingDismissal: DispatchWorkItem?
   /// Counts its showings, so that a fade out from one cut short does nothing.
   private var showings = 0
@@ -38,7 +45,7 @@ final class CloseWindowNotice: NSView {
     isHidden = true
     alphaValue = 0
     let hostingView = NSHostingView(
-      rootView: CloseWindowNoticeView(model: model))
+      rootView: PressAgainNoticeView(model: model))
     hostingView.sizingOptions = []
     hostingView.safeAreaRegions = []
     hostingView.frame = bounds
@@ -55,9 +62,14 @@ final class CloseWindowNotice: NSView {
     nil
   }
 
+  func isShown(for action: Action) -> Bool {
+    isShown && model.action == action
+  }
+
   /// Drops into place as it fades in, or if it's showing, stays a while
   /// longer.
-  func show() {
+  func show(_ action: Action) {
+    model.action = action
     pendingDismissal?.cancel()
     let dismissal = DispatchWorkItem { [weak self] in
       MainActor.assumeIsolated { self?.dismiss() }
@@ -82,14 +94,14 @@ final class CloseWindowNotice: NSView {
     NSAccessibility.post(
       element: window ?? NSApp as Any, notification: .announcementRequested,
       userInfo: [
-        .announcement: CloseWindowNoticeView.accessibilityText,
+        .announcement: PressAgainNoticeView.accessibilityText(for: action),
         .priority: NSAccessibilityPriorityLevel.high.rawValue,
       ])
   }
 
-  /// Lifts away as it fades out.
-  func dismiss() {
-    guard isShown else {
+  /// Lifts away as it fades out, if it's about `action`, or any.
+  func dismiss(_ action: Action? = nil) {
+    guard isShown, action.map({ $0 == model.action }) ?? true else {
       return
     }
     isShown = false
@@ -115,25 +127,36 @@ final class CloseWindowNotice: NSView {
 
 @MainActor
 @Observable
-final class CloseWindowNoticeModel {
+final class PressAgainNoticeModel {
   var isShown = false
+  var action = PressAgainNotice.Action.closeWindow
 }
 
-/// A panel one tab row high, with the shortcut picked out.
-struct CloseWindowNoticeView: View {
-  static let accessibilityText = "Press Command-W again to close the window"
+/// A panel one tab row high, with the key picked out.
+struct PressAgainNoticeView: View {
+  static func accessibilityText(for action: PressAgainNotice.Action) -> String {
+    switch action {
+    case .closeWindow: "Press Command-W again to close the window"
+    case .closePeek: "Press Escape again to close the peek"
+    }
+  }
 
-  let model: CloseWindowNoticeModel
+  let model: PressAgainNoticeModel
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
-    let key = Text("⌘W").fontWeight(.semibold).foregroundStyle(.primary)
+    let (keyName, outcome) =
+      switch model.action {
+      case .closeWindow: ("⌘W", "close window")
+      case .closePeek: ("esc", "close peek")
+      }
+    let key = Text(keyName).fontWeight(.semibold).foregroundStyle(.primary)
     ZStack {
       PanelShadow(cornerRadius: TabListLayout.cornerRadius)
       RimmedGlass(
         cornerRadius: TabListLayout.cornerRadius,
         rimWidth: TabListLayout.rimWidth)
-      Text("\(key) again to close window")
+      Text("\(key) again to \(outcome)")
         .font(.system(size: 13))
         .foregroundStyle(.secondary)
         .lineLimit(1)
@@ -146,6 +169,6 @@ struct CloseWindowNoticeView: View {
       y: model.isShown || reduceMotion ? 0 : -OpenedTabNoticeModel.travel)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel(Self.accessibilityText)
+    .accessibilityLabel(Self.accessibilityText(for: model.action))
   }
 }

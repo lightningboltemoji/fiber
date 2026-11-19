@@ -91,7 +91,9 @@ run it on a throwaway profile:
   navigation with no user gesture leaves Back disabled), and clicks as the
   user would (`Input.dispatchMouseEvent` at an element's center, through the
   browser's websocket and `Target.attachToTarget` with `flatten`), which a link
-  needs to open a peek. Node has a WebSocket client. The Accessibility API
+  needs to open a peek. Node has a WebSocket client. Its keys
+  (`Input.dispatchKeyEvent`) reach the page and `PreHandleKeyboardEvent()`,
+  but one the page leaves never reaches `HandleKeyboardEvent()`. The Accessibility API
   runs commands, with `AXPress` on a menu item of that PID. Many items are only
   enabled while its window is key, so set `AXMain`, `AXRaise` and `activate()`
   first, and put the frontmost app back afterward.

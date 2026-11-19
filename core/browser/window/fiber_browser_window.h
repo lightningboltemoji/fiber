@@ -347,6 +347,13 @@ class FiberBrowserWindow : public BrowserWindow,
   // Closes the peek that shows, as the user asked, its card going as a
   // snapshot of its page.
   void ClosePeek(tabs::TabInterface* peek);
+  // The peek that shows, for an Escape that would close it: one for its page,
+  // with no other keys held, and no key passthrough, which holding Escape
+  // ends.
+  tabs::TabInterface* PeekForEscape(
+      const input::NativeWebKeyboardEvent& event) const;
+  // Its page used an Escape (see fiber/renderer/page_keys.h).
+  void PeekDidUseEscape(tabs::TabHandle peek);
   void DidSnapshotPeek(tabs::TabHandle peek, NSImage* snapshot);
   void CloseTabNow(tabs::TabInterface* tab);
   // Session restore hides each tab it restores in the background, after the
@@ -386,6 +393,9 @@ class FiberBrowserWindow : public BrowserWindow,
   // Watches the page beside the active tab's, in its split, for focus.
   class SplitFocusObserver;
   std::unique_ptr<SplitFocusObserver> split_focus_observer_;
+  // Watches a peek's page answer an Escape.
+  class PeekEscapeObserver;
+  std::unique_ptr<PeekEscapeObserver> peek_escape_observer_;
   bool rearranging_ = false;
   // Set while the user separates the split's tabs, which ends it.
   bool ending_split_ = false;

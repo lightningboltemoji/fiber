@@ -194,6 +194,13 @@ NS_SWIFT_UI_ACTOR
 // Returns whether to close the window instead: only for another try while the
 // notice the first one shows is up.
 - (BOOL)confirmCloseWindow;
+// Escape while a peek shows, before its page sees it. Returns whether to close
+// the peek instead: only for another press while the notice the page's use
+// of the last one showed is up (see -peekDidUseEscape).
+- (BOOL)confirmClosePeek;
+// The page in the peek that shows used Escape, which would otherwise have
+// closed the peek: the window says that another press does.
+- (void)peekDidUseEscape;
 // Replaces the pins with `pins`, in order. Their open tabs are among the tabs
 // too. Never called for a window that can't have pins, like an Incognito one.
 - (void)setPins:(NSArray<FiberPinState*>*)pins;

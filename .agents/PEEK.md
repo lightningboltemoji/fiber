@@ -27,8 +27,8 @@ fits with the rest of the tabs is in
   active page (the load progress, find bar and notices, which go over the
   card, as they go over a split's side). The card grows from the pointer, on
   a spring like the downloads list's, as the page behind blurs.
-- **Closing it** (Close, a click on the page behind, ⌘W, Escape the page
-  doesn't use, the page closing itself) closes its tab, and the page it came from is back as it was, with
+- **Closing it** (Close, a click on the page behind, ⌘W, Escape, the page
+  closing itself) closes its tab, and the page it came from is back as it was, with
   the keyboard, as the card goes, a snapshot of its page shrinking a little
   and fading. ⇧⌘T brings the peek back, as a peek.
 - **Expanding it** makes it an ordinary tab, still active, right after the
@@ -221,10 +221,15 @@ lower tab closes its peek too. The harness's `MockBrowser` has peeks (its
   narrows below 40pt, which leaves them about 5pt over the card's edge in the
   narrowest, and the traffic lights over the card's corner. Easiest to tune
   in the harness.
-- **Escape** closes a peek once its page has had the key and not used it
-  (`preventDefault()`, in `FiberBrowserWindow::HandleKeyboardEvent()`), but
-  not one with key passthrough, which holding Escape ends. A page that closes
-  a dialog of its own on Escape without saying so closes its peek too.
+- **Escape** goes to the peek's page first. One it doesn't use closes the
+  peek. One it does (a keydown listener on its way, `preventDefault()` or
+  not, as `renderer/page_keys.h` has Blink count it, or Blink's own, closing
+  a `<dialog>`) leaves the peek, and the window says, as for ⌘W on a lone New
+  Tab page, that another closes it; one while that's up closes the peek
+  without reaching the page (`FiberBrowserWindow::PreHandleKeyboardEvent()`,
+  `PressAgainNotice.swift`). Not with key passthrough, which holding Escape
+  ends. A page with a keydown listener for its shortcuts, as many apps have,
+  takes two presses.
 - **⇧⌘T after closing the pair's row** takes two presses, the tab and then
   its peek. One press for both would need closed-tab history to keep them as
   one entry, as it does a split.

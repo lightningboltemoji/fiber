@@ -53,6 +53,9 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_process_host.h"
+#include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents.h"
@@ -82,6 +85,8 @@
 #include "fiber/browser/window/page_thumbnail.h"
 #include "fiber/browser/window/tab_state.h"
 #include "skia/ext/skia_utils_mac.h"
+#include "third_party/blink/public/common/input/web_keyboard_event.h"
+#include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #import "ui/base/cocoa/command_dispatcher.h"
 #import "ui/base/cocoa/nsmenu_additions.h"
@@ -207,6 +212,57 @@ class FiberBrowserWindow::SplitFocusObserver
   const raw_ptr<FiberBrowserWindow> window_;
 };
 
+// Escape goes to a peek's page before it closes the peek. A page that uses it
+// leaves the peek, and the window says another Escape closes it.
+class FiberBrowserWindow::PeekEscapeObserver
+    : public content::RenderWidgetHost::InputEventObserver {
+ public:
+  explicit PeekEscapeObserver(FiberBrowserWindow* window) : window_(window) {}
+  ~PeekEscapeObserver() override { Stop(); }
+
+  // Until the page in `host` answers the Escape going to it.
+  void Watch(content::RenderWidgetHost* host, tabs::TabHandle peek) {
+    Stop();
+    process_id_ = host->GetProcess()->GetDeprecatedID();
+    routing_id_ = host->GetRoutingID();
+    peek_ = peek;
+    host->AddInputEventObserver(this);
+  }
+
+  // content::RenderWidgetHost::InputEventObserver:
+  void OnInputEventAck(const content::RenderWidgetHost& host,
+                       blink::mojom::InputEventResultSource source,
+                       blink::mojom::InputEventResultState state,
+                       const blink::WebInputEvent& event) override {
+    if (event.GetType() != blink::WebInputEvent::Type::kRawKeyDown ||
+        static_cast<const blink::WebKeyboardEvent&>(event).windows_key_code !=
+            ui::VKEY_ESCAPE) {
+      return;
+    }
+    const tabs::TabHandle peek = peek_;
+    Stop();
+    if (state == blink::mojom::InputEventResultState::kConsumed) {
+      window_->PeekDidUseEscape(peek);
+    }
+  }
+
+ private:
+  // Only while its widget is alive, which the IDs tell.
+  void Stop() {
+    if (content::RenderWidgetHost* host =
+            content::RenderWidgetHost::FromID(process_id_, routing_id_)) {
+      host->RemoveInputEventObserver(this);
+    }
+    process_id_ = -1;
+    routing_id_ = -1;
+  }
+
+  const raw_ptr<FiberBrowserWindow> window_;
+  int process_id_ = -1;
+  int routing_id_ = -1;
+  tabs::TabHandle peek_;
+};
+
 // static
 FiberBrowserWindow* FiberBrowserWindow::FromWebContents(
     content::WebContents* web_contents) {
@@ -313,11 +369,13 @@ FiberBrowserWindow::FiberBrowserWindow(BrowserWindowInterface* browser)
     UpdatePins();
   }
   split_focus_observer_ = std::make_unique<SplitFocusObserver>(this);
+  peek_escape_observer_ = std::make_unique<PeekEscapeObserver>(this);
   browser_->GetTabStripModel()->AddObserver(this);
 }
 
 FiberBrowserWindow::~FiberBrowserWindow() {
   split_focus_observer_.reset();
+  peek_escape_observer_.reset();
   pinned_tabs_.reset();
   // Its popup and actions go while the browser's features are still there.
   extensions_toolbar_.reset();
@@ -1380,9 +1438,49 @@ void FiberBrowserWindow::HandleDragEnded() {}
 content::KeyboardEventProcessingResult
 FiberBrowserWindow::PreHandleKeyboardEvent(
     const input::NativeWebKeyboardEvent& event) {
+  // Escape in a peek closes it once its page has seen it and not used it, or
+  // at once while the window says another one does.
+  if (tabs::TabInterface* peek = PeekForEscape(event)) {
+    if ([ui_ confirmClosePeek]) {
+      ClosePeek(peek);
+      return content::KeyboardEventProcessingResult::HANDLED;
+    }
+    content::RenderFrameHost* frame = peek->GetContents()->GetFocusedFrame();
+    if (frame && frame->GetRenderWidgetHost()) {
+      peek_escape_observer_->Watch(frame->GetRenderWidgetHost(),
+                                   peek->GetHandle());
+    }
+  }
   // Reserved keys never get here (see PerformReservedKeyEquivalent()). The
   // page sees the rest first; HandleKeyboardEvent() gets what it doesn't use.
   return content::KeyboardEventProcessingResult::NOT_HANDLED;
+}
+
+tabs::TabInterface* FiberBrowserWindow::PeekForEscape(
+    const input::NativeWebKeyboardEvent& event) const {
+  constexpr int kHeldOrRepeated =
+      blink::WebInputEvent::kShiftKey | blink::WebInputEvent::kControlKey |
+      blink::WebInputEvent::kAltKey | blink::WebInputEvent::kMetaKey |
+      blink::WebInputEvent::kIsAutoRepeat;
+  if (event.GetType() != input::NativeWebKeyboardEvent::Type::kRawKeyDown ||
+      event.windows_key_code != ui::VKEY_ESCAPE ||
+      (event.GetModifiers() & kHeldOrRepeated)) {
+    return nullptr;
+  }
+  TabStripModel* model = browser_->GetTabStripModel();
+  tabs::TabInterface* active = model->GetActiveTab();
+  NSView* focus = base::apple::ObjCCast<NSView>(GetNSWindow().firstResponder);
+  if (!LowerTabOf(*model, active) || !focus || !IsInActivePage(focus) ||
+      HasKeyPassthrough(active->GetContents())) {
+    return nullptr;
+  }
+  return active;
+}
+
+void FiberBrowserWindow::PeekDidUseEscape(tabs::TabHandle peek) {
+  if (peek.Get() && peek.Get() == browser_->GetTabStripModel()->GetActiveTab()) {
+    [ui_ peekDidUseEscape];
+  }
 }
 
 bool FiberBrowserWindow::HandleKeyboardEvent(
@@ -1397,17 +1495,9 @@ bool FiberBrowserWindow::HandleKeyboardEvent(
   if (ns_event.type != NSEventTypeKeyDown) {
     return false;
   }
-  // Escape the page didn't use closes the peek (see peek/tab_peek.h), but for
-  // one with key passthrough, which holding Escape ends.
-  TabStripModel* model = browser_->GetTabStripModel();
-  tabs::TabInterface* active = model->GetActiveTab();
-  if (event.windows_key_code == ui::VKEY_ESCAPE && !ns_event.ARepeat &&
-      !(ns_event.modifierFlags &
-        (NSEventModifierFlagCommand | NSEventModifierFlagOption |
-         NSEventModifierFlagControl | NSEventModifierFlagShift)) &&
-      LowerTabOf(*model, active) &&
-      !HasKeyPassthrough(active->GetContents())) {
-    ClosePeek(active);
+  // Escape the page didn't use closes the peek (see peek/tab_peek.h).
+  if (tabs::TabInterface* peek = PeekForEscape(event)) {
+    ClosePeek(peek);
     return true;
   }
   return [NSApp.mainMenu performKeyEquivalent:ns_event];
