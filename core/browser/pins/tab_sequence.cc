@@ -10,6 +10,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "fiber/browser/hooks/tab_strip_selection.h"
+#include "fiber/browser/peek/tab_peek.h"
 #include "fiber/browser/split/tab_split.h"
 #include "ui/gfx/range/range.h"
 
@@ -19,7 +20,7 @@ namespace {
 
 void Activate(TabStripModel* model, tabs::TabInterface* tab) {
   ActivateBesideKeptTab(
-      model, tab,
+      model, ShownTab(*model, tab),
       TabStripUserGestureDetails(
           TabStripUserGestureDetails::GestureType::kKeyboard));
 }
@@ -28,8 +29,9 @@ std::vector<tabs::TabInterface*> KeyboardTabs(const TabStripModel& model) {
   tabs::TabInterface* kept = KeptTab(model);
   std::vector<tabs::TabInterface*> tabs;
   for (int i = model.IndexOfFirstNonPinnedTab(); i < model.count(); ++i) {
-    if (model.GetTabAtIndex(i) != kept) {
-      tabs.push_back(model.GetTabAtIndex(i));
+    tabs::TabInterface* tab = model.GetTabAtIndex(i);
+    if (tab != kept && !LowerTabOf(model, tab)) {
+      tabs.push_back(tab);
     }
   }
   return tabs;
@@ -43,7 +45,7 @@ void SelectAdjacentTab(TabStripModel* model, int offset) {
   if (count == 0) {
     return;
   }
-  tabs::TabInterface* active = model->GetActiveTab();
+  tabs::TabInterface* active = UserTab(*model, model->GetActiveTab());
   if (active && active == KeptTab(*model)) {
     active = model->GetTabAtIndex(model->GetIndexOfTab(active) - 1);
   }
@@ -83,14 +85,18 @@ std::optional<int> TabToActivateAfterClosing(const TabStripModel& model,
     }
     return last_used;
   }
-  // The tab after it, or before it if it was last, but not a pin's. With none
-  // left, the window opens a New Tab page in its place (see
+  // The tab after it, or before it if it was last, but not a pin's or a peek.
+  // With none left, the window opens a New Tab page in its place (see
   // FiberBrowserWindow::WillCloseTabs()).
-  if (end < model.count()) {
-    return end;
+  for (int i = end; i < model.count(); ++i) {
+    if (!LowerTabOf(model, model.GetTabAtIndex(i))) {
+      return i;
+    }
   }
-  if (start > first) {
-    return start - 1;
+  for (int i = start - 1; i >= first; --i) {
+    if (!LowerTabOf(model, model.GetTabAtIndex(i))) {
+      return i;
+    }
   }
   return std::nullopt;
 }

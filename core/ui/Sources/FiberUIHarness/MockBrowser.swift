@@ -46,6 +46,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
   private var pins: MockPins? { isIncognito ? nil : app?.pins }
   /// As Chrome keeps it, two adjacent tabs, the left first.
   private var split: MockSplit?
+  /// Each tab a link opened over the tab it came from, as Fiber pairs them.
+  private var peeks: [(lower: MockTab, peek: MockTab)] = []
   private var dialog: (any FiberJavaScriptDialog)?
   /// Each tab's prompt, by tab ID, and the window's.
   private var tabPrompts:
@@ -149,7 +151,53 @@ final class MockBrowser: NSObject, FiberWindowActions {
       app?.selectTab(withID: tabID)
       return
     }
-    activate(tab)
+    activate(shownTab(tab))
+  }
+
+  // MARK: Peeks
+
+  private func peek(over tab: MockTab) -> MockTab? {
+    peeks.first { $0.lower === tab }?.peek
+  }
+
+  private func lower(of tab: MockTab) -> MockTab? {
+    peeks.first { $0.peek === tab }?.lower
+  }
+
+  /// Like Fiber, what activating `tab` shows: its peek, if it has one.
+  private func shownTab(_ tab: MockTab) -> MockTab {
+    peek(over: tab) ?? tab
+  }
+
+  /// As a link the page opens in a new tab (`target="_blank"`) does: over the
+  /// active tab, as a peek, unless the window has a split or the active tab is
+  /// a peek, as in Fiber.
+  func openPeekFromLink(_ url: String) {
+    let lower = activeTab!
+    guard split == nil, self.lower(of: lower) == nil, peek(over: lower) == nil
+    else {
+      openTabFromLink(url, inFront: true)
+      return
+    }
+    openTab(url, activate: true, over: lower)
+  }
+
+  func expandPeek(withTabID tabID: Int) {
+    guard let tab = tabs.first(where: { $0.id == tabID }),
+      let lower = lower(of: tab)
+    else {
+      return
+    }
+    expand(tab, after: lower)
+    pushTabs()
+  }
+
+  /// Makes `tab` an ordinary tab, just after its lower tab.
+  private func expand(_ tab: MockTab, after lower: MockTab) {
+    peeks.removeAll { $0.peek === tab }
+    tabs.removeAll { $0 === tab }
+    tabs.insert(
+      tab, at: max(tabs.firstIndex(of: lower)! + 1, tabs.filter(isPinTab).count))
   }
 
   /// Like Fiber, a tab that can be in a split but isn't goes on the left of
@@ -220,9 +268,20 @@ final class MockBrowser: NSObject, FiberWindowActions {
     guard let tab = tabs.first(where: { $0.id == tabID }) else {
       return
     }
+    if lower(of: tab) != nil {
+      if tab === activeTab {
+        ui.willClosePeek(withID: tab.id, snapshot: tab.page.snapshot())
+      }
+      close(tab)
+      return
+    }
+    // Like Fiber, the peek first, so it goes back to its lower tab.
+    if let peek = peek(over: tab) {
+      close(peek)
+    }
     // Like Fiber, the last tab leaves a New Tab page, which stays unless the
-    // UI confirms closing the window. Pins' tabs don't count.
-    let unpinned = tabs.filter { !isPinTab($0) }
+    // UI confirms closing the window. Pins' tabs and peeks don't count.
+    let unpinned = tabs.filter { !isPinTab($0) && lower(of: $0) == nil }
     let isLast = unpinned == [tab]
     if isLast && tab.url == Self.newTabURL {
       if ui.confirmClose() {
@@ -251,6 +310,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
     }
     let id = pins.add(url: tab.url, title: tab.page.title)
     leaveSplit(tab)
+    peeks.removeAll { $0.peek === tab }
     pinTabs[id] = tab
     pinsDidChange()
   }
@@ -339,10 +399,15 @@ final class MockBrowser: NSObject, FiberWindowActions {
 
   func splitTab(withID tabID: Int, besideTabWithID leftTabID: Int) {
     guard let right = tabs.first(where: { $0.id == tabID }),
-      let left = tabs.first(where: { $0.id == leftTabID }), right !== left,
+      var left = tabs.first(where: { $0.id == leftTabID }), right !== left,
       !isPinTab(right)
     else {
       return
+    }
+    // Like Fiber, beside what was a peek, made a tab first.
+    left = shownTab(left)
+    for (lower, peek) in peeks {
+      expand(peek, after: lower)
     }
     split = MockSplit(left: left, right: right, ratio: split?.ratio ?? 0.5)
     tabs.removeAll { $0 === right }
@@ -493,17 +558,18 @@ final class MockBrowser: NSObject, FiberWindowActions {
     let unpinned = keyboardTabs
     let index = sender.tag < 0 ? unpinned.count - 1 : sender.tag
     if unpinned.indices.contains(index) {
-      activate(unpinned[index])
+      activate(shownTab(unpinned[index]))
     }
   }
 
   private var keyboardTabs: [MockTab] {
-    tabs.filter { !isPinTab($0) && $0 !== split?.right }
+    tabs.filter { !isPinTab($0) && $0 !== split?.right && lower(of: $0) == nil }
   }
 
-  /// Like Fiber, through the tabs that aren't pins' or the split's right,
-  /// round from the last to the first. From a pin's tab, the next is the
-  /// first; from the split's right, it counts from its left.
+  /// Like Fiber, through the tabs that aren't pins', peeks or the split's
+  /// right, round from the last to the first. From a pin's tab, the next is
+  /// the first; from the split's right, it counts from its left, and from a
+  /// peek, from its lower tab.
   @objc func selectNextTab(_ sender: Any?) {
     selectTab(by: 1)
   }
@@ -517,10 +583,12 @@ final class MockBrowser: NSObject, FiberWindowActions {
     guard !unpinned.isEmpty else {
       return
     }
-    let from = activeTab === split?.right ? split?.left : activeTab
+    let from =
+      activeTab === split?.right ? split?.left : lower(of: activeTab) ?? activeTab
     let index =
       unpinned.firstIndex { $0 === from } ?? (step > 0 ? -1 : 0)
-    activate(unpinned[(index + step + unpinned.count) % unpinned.count])
+    activate(
+      shownTab(unpinned[(index + step + unpinned.count) % unpinned.count]))
   }
 
   @objc func closeTab(_ sender: Any?) {
@@ -734,12 +802,19 @@ final class MockBrowser: NSObject, FiberWindowActions {
   }
 
 
+  /// Over `lower` as a peek, paired before it's in the tab list, as Fiber
+  /// pairs it before Chrome inserts it.
   @discardableResult
-  private func openTab(_ url: String, activate: Bool) -> MockTab {
+  private func openTab(
+    _ url: String, activate: Bool, over lower: MockTab? = nil
+  ) -> MockTab {
     let tab = MockTab()
     tab.page.browser = self
     tab.history = [url]
     tab.index = 0
+    if let lower {
+      peeks.append((lower, tab))
+    }
     // Next to the active tab, as Chrome opens tabs from links, but after its
     // split.
     var index = activeTab.flatMap { tabs.firstIndex(of: $0) } ?? tabs.count - 1
@@ -770,7 +845,12 @@ final class MockBrowser: NSObject, FiberWindowActions {
     }
     // Switching tabs dismisses the page's dialog, as in Chrome.
     dialog?.close()
+    let wasPaired =
+      activeTab.map { lower(of: $0) === tab || peek(over: $0) === tab } ?? false
     activeTab = tab
+    if wasPaired {
+      pushPeeks()
+    }
     tab.lastActive = Date()
     ui.setContentsView(tab.page)
     ui.hideStatusText()
@@ -789,6 +869,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
       return
     }
     let wasPin = isPinTab(tab)
+    let lowerTab = lower(of: tab)
+    peeks.removeAll { $0.lower === tab || $0.peek === tab }
     tab.loadTimer?.invalidate()
     tabs.remove(at: index)
     if split?.right === tab {
@@ -802,7 +884,8 @@ final class MockBrowser: NSObject, FiberWindowActions {
       return
     }
     if tab === activeTab {
-      activate(split?.left ?? nextTab(afterClosingPin: wasPin, at: index))
+      activate(
+        lowerTab ?? split?.left ?? nextTab(afterClosingPin: wasPin, at: index))
     } else {
       pushTabs()
     }
@@ -812,7 +895,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
   /// tab. A pin's goes back to the tab used last; a tab to the one after it,
   /// or before it if it was last; with no tabs left, a New Tab page.
   private func nextTab(afterClosingPin wasPin: Bool, at index: Int) -> MockTab {
-    let unpinned = tabs.filter { !isPinTab($0) }
+    let unpinned = tabs.filter { !isPinTab($0) && lower(of: $0) == nil }
     if wasPin, let recent = unpinned.max(by: { $0.lastActive < $1.lastActive })
     {
       return recent
@@ -1058,6 +1141,7 @@ final class MockBrowser: NSObject, FiberWindowActions {
           ratio: split.ratio, otherView: other?.page,
           otherIsNewTabPage: other?.url == Self.newTabURL)
       })
+    pushPeeks()
     if let pins {
       ui.setPins(pins.pins(on: nil).map(pinState))
       ui.shelves.setShelves(
@@ -1068,6 +1152,17 @@ final class MockBrowser: NSObject, FiberWindowActions {
         })
     }
     app?.tabsDidChange()
+  }
+
+  private func pushPeeks() {
+    ui.setPeeks(
+      peeks.map { lower, peek in
+        let isShown = activeTab === lower || activeTab === peek
+        return FiberPeek(
+          lowerTabID: lower.id, peekTabID: peek.id,
+          lowerView: isShown ? lower.page : nil,
+          peekView: isShown ? peek.page : nil)
+      })
   }
 
   private func pinState(_ pin: MockPins.Pin) -> FiberPinState {

@@ -132,6 +132,12 @@ int CommandID(FiberCommand command) {
   }
 }
 
+- (void)expandPeekWithTabID:(NSInteger)tabID {
+  if (_owner) {
+    _owner->ExpandPeek(static_cast<int32_t>(tabID));
+  }
+}
+
 - (void)pinTabWithID:(NSInteger)tabID {
   if (fiber::PinnedTabs* pinned_tabs = [self pinnedTabs]) {
     pinned_tabs->PinTab(static_cast<int32_t>(tabID));

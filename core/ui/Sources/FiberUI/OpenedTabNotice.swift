@@ -605,7 +605,7 @@ struct OpenedTabNoticeView: View {
       )
       .accessibilityHidden(true)
       TabList(
-        width: panel.width, rows: model.tabs.map(TabListRow.init(tab:)),
+        width: panel.width, rows: model.tabs.map { TabListRow(tab: $0) },
         activeRowID: .tab(model.activeTabID),
         highlightedRowID: model.highlightedTabID.map { .tab($0) },
         closeButton: model.closeButton,

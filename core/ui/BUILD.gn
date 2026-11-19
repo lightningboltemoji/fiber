@@ -37,6 +37,7 @@ fiber_swift_source_set("ui") {
     "Sources/FiberUI/PaletteSearch.swift",
     "Sources/FiberUI/PaletteView.swift",
     "Sources/FiberUI/PanelShadow.swift",
+    "Sources/FiberUI/Peek.swift",
     "Sources/FiberUI/PinGrid.swift",
     "Sources/FiberUI/PinState.swift",
     "Sources/FiberUI/ProfileAvatar.swift",

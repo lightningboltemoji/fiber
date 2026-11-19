@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/sad_tab.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "fiber/browser/split/tab_split.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -25,15 +26,12 @@
 
 @class FiberBrowserWindowActions;
 @class NSEvent;
+@class NSImage;
 @class NSView;
 @class NSWindow;
 @protocol FiberExtensionWindow;
 @protocol FiberExtensionWindowActions;
 @protocol FiberWindow;
-
-namespace tabs {
-class TabInterface;
-}
 
 namespace fiber {
 
@@ -98,8 +96,11 @@ class FiberBrowserWindow : public BrowserWindow,
   void Restore(const std::string& restorable_id,
                std::optional<size_t> page_index);
   // Closes one of this window's tabs as the user would, so its page can ask
-  // first and it can be reopened (see WillCloseTabs()).
+  // first and it can be reopened (see WillCloseTabs()). A peek's lower tab
+  // closes with its peek.
   void CloseTab(int32_t tab_id);
+  // Makes a peek an ordinary tab (see peek/tab_peek.h).
+  void ExpandPeek(int32_t tab_id);
   // Moves one of this window's tabs before another, or to the end for 0.
   void MoveTab(int32_t tab_id, int32_t before_tab_id);
   // The window's split (see split/tab_split.h).
@@ -327,10 +328,11 @@ class FiberBrowserWindow : public BrowserWindow,
   // Whether `view` is in the active tab's page or its docked DevTools.
   bool IsInActiveTab(NSView* view) const;
   void UpdateLoadProgress();
-  // Sends the UI the tab list, in tab strip order, the split, and the pins
-  // and shelves.
+  // Sends the UI the tab list, in tab strip order, the split, the peeks, and
+  // the pins and shelves.
   void UpdateTabs();
   void UpdateSplit();
+  void UpdatePeeks();
   void UpdatePins();
   // Runs `rearrange`, which changes the tab strip in steps, and sends the UI
   // where they end rather than each step.
@@ -338,9 +340,19 @@ class FiberBrowserWindow : public BrowserWindow,
   // The user clicked into the page of the shown split's tab that isn't active.
   void ActivateSplitTab(int32_t tab_id);
   // Once the tab strip has changed, the split's right tab goes beside the
-  // active tab, or what's left of its split (see split/tab_split.h).
-  void ScheduleKeepSplit();
-  void KeepSplit();
+  // active tab, or what's left of its split (see split/tab_split.h), and the
+  // peeks settle (see peek/tab_peek.h).
+  void ScheduleSettle();
+  void Settle();
+  // Closes the peek that shows, as the user asked, its card going as a
+  // snapshot of its page.
+  void ClosePeek(tabs::TabInterface* peek);
+  void DidSnapshotPeek(tabs::TabHandle peek, NSImage* snapshot);
+  void CloseTabNow(tabs::TabInterface* tab);
+  // Session restore hides each tab it restores in the background, after the
+  // UI may have put its page on screen beside the active one (a split's, a
+  // peek's lower page), whose view doesn't say otherwise. Those are shown.
+  void RevealPagesBeside();
   // Before the user closes `closing`. Closing the last of the window's tabs
   // that aren't pins' leaves a New Tab page in its place, and a lone New Tab
   // page stays, unless the UI confirms closing the window instead. Returns
@@ -378,7 +390,9 @@ class FiberBrowserWindow : public BrowserWindow,
   // Set while the user separates the split's tabs, which ends it.
   bool ending_split_ = false;
   std::optional<EndedSplit> ended_split_;
-  bool is_keep_split_pending_ = false;
+  bool is_settle_pending_ = false;
+  // The peek ClosePeek() is snapshotting.
+  tabs::TabHandle closing_peek_;
   // The last split the UI was sent's, for one that ends.
   double split_ratio_ = 0.5;
   // Whether Chrome has shown the window. A startup window (see

@@ -127,6 +127,9 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var tabs: [FiberTabState] = []
   /// The window's split, whose right tab the spot has, apart from the list.
   private var split: SplitPair?
+  /// The window's peeks' tabs, by the tab each is over. The list leaves them
+  /// out (see FiberPeek).
+  private var peeks: [Int: FiberTabState] = [:]
   private var isSpotPressed = false
   /// Scrolls the list while a row's dragged near its edge.
   private var autoscroll: Timer?
@@ -175,6 +178,7 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
   private var heldDownloads: [FiberDownloadState]?
   private var heldShelves: [FiberShelfState]?
   private var heldSplit: SplitPair??
+  private var heldPeeks: [Int: FiberTabState]?
   /// Its fade out as it closes, which waits for what's on it to leave.
   private var pendingFadeOut: DispatchWorkItem?
   /// Counts its closings, so that a fade out from one cut short does nothing.
@@ -374,6 +378,10 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
       heldPins = nil
       setPins(pins)
     }
+    if let peeks = heldPeeks {
+      heldPeeks = nil
+      setPeeks(peeks)
+    }
     if let (tabs, activeTabID) = heldTabs {
       heldTabs = nil
       setTabs(tabs, activeTabID: activeTabID)
@@ -470,6 +478,20 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     }
     self.tabs = tabs
     model.activeTabID = activeTabID
+    updateListedTabs()
+  }
+
+  /// Each peek's tab, by the tab it's over, which stands for both.
+  func setPeeks(_ peeks: [Int: FiberTabState]) {
+    guard !isClosing else {
+      heldPeeks = peeks
+      return
+    }
+    guard !(peeks.isEmpty && self.peeks.isEmpty) else {
+      return
+    }
+    self.peeks = peeks
+    model.peeks = peeks
     updateListedTabs()
   }
 
@@ -1008,14 +1030,15 @@ final class TabOverlay: NSView, NSViewToolTipOwner {
     switch shelfBar.segment {
     case .home:
       model.rows = homeTabs.filter { $0.tabID != split?.rightTabID }
-        .map(TabListRow.init(tab:))
+        .map { TabListRow(tab: $0, peek: peeks[$0.tabID]) }
       model.listedShelfName = nil
     case .shelf(let shelfID):
       let shelf = shelfBar.shelves.first { $0.shelfID == shelfID }
       model.rows = (shelf?.pages ?? []).map { page in
         TabListRow(
           page: page,
-          tab: page.tabID == 0 ? nil : tabs.first { $0.tabID == page.tabID })
+          tab: page.tabID == 0 ? nil : tabs.first { $0.tabID == page.tabID },
+          peek: peeks[page.tabID])
       }
       model.listedShelfName = shelf?.name
     }
@@ -2266,6 +2289,8 @@ final class TabOverlayModel {
   /// pages'), or a shelf's pages.
   var rows: [TabListRow] = []
   var pins: [FiberPinState] = []
+  /// The window's peeks' tabs, by the tab each is over.
+  var peeks: [Int: FiberTabState] = [:]
   var activeTabID = 0
   /// The active tab's row, if the list has it.
   var activeRowID: TabListRow.ID?
@@ -2324,7 +2349,7 @@ final class TabOverlayModel {
   var isSplitShown: Bool { split?.contains(activeTabID) ?? false }
 
   /// The split's right tab, as a row for dragging it off its spot.
-  var spotRow: TabListRow? { splitTab.map(TabListRow.init(tab:)) }
+  var spotRow: TabListRow? { splitTab.map { TabListRow(tab: $0) } }
 
   /// The row being dragged, if it's still in the list or on the spot.
   var draggedRow: TabListRow? {

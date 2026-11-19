@@ -1,8 +1,29 @@
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index 3c3aaff4f9..d586e536de 100644
+index 3c3aaff4f9..77c741edd2 100644
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -845,6 +845,14 @@ void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
+@@ -120,6 +120,7 @@
+ #endif
+ 
+ #if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/new_contents.h"
+ #include "ui/display/display.h"
+ #include "ui/display/screen.h"
+ #include "ui/display/types/display_constants.h"
+@@ -785,6 +786,12 @@ content::WebContents* BrowserWebContentsDelegate::AddNewContents(
+     }
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  // Fiber: a link the page opens in a new tab may peek over it.
++  fiber::WillAddNewContents(&*browser_, source, new_contents.get(),
++                            disposition, user_gesture);
++#endif
++
+   return chrome::AddWebContents(&*browser_, source, std::move(new_contents),
+                                 target_url, disposition, window_features,
+                                 window_action, user_gesture);
+@@ -845,6 +852,14 @@ void BrowserWebContentsDelegate::UpdateTargetURL(content::WebContents* source,
                                                   const GURL& url) {
    std::vector<StatusBubble*> status_bubbles =
        browser_ui_controller_->GetStatusBubbles();
@@ -17,7 +38,7 @@ index 3c3aaff4f9..d586e536de 100644
    for (StatusBubble* status_bubble : status_bubbles) {
      StatusBubbleViews* status_bubble_views =
          static_cast<StatusBubbleViews*>(status_bubble);
-@@ -872,6 +880,18 @@ void BrowserWebContentsDelegate::ContentsMouseEvent(
+@@ -872,6 +887,18 @@ void BrowserWebContentsDelegate::ContentsMouseEvent(
    // Mouse motion events update the status bubble, if it exists.
    std::vector<StatusBubble*> status_bubbles =
        browser_ui_controller_->GetStatusBubbles();

@@ -149,6 +149,24 @@ final class BrowserWindowController: NSObject, FiberWindow {
   /// said or the divider is being dragged to.
   private var splitRatio = 0.5
   private var isDraggingDivider = false
+  /// The window's peeks, and the one whose pages show: its card over its
+  /// lower page, which fills the page area behind it (see FiberPeek).
+  private var peeks: [FiberPeek] = []
+  private var shownPeek: FiberPeek?
+  /// The window's tabs as it last heard of its peeks, to tell one that just
+  /// opened.
+  private var peekKnownTabIDs: Set<Int> = []
+  /// Where the shown peek's card is, in the page view.
+  private var peekCardFrame: NSRect?
+  /// The lower page of a peek that was just expanded, until its card has
+  /// grown over it.
+  private weak var retiringLowerView: NSView?
+  /// The closing peek's card, as what its page showed (see
+  /// willClosePeek(withID:snapshot:)).
+  private var closingPeekCard: (tabID: Int, view: NSView)?
+  /// Over the shown peek's lower page.
+  private let peekBackdrop = PeekBackdrop()
+  private let peekButtons = PeekButtons()
   /// Whether the active tab is on Fiber's New Tab page, which `newTabView`
   /// draws over the (empty) page.
   private var isNewTabPage = false
@@ -282,11 +300,15 @@ final class BrowserWindowController: NSObject, FiberWindow {
       pageView.addSubview(pane)
     }
     otherPane.isHidden = true
+    peekBackdrop.frame = pageView.bounds
+    peekBackdrop.isHidden = true
+    peekBackdrop.onClick = { [weak self] in self?.closeShownPeek() }
+    pageView.addSubview(peekBackdrop)
     otherNewTabView.isHidden = true
     otherNewTabView.onClick = { [weak self] in self?.selectOtherSplitTab() }
     pageView.addSubview(otherNewTabView)
     pageView.onResize = { [weak self] in
-      if self?.isSplitShown == true {
+      if self?.isSplitShown == true || self?.isPeekShown == true {
         self?.layoutPanes()
       }
     }
@@ -309,6 +331,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     splitDivider.onReset = { [weak self] in self?.actions?.setSplitRatio(0.5) }
     pageView.addSubview(splitDivider)
+    peekButtons.isHidden = true
+    peekButtons.onClose = { [weak self] in self?.closeShownPeek() }
+    peekButtons.onExpand = { [weak self] in
+      if let peek = self?.shownPeek {
+        self?.actions?.expandPeek(withTabID: peek.peekTabID)
+      }
+    }
+    pageView.addSubview(peekButtons)
 
     pageOverlay.frame = content.bounds
     pageOverlay.autoresizingMask = [.width, .height]
@@ -900,7 +930,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   func setTabs(_ tabs: [FiberTabState], activeTabID: Int) {
-    tabOverlay.setTabs(tabs, activeTabID: activeTabID)
+    updateOverlayTabs(tabs, activeTabID: activeTabID)
     openedTabNotice.setTabs(tabs, activeTabID: activeTabID)
     // A tab opened in front (Command-T, a link from another app) is where the
     // user's going; tabs already open can become active under the overlay.
@@ -934,6 +964,10 @@ final class BrowserWindowController: NSObject, FiberWindow {
     if pair != previousPair {
       tabOverlay.setSplit(pair)
     }
+    // Without one, the other pane is a peek's (see setPeeks(_:)).
+    if split == nil && previous == nil {
+      return
+    }
     let other = split?.otherView.flatMap { $0 === contentsView ? nil : $0 }
     guard
       other !== otherPane.contents || pair != previousPair
@@ -950,6 +984,119 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     otherPane.setContents(other)
     layoutPanes()
+  }
+
+  /// Comes with every change to the window's tabs, so it lays out again only
+  /// for a change to the peek that shows.
+  func setPeeks(_ peeks: [FiberPeek]) {
+    let pairs = { (peeks: [FiberPeek]) in
+      peeks.map { [$0.lowerTabID, $0.peekTabID] }
+    }
+    let didPair = pairs(peeks) != pairs(self.peeks)
+    self.peeks = peeks
+    // setTabs(_:activeTabID:) had them already, unless they've changed.
+    if didPair {
+      updateOverlayTabs(windowTabs, activeTabID: activeTabID)
+    }
+    let knownTabIDs = peekKnownTabIDs
+    peekKnownTabIDs = Set(windowTabs.map(\.tabID))
+    // A split, which the browser makes expanding its peeks, has the other
+    // pane.
+    guard split == nil else {
+      if shownPeek != nil {
+        shownPeek = nil
+        showPeekEffects(animated: false)
+      }
+      return
+    }
+    let previous = shownPeek
+    let previousCardFrame = peekCardFrame
+    let shown = peeks.first { peek in
+      guard let contentsView, peek.lowerView != nil, peek.peekView != nil
+      else {
+        return false
+      }
+      return peek.lowerView === contentsView || peek.peekView === contentsView
+    }
+    shownPeek = shown
+    let other = shown.flatMap {
+      $0.lowerView === contentsView ? $0.peekView : $0.lowerView
+    }
+    guard
+      other !== otherPane.contents || shown?.peekTabID != previous?.peekTabID
+        || shown?.lowerTabID != previous?.lowerTabID
+    else {
+      return
+    }
+    let isExpanded =
+      previous != nil && shown == nil && contentsView != nil
+      && contentsView === previous?.peekView
+    if isExpanded, let lower = previous?.lowerView,
+      otherPane.contents === lower
+    {
+      retiringLowerView = lower
+    } else {
+      otherPane.setContents(other)
+    }
+    if (shown == nil) != (previous == nil) {
+      historySwipe.reset()
+    }
+    layoutPanes()
+    if let shown, previous == nil, !knownTabIDs.isEmpty,
+      !knownTabIDs.contains(shown.peekTabID)
+    {
+      animatePeekOpening()
+    } else if let previous, shown == nil,
+      !windowTabs.contains(where: { $0.tabID == previous.peekTabID })
+    {
+      animatePeekClosing(previous, cardFrame: previousCardFrame)
+    } else if isExpanded {
+      animatePeekExpanding(from: previousCardFrame)
+    } else {
+      showPeekEffects(animated: false)
+    }
+  }
+
+  /// Over the card at once, since the page can go blank as it unloads, before
+  /// its tab closes. One that doesn't close, as its page asks the user to stay,
+  /// shows again.
+  func willClosePeek(withID tabID: Int, snapshot: NSImage?) {
+    closingPeekCard?.view.removeFromSuperview()
+    closingPeekCard = nil
+    guard let snapshot, shownPeek?.peekTabID == tabID,
+      let cardFrame = peekCardFrame
+    else {
+      return
+    }
+    let card = makePeekSnapshot(snapshot, frame: cardFrame)
+    closingPeekCard = (tabID, card)
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + Self.closingPeekTimeout
+    ) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, self.closingPeekCard?.view === card else {
+          return
+        }
+        self.closingPeekCard = nil
+        card.removeFromSuperview()
+      }
+    }
+  }
+
+  /// The tab overlay shows a peek as the tab it's over: no row of its own,
+  /// its favicon tucked into that tab's icon, and that tab active while it
+  /// shows.
+  private func updateOverlayTabs(_ tabs: [FiberTabState], activeTabID: Int) {
+    var peekTabs: [Int: FiberTabState] = [:]
+    var lowerTabIDs: [Int: Int] = [:]
+    for peek in peeks {
+      lowerTabIDs[peek.peekTabID] = peek.lowerTabID
+      peekTabs[peek.lowerTabID] = tabs.first { $0.tabID == peek.peekTabID }
+    }
+    tabOverlay.setPeeks(peekTabs)
+    tabOverlay.setTabs(
+      tabs.filter { lowerTabIDs[$0.tabID] == nil },
+      activeTabID: lowerTabIDs[activeTabID] ?? activeTabID)
   }
 
   /// Not while the veil's up, or the omnibar, command palette or tab overlay
@@ -1063,6 +1210,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     updateControls()
     layoutPanes()
+    showPeekEffects(animated: false)
   }
 
   private func updateControls() {
@@ -1155,31 +1303,52 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
 
   /// The active tab's page fills the page area, or shares it with the split's
-  /// other page, the divider between them.
+  /// other page, the divider between them, or is a peek's card over its lower
+  /// page (or that page, under the card, as one takes the other's place).
   private func layoutPanes() {
     let isShown = isSplitShown
+    let peekPanes = shownPeekPanes
     let bounds = pageView.bounds
     var activeFrame = bounds
+    var otherFrame = bounds
     if isShown, let split {
       let (left, right) = SplitLayout.frames(in: bounds, ratio: splitRatio)
       let isActiveLeft = activeTabID != split.rightTabID
       activeFrame = isActiveLeft ? left : right
-      otherPane.frame = isActiveLeft ? right : left
+      otherFrame = isActiveLeft ? right : left
       splitDivider.frame = NSRect(
         x: left.maxX, y: bounds.minY, width: right.minX - left.maxX,
         height: bounds.height)
     }
-    otherPane.isHidden = !isShown
+    peekCardFrame = nil
+    if let peekPanes {
+      let cardFrame = PeekLayout.cardFrame(in: bounds)
+      peekCardFrame = cardFrame
+      activeFrame = peekPanes.card === activePane ? cardFrame : bounds
+      otherFrame = peekPanes.card === activePane ? bounds : cardFrame
+      peekButtons.frame = PeekLayout.buttonsFrame(beside: cardFrame)
+      orderPageViews(lower: peekPanes.lower)
+    }
+    // An expanded peek's lower page, under the card growing over it.
+    let isRetiring =
+      retiringLowerView != nil && otherPane.contents === retiringLowerView
+    if isRetiring {
+      orderPageViews(lower: otherPane)
+    }
+    peekBackdrop.frame = bounds
+    otherPane.frame = otherFrame
+    otherPane.isHidden = !isShown && peekPanes == nil && !isRetiring
     otherNewTabView.isHidden = !isShown || split?.otherIsNewTabPage != true
     splitDivider.isHidden = !isShown
     // Laid out afresh as the page area resizes (see pageView.onResize).
-    let resizing: NSView.AutoresizingMask = isShown ? [] : [.width, .height]
+    let resizing: NSView.AutoresizingMask =
+      isShown || peekPanes != nil ? [] : [.width, .height]
     for view in [activePane, newTabView, sadTabView] {
       view.frame = activeFrame
       view.autoresizingMask = resizing
     }
-    activePane.isRounded = isShown
-    otherPane.isRounded = true
+    activePane.isRounded = isShown || peekPanes?.card === activePane
+    otherPane.isRounded = isShown || peekPanes?.card === otherPane
     placeOverPage()
   }
 
@@ -1193,6 +1362,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
     if isSplitShown {
       frame = activePane.frame.offsetBy(dx: frame.minX, dy: frame.minY)
       resizing = []
+    } else if isPeekShown, let card = peekCardFrame {
+      frame = card.offsetBy(dx: frame.minX, dy: frame.minY)
+      resizing = []
     }
     // With their panes after a switch (see setContentsView(_:)).
     newTabView.frame = activePane.frame
@@ -1202,7 +1374,7 @@ final class BrowserWindowController: NSObject, FiberWindow {
     pageOverlay.autoresizingMask = resizing
     if !emulatesDevice {
       controlsView.frame = frame
-      controlsView.autoresizingMask = isSplitShown ? [] : [.width, .height]
+      controlsView.autoresizingMask = resizing.isEmpty ? [] : [.width, .height]
       placeNotices(animated: false)
     }
   }
@@ -1254,6 +1426,244 @@ final class BrowserWindowController: NSObject, FiberWindow {
     frame.origin.y = frame.maxY - height
     frame.size = NSSize(width: max(frame.width, size.width), height: height)
     window.setFrame(frame, display: true)
+  }
+
+  // MARK: Peek
+
+  private static let peekDuration: TimeInterval = 0.3
+
+  /// Whether the shown peek's card is over its lower page, which it isn't
+  /// while a page is fullscreen.
+  private var isPeekShown: Bool { shownPeekPanes != nil }
+
+  /// The panes holding the shown peek's pages.
+  private var shownPeekPanes: (card: PagePane, lower: PagePane)? {
+    guard let peek = shownPeek, !isPageFullScreen else {
+      return nil
+    }
+    if activePane.contents === peek.peekView,
+      otherPane.contents === peek.lowerView
+    {
+      return (activePane, otherPane)
+    }
+    if otherPane.contents === peek.peekView,
+      activePane.contents === peek.lowerView
+    {
+      return (otherPane, activePane)
+    }
+    return nil
+  }
+
+  /// A peek's card over the backdrop, over its lower page, without moving
+  /// either page out of the window, which would hide and show it again.
+  private func orderPageViews(lower: PagePane) {
+    let card = lower === activePane ? otherPane : activePane
+    let order: [NSView] = [
+      lower, peekBackdrop, card, otherNewTabView, newTabView, sadTabView,
+      splitDivider, peekButtons,
+    ]
+    guard pageView.subviews.filter({ view in order.contains(view) }) != order
+    else {
+      return
+    }
+    var ranks: [ObjectIdentifier: Int] = [:]
+    for (rank, view) in order.enumerated() {
+      ranks[ObjectIdentifier(view)] = rank
+    }
+    withUnsafeMutablePointer(to: &ranks) { pointer in
+      pageView.sortSubviews(
+        { a, b, context in
+          let ranks = context!.assumingMemoryBound(
+            to: [ObjectIdentifier: Int].self
+          ).pointee
+          let rankA = ranks[ObjectIdentifier(a)] ?? .max
+          let rankB = ranks[ObjectIdentifier(b)] ?? .max
+          return rankA < rankB
+            ? .orderedAscending
+            : rankA > rankB ? .orderedDescending : .orderedSame
+        }, context: pointer)
+    }
+  }
+
+  /// Blurs and darkens the shown peek's lower page and shows the card's
+  /// buttons, or takes them away.
+  private func showPeekEffects(animated: Bool) {
+    let panes = shownPeekPanes
+    let duration = animated ? Self.peekDuration : 0
+    for pane in [activePane, otherPane]
+    where retiringLowerView == nil || pane.contents !== retiringLowerView {
+      pane.blur.setRadius(
+        pane === panes?.lower ? PeekLayout.blurRadius : 0, duration: duration)
+    }
+    setPeekBackdropShown(panes != nil, duration: duration)
+    peekButtons.isHidden = false
+    peekButtons.setShown(panes != nil, animated: animated)
+  }
+
+  private func setPeekBackdropShown(_ shown: Bool, duration: TimeInterval) {
+    peekBackdrop.takesClicks = shown
+    if shown {
+      peekBackdrop.isHidden = false
+    }
+    peekBackdrop.setOpacity(
+      shown ? PeekLayout.dimOpacity : 0, duration: duration)
+    guard !shown else {
+      return
+    }
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + SlowMotion.duration(duration)
+    ) { [weak self] in
+      MainActor.assumeIsolated {
+        if self?.peekBackdrop.takesClicks == false {
+          self?.peekBackdrop.isHidden = true
+        }
+      }
+    }
+  }
+
+  /// The card grows from the pointer as the page behind blurs.
+  private func animatePeekOpening() {
+    showPeekEffects(animated: true)
+    guard let card = shownPeekPanes?.card, let layer = card.layer else {
+      return
+    }
+    let frame = card.frame
+    var point = pageView.convert(
+      window.mouseLocationOutsideOfEventStream, from: nil)
+    if !pageView.bounds.contains(point) {
+      point = NSPoint(x: frame.midX, y: frame.midY)
+    }
+    let size = NSSize(
+      width: max(frame.width * 0.1, 24), height: max(frame.height * 0.1, 24))
+    let start = NSRect(
+      x: point.x - size.width / 2, y: point.y - size.height / 2,
+      width: size.width, height: size.height)
+    let grow = CASpringAnimation(perceptualDuration: 0.45, bounce: 0.12)
+    grow.keyPath = "transform"
+    grow.fromValue = PeekLayout.transform(
+      from: frame, to: start, anchor: layer.anchorPoint)
+    grow.toValue = CATransform3DIdentity
+    grow.duration = grow.settlingDuration
+    let fade = CABasicAnimation(keyPath: "opacity")
+    fade.fromValue = 0
+    fade.toValue = 1
+    fade.duration = 0.12
+    layer.add(grow, forKey: "peek")
+    layer.add(fade, forKey: "peekFade")
+  }
+
+  /// The card grows to fill the page area as the page behind it goes.
+  private func animatePeekExpanding(from cardFrame: NSRect?) {
+    setPeekBackdropShown(false, duration: Self.peekDuration)
+    peekButtons.setShown(false, animated: true)
+    for pane in [activePane, otherPane]
+    where retiringLowerView == nil || pane.contents !== retiringLowerView {
+      pane.blur.setRadius(0, duration: 0)
+    }
+    if let cardFrame, let layer = activePane.layer {
+      let grow = CASpringAnimation(perceptualDuration: 0.4, bounce: 0)
+      grow.keyPath = "transform"
+      grow.fromValue = PeekLayout.transform(
+        from: activePane.frame, to: cardFrame, anchor: layer.anchorPoint)
+      grow.toValue = CATransform3DIdentity
+      grow.duration = grow.settlingDuration
+      let corners = CABasicAnimation(keyPath: "cornerRadius")
+      corners.fromValue = Self.pageCornerRadius
+      corners.toValue = layer.cornerRadius
+      corners.duration = grow.duration
+      layer.add(grow, forKey: "peek")
+      layer.add(corners, forKey: "peekCorners")
+    }
+    let retiring = retiringLowerView
+    DispatchQueue.main.asyncAfter(
+      deadline: .now() + SlowMotion.duration(Self.peekDuration)
+    ) { [weak self] in
+      MainActor.assumeIsolated {
+        guard let self, let retiring, self.retiringLowerView === retiring
+        else {
+          return
+        }
+        self.retiringLowerView = nil
+        guard self.otherPane.contents === retiring, self.shownPeek == nil,
+          self.split == nil
+        else {
+          return
+        }
+        self.otherPane.setContents(nil)
+        self.otherPane.blur.setRadius(0, duration: 0)
+        self.layoutPanes()
+      }
+    }
+  }
+
+  /// The card goes as a snapshot of the closed page, or else as the window's
+  /// background, as the page behind comes back.
+  private func animatePeekClosing(_ peek: FiberPeek, cardFrame: NSRect?) {
+    showPeekEffects(animated: true)
+    var card = closingPeekCard.flatMap {
+      $0.tabID == peek.peekTabID ? $0.view : nil
+    }
+    closingPeekCard = nil
+    if card == nil, let cardFrame {
+      card = makePeekSnapshot(nil, frame: cardFrame)
+    }
+    guard let card, let layer = card.layer else {
+      return
+    }
+    let cardFrame = card.frame
+    CATransaction.begin()
+    CATransaction.setCompletionBlock {
+      MainActor.assumeIsolated { card.removeFromSuperview() }
+    }
+    layer.opacity = 0
+    let fade = CABasicAnimation(keyPath: "opacity")
+    fade.fromValue = 1
+    fade.toValue = 0
+    fade.duration = 0.22
+    fade.timingFunction = CAMediaTimingFunction(name: .easeIn)
+    let shrink = CABasicAnimation(keyPath: "transform")
+    shrink.fromValue = CATransform3DIdentity
+    shrink.toValue = PeekLayout.transform(
+      from: cardFrame,
+      to: cardFrame.insetBy(
+        dx: cardFrame.width * 0.04, dy: cardFrame.height * 0.04),
+      anchor: layer.anchorPoint)
+    shrink.duration = fade.duration
+    shrink.timingFunction = CAMediaTimingFunction(name: .easeIn)
+    layer.add(fade, forKey: "fade")
+    layer.add(shrink, forKey: "shrink")
+    CATransaction.commit()
+  }
+
+  private static let closingPeekTimeout: TimeInterval = 1
+
+  private func makePeekSnapshot(_ snapshot: NSImage?, frame: NSRect) -> NSView
+  {
+    let card = NSView(frame: frame)
+    card.wantsLayer = true
+    pageView.addSubview(card)
+    guard let layer = card.layer else {
+      return card
+    }
+    layer.masksToBounds = true
+    layer.cornerRadius = Self.pageCornerRadius
+    layer.cornerCurve = .continuous
+    if let snapshot {
+      layer.contents = snapshot
+      layer.contentsGravity = .resizeAspectFill
+    } else {
+      card.effectiveAppearance.performAsCurrentDrawingAppearance {
+        layer.backgroundColor = window.backgroundColor.cgColor
+      }
+    }
+    return card
+  }
+
+  /// As a click on the page behind the card, or its Close.
+  private func closeShownPeek() {
+    if let peek = shownPeek {
+      actions?.closeTab(withID: peek.peekTabID)
+    }
   }
 
   private func isFirstResponder(in view: NSView) -> Bool {
@@ -1550,8 +1960,9 @@ final class BrowserWindowController: NSObject, FiberWindow {
   func beginHistorySwipe(
     in direction: FiberHistorySwipeDirection, snapshot: NSImage?
   ) {
-    // In a split, the page moves within its side.
-    if isSplitShown, let page = activePane.contents {
+    // In a split, the page moves within its side, and a peek's within its
+    // card.
+    if isSplitShown || isPeekShown, let page = activePane.contents {
       historySwipe.setPage(area: activePane, page: page)
     } else {
       historySwipe.setPage(area: pageArea, page: pageView)

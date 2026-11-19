@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The harness's own controls, in a panel beside the browser window they act
 /// on: its tabs, the profile's pins and downloads, a prompt on its page, a tab
-/// opened from a link on it, and how slowly the UI animates.
+/// or peek opened from a link on it, and how slowly the UI animates.
 @MainActor
 final class HarnessControls: NSObject, NSWindowDelegate {
   @Observable
@@ -18,6 +18,8 @@ final class HarnessControls: NSObject, NSWindowDelegate {
     @ObservationIgnored var addDownload: () -> Void = {}
     /// In front, or behind.
     @ObservationIgnored var openTabFromLink: (Bool) -> Void = { _ in }
+    /// As the page asks, over it (see FiberPeek).
+    @ObservationIgnored var openPeekFromLink: () -> Void = {}
   }
 
   /// Between the panel and its window.
@@ -164,6 +166,7 @@ private struct ControlsView: View {
       }
       LabeledContent("Link:") {
         HStack {
+          Button("Peek") { model.openPeekFromLink() }
           Button("New Tab") { model.openTabFromLink(true) }
           Button("Background Tab") { model.openTabFromLink(false) }
         }

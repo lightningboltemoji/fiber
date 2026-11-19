@@ -1,28 +1,22 @@
 import AppKit
 
 /// Blurs a window's page and darkens the window while it waits on the user.
-/// The blur is a filter on the page's views: a backdrop only samples inside
-/// the window, so its blur would darken toward the window's edges.
 @MainActor
 final class Veil {
   /// A fully drawn veil's blur radius, and the opacity of its black.
   private static let blurRadius: CGFloat = 24
   private static let dimOpacity: Float = 0.6
-  private static let blurKeyPath = "filters.blur.inputRadius"
 
   /// Darkens the window. Its owner puts it over the page and the controls.
   let dimView = DimView()
   /// How far the veil is drawn, from 0 (lifted) to 1, once any animation
   /// ends.
   private(set) var amount: CGFloat = 0
-  private let blurredView: NSView
-  /// Counts changes to `amount`, so a lift that finishes after the veil was
-  /// drawn again leaves the filter on.
-  private var generation = 0
+  private let blur: ViewBlur
 
   /// Blurs `view` (the page and DevTools) when drawn.
   init(blurring view: NSView) {
-    blurredView = view
+    blur = ViewBlur(view)
     dimView.isHidden = true
   }
 
@@ -33,22 +27,60 @@ final class Veil {
     timing: CAMediaTimingFunctionName = .easeInEaseOut,
     completion: (() -> Void)? = nil
   ) {
-    generation += 1
-    let generation = generation
     self.amount = amount
     if amount > 0 {
-      installFilter()
       dimView.isHidden = false
     }
-    guard let blurLayer = blurredView.layer else {
+    blur.setRadius(amount * Self.blurRadius, duration: duration, timing: timing)
+    { [weak self] in
+      if self?.amount == 0 {
+        self?.dimView.isHidden = true
+      }
+      completion?()
+    }
+    dimView.setOpacity(
+      Float(amount) * Self.dimOpacity, duration: duration, timing: timing)
+  }
+}
+
+/// Blurs a view and its subviews with a filter on the view: a backdrop only
+/// samples inside the window, so its blur would darken toward the window's
+/// edges.
+@MainActor
+final class ViewBlur {
+  private static let radiusKeyPath = "filters.blur.inputRadius"
+
+  private let view: NSView
+  /// Counts changes to the radius, so a blur taken off after it was put back
+  /// leaves the filter on.
+  private var generation = 0
+  private var radius: CGFloat = 0
+
+  init(_ view: NSView) {
+    self.view = view
+  }
+
+  /// Takes the blur to `radius` over `duration`, from wherever it is now, even
+  /// partway through an animation, then calls `completion` unless it's been
+  /// changed again since.
+  func setRadius(
+    _ radius: CGFloat, duration: TimeInterval,
+    timing: CAMediaTimingFunctionName = .easeInEaseOut,
+    completion: (() -> Void)? = nil
+  ) {
+    generation += 1
+    let generation = generation
+    self.radius = radius
+    if radius > 0 {
+      installFilter()
+    }
+    guard let layer = view.layer, !view.contentFilters.isEmpty else {
       completion?()
       return
     }
     let fromRadius =
-      (blurLayer.presentation() ?? blurLayer).value(forKeyPath: Self.blurKeyPath)
+      (layer.presentation() ?? layer).value(forKeyPath: Self.radiusKeyPath)
       as? CGFloat ?? 0
-    let toRadius = amount * Self.blurRadius
-
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     CATransaction.setCompletionBlock { [weak self] in
@@ -56,32 +88,29 @@ final class Veil {
         guard let self, self.generation == generation else {
           return
         }
-        if self.amount == 0 {
+        if self.radius == 0 {
           self.removeFilter()
-          self.dimView.isHidden = true
         }
         completion?()
       }
     }
-    blurLayer.setValue(toRadius, forKeyPath: Self.blurKeyPath)
+    layer.setValue(radius, forKeyPath: Self.radiusKeyPath)
     if duration > 0 {
-      let blur = CABasicAnimation(keyPath: Self.blurKeyPath)
-      blur.fromValue = fromRadius
-      blur.toValue = toRadius
-      blur.duration = duration
-      blur.timingFunction = CAMediaTimingFunction(name: timing)
-      blurLayer.add(blur, forKey: "veil")
+      let animation = CABasicAnimation(keyPath: Self.radiusKeyPath)
+      animation.fromValue = fromRadius
+      animation.toValue = radius
+      animation.duration = duration
+      animation.timingFunction = CAMediaTimingFunction(name: timing)
+      layer.add(animation, forKey: "blur")
     }
-    dimView.setOpacity(
-      Float(amount) * Self.dimOpacity, duration: duration, timing: timing)
     CATransaction.commit()
   }
 
   private func installFilter() {
-    guard blurredView.contentFilters.isEmpty else {
+    guard view.contentFilters.isEmpty else {
       return
     }
-    // Extends the page's edges outward, so the blur doesn't draw in the
+    // Extends the view's edges outward, so the blur doesn't draw in the
     // transparency past them.
     let clamp = CIFilter(name: "CIAffineClamp")!
     clamp.setValue(NSAffineTransform(), forKey: kCIInputTransformKey)
@@ -89,14 +118,14 @@ final class Veil {
     let blur = CIFilter(
       name: "CIGaussianBlur", parameters: [kCIInputRadiusKey: 0])!
     blur.name = "blur"
-    blurredView.layerUsesCoreImageFilters = true
-    blurredView.contentFilters = [clamp, blur]
+    view.layerUsesCoreImageFilters = true
+    view.contentFilters = [clamp, blur]
   }
 
-  /// The filter costs an offscreen pass over the page every frame, so it's
-  /// only on while the veil is.
+  /// The filter costs an offscreen pass over the view every frame, so it's
+  /// only on while there's a blur.
   private func removeFilter() {
-    blurredView.layer?.removeAnimation(forKey: "veil")
-    blurredView.contentFilters = []
+    view.layer?.removeAnimation(forKey: "blur")
+    view.contentFilters = []
   }
 }

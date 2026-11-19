@@ -2,13 +2,9 @@
 
 #include <utility>
 
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/sessions/session_service.h"
-#include "chrome/browser/sessions/session_service_factory.h"
-#include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
-#include "fiber/browser/hooks/tab_extra_data.h"
+#include "fiber/browser/sessions/tab_extra_data.h"
 
 namespace fiber {
 
@@ -66,20 +62,6 @@ void SetBeside(content::WebContents* contents, bool beside) {
   }
 }
 
-// Until the tab is in a window, its session doesn't know it.
-void SaveExtraData(content::WebContents* contents,
-                   const char* key,
-                   const std::string& value) {
-  SessionService* session = SessionServiceFactory::GetForProfile(
-      Profile::FromBrowserContext(contents->GetBrowserContext()));
-  const SessionID window_id =
-      sessions::SessionTabHelper::IdForWindowContainingTab(contents);
-  const SessionID tab_id = sessions::SessionTabHelper::IdForTab(contents);
-  if (session && window_id.is_valid() && tab_id.is_valid()) {
-    session->AddTabExtraData(window_id, tab_id, key, value);
-  }
-}
-
 }  // namespace
 
 std::string PinIDForTab(content::WebContents* contents) {
@@ -89,7 +71,7 @@ std::string PinIDForTab(content::WebContents* contents) {
 
 void SetPinIDForTab(content::WebContents* contents, std::string_view pin_id) {
   SetPinID(contents, pin_id);
-  SaveExtraData(contents, kPinIDKey, std::string(pin_id));
+  SaveTabExtraData(contents, kPinIDKey, std::string(pin_id));
 }
 
 bool IsBesidePin(content::WebContents* contents) {
@@ -101,22 +83,20 @@ void SetBesidePin(content::WebContents* contents, bool beside) {
     return;
   }
   SetBeside(contents, beside);
-  SaveExtraData(contents, kBesidePinKey, beside ? "1" : "");
+  SaveTabExtraData(contents, kBesidePinKey, beside ? "1" : "");
 }
 
-std::map<std::string, std::string> TabExtraData(
-    content::WebContents* contents) {
-  std::map<std::string, std::string> data;
+void AddPinExtraData(content::WebContents* contents,
+                     std::map<std::string, std::string>& extra_data) {
   if (std::string pin_id = PinIDForTab(contents); !pin_id.empty()) {
-    data[kPinIDKey] = std::move(pin_id);
+    extra_data[kPinIDKey] = std::move(pin_id);
   }
   if (IsBesidePin(contents)) {
-    data[kBesidePinKey] = "1";
+    extra_data[kBesidePinKey] = "1";
   }
-  return data;
 }
 
-void RestoreTabExtraData(
+void RestorePinExtraData(
     content::WebContents* contents,
     const std::map<std::string, std::string>& extra_data) {
   auto it = extra_data.find(kPinIDKey);

@@ -115,8 +115,11 @@ struct TabListRow: Identifiable, Equatable {
   let isLoading: Bool
   /// The tab, if it's open here.
   let tabID: Int?
+  /// The peek over the tab (see FiberPeek), whose favicon the row's icon
+  /// has in its corner.
+  let peek: FiberTabState?
 
-  init(tab: FiberTabState) {
+  init(tab: FiberTabState, peek: FiberTabState? = nil) {
     id = .tab(tab.tabID)
     title = tab.title
     url = tab.url
@@ -124,10 +127,11 @@ struct TabListRow: Identifiable, Equatable {
     favicon = tab.favicon
     isLoading = tab.isLoading
     tabID = tab.tabID
+    self.peek = peek
   }
 
   /// A shelf's page, as its tab shows it if it's open here.
-  init(page: FiberPinState, tab: FiberTabState?) {
+  init(page: FiberPinState, tab: FiberTabState?, peek: FiberTabState? = nil) {
     id = .page(page.pinID)
     title = tab?.title ?? page.title
     url = tab?.url ?? page.url
@@ -135,6 +139,7 @@ struct TabListRow: Identifiable, Equatable {
     favicon = tab?.favicon ?? page.favicon
     isLoading = tab?.isLoading ?? false
     tabID = tab?.tabID
+    self.peek = tab != nil ? peek : nil
   }
 
   /// A shelf page without a tab here: dimmed, with a trash can for its close
@@ -253,6 +258,15 @@ private struct TabRow: View {
         .frame(width: 16, height: 16)
         .saturation(isClosed ? 0 : 1)
         .opacity(showsNumber ? 0 : isClosed ? 0.5 : 1)
+        .overlay(alignment: .bottomTrailing) {
+          if let peek = row.peek {
+            PeekBadge(favicon: peek.favicon)
+              .opacity(showsNumber ? 0 : 1)
+              .transition(.scale.combined(with: .opacity))
+          }
+        }
+        .animation(
+          .spring(duration: 0.3, bounce: 0.3).slowMotion, value: row.peek != nil)
         .overlay {
           // Wider than the icon from 100 on.
           Text(String(number))

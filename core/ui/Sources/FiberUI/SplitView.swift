@@ -55,10 +55,12 @@ enum SplitLayout {
   }
 }
 
-/// Holds a tab's page: all of the page area, or a side of a split, rounded
-/// like the window.
+/// Holds a tab's page: all of the page area, a side of a split, or a peek's
+/// card or the page behind it, rounded like the window.
 final class PagePane: NSView {
   private(set) weak var contents: NSView?
+  /// Blurs the page behind a peek's card.
+  private(set) lazy var blur = ViewBlur(self)
 
   override init(frame: NSRect) {
     super.init(frame: frame)

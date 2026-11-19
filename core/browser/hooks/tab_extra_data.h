@@ -11,8 +11,9 @@ class WebContents;
 namespace fiber {
 
 // What Fiber keeps of a tab in its session and closed-tab history: which pin
-// it's the page of (pins/pinned_tab_data.h). Called by BuildCommandsForTab(),
-// which otherwise drops it, and BrowserLiveTabContext::GetExtraDataForTab().
+// it's the page of (pins/pinned_tab_data.h), and its peek's token
+// (peek/tab_peek.h). Called by BuildCommandsForTab(), which otherwise drops
+// it, and BrowserLiveTabContext::GetExtraDataForTab().
 std::map<std::string, std::string> TabExtraData(content::WebContents* contents);
 
 // Called by CreateRestoredTab() (browser_tabrestore.cc), before the tab is in

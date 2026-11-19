@@ -9,7 +9,7 @@
 // its pinned page),
 // `--shelves N` (made-up shelves, Later's and Research's first pages open),
 // `--split` (the active tab on the left of a split, the next tab on its
-// right),
+// right), `--peek` (a page a link on the active tab opened over it),
 // `--restorables N` (N made-up closed windows and earlier sessions, for the
 // command palette),
 // `--overlay` (the tab overlay, as Command-S opens it),
@@ -101,6 +101,9 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     }
     if CommandLine.arguments.contains("--split"), let browser = browsers.last {
       browser.splitNextTab()
+    }
+    if CommandLine.arguments.contains("--peek"), let browser = browsers.last {
+      browser.openPeekFromLink(MockBrowser.sampleURLs(count: 5).last!)
     }
     NSApp.activate()
     if DemoSites.isEnabled {
@@ -308,6 +311,10 @@ final class HarnessAppDelegate: NSObject, NSApplicationDelegate {
     controls.model.openTabFromLink = { [weak self] inFront in
       self?.currentBrowser?.openTabFromLink(
         MockBrowser.sampleURLs(count: 4).last!, inFront: inFront)
+    }
+    controls.model.openPeekFromLink = { [weak self] in
+      self?.currentBrowser?.openPeekFromLink(
+        MockBrowser.sampleURLs(count: 5).last!)
     }
     return controls
   }

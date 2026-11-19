@@ -192,6 +192,7 @@ struct PinGrid: View {
         let delay = model.motionDelay(ofPin: index)
         PinCircle(
           pin: pin, isActive: pin.tabID != 0 && pin.tabID == model.activeTabID,
+          peek: pin.tabID != 0 ? model.peeks[pin.tabID] : nil,
           isSelected: model.selection == .pin(pin.pinID) && model.pinDrag == nil,
           bead: bead?.action,
           isBeadFocused: bead.map {
@@ -410,6 +411,8 @@ extension NSImage {
 private struct PinCircle: View {
   let pin: FiberPinState
   let isActive: Bool
+  /// The peek over its tab (see FiberPeek).
+  let peek: FiberTabState?
   let isSelected: Bool
   /// What its bead does, while it's out.
   let bead: PinBeadAction?
@@ -439,6 +442,13 @@ private struct PinCircle: View {
         .opacity(isActive ? 1 : 0)
       icon
         .frame(width: 16, height: 16)
+        .overlay(alignment: .bottomTrailing) {
+          if let peek {
+            PeekBadge(favicon: peek.favicon)
+              .transition(.scale.combined(with: .opacity))
+          }
+        }
+        .animation(.spring(duration: 0.3, bounce: 0.3).slowMotion, value: peek != nil)
       Circle()
         .fill(Color.primary.opacity(0.75))
         .frame(width: 3.5, height: 3.5)

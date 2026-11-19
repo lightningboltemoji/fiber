@@ -88,7 +88,10 @@ run it on a throwaway profile:
   `toggleTabOverlay()`.
 - **Driving it without a hook:** with `--remote-debugging-port`, DevTools reads
   state (`/json`, `Runtime.evaluate`) and navigates (`Page.navigate`: a script's
-  navigation with no user gesture leaves Back disabled). The Accessibility API
+  navigation with no user gesture leaves Back disabled), and clicks as the
+  user would (`Input.dispatchMouseEvent` at an element's center, through the
+  browser's websocket and `Target.attachToTarget` with `flatten`), which a link
+  needs to open a peek. Node has a WebSocket client. The Accessibility API
   runs commands, with `AXPress` on a menu item of that PID. Many items are only
   enabled while its window is key, so set `AXMain`, `AXRaise` and `activate()`
   first, and put the frontmost app back afterward.
@@ -152,6 +155,8 @@ what a crash or power cut does.
 | Close both, then click the build's Dock item | The one closed last back |
 | Relaunch a few times with different tabs | History › Previous Sessions lists the earlier sessions, not the one open now, and reopens one's windows; so does the palette ("previous session") |
 | Clear browsing history | No previous sessions |
+| With a peek open over a tab (a `target=_blank` link clicked), quit and relaunch | The peek back over that tab, active, the page behind it drawn and blurred |
+| Close a peek's tab from the tab overlay, then ⇧⌘T twice | The tab, then the peek over it |
 
 `make size` shows whether Chrome's crash bubble (`session_crashed_bubble_view.cc`)
 is still linked: nothing should reach it.

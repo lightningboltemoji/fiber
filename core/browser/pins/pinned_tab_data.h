@@ -1,6 +1,7 @@
 #ifndef FIBER_BROWSER_PINS_PINNED_TAB_DATA_H_
 #define FIBER_BROWSER_PINS_PINNED_TAB_DATA_H_
 
+#include <map>
 #include <string>
 #include <string_view>
 
@@ -21,6 +22,13 @@ void SetPinIDForTab(content::WebContents* contents, std::string_view pin_id);
 // It's no pin's. Also kept in its session.
 bool IsBesidePin(content::WebContents* contents);
 void SetBesidePin(content::WebContents* contents, bool beside);
+
+// Both, for the tab's session and closed-tab history (see
+// hooks/tab_extra_data.h).
+void AddPinExtraData(content::WebContents* contents,
+                     std::map<std::string, std::string>& extra_data);
+void RestorePinExtraData(content::WebContents* contents,
+                         const std::map<std::string, std::string>& extra_data);
 
 }  // namespace fiber
 

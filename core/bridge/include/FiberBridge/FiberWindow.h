@@ -2,6 +2,7 @@
 
 @class FiberDevTools;
 @class FiberPageState;
+@class FiberPeek;
 @class FiberPinState;
 @class FiberSplit;
 @class FiberTabState;
@@ -59,8 +60,11 @@ NS_SWIFT_UI_ACTOR
 // window's if it isn't NSNotFound.
 - (void)restore:(NSString*)restorableID showingPageAtIndex:(NSInteger)pageIndex;
 // Closes one of the window's tabs, as its close button would: the page may
-// ask the user first.
+// ask the user first. A peek's lower tab closes with its peek.
 - (void)closeTabWithID:(NSInteger)tabID;
+// Makes the peek (see FiberPeek) an ordinary tab, still active, just after
+// its lower tab.
+- (void)expandPeekWithTabID:(NSInteger)tabID;
 // Pins the tab's page (see FiberPinState): the tab becomes its pin's.
 - (void)pinTabWithID:(NSInteger)tabID;
 // Selects the pin's tab, or opens its URL in a new one.
@@ -173,6 +177,14 @@ NS_SWIFT_UI_ACTOR
 // The window's split, or nil. Follows the -setTabs:activeTabID: of any change
 // to its tabs.
 - (void)setSplit:(nullable FiberSplit*)split;
+// The window's peeks, which it never has with a split. Follow the -setSplit:
+// of any change to its tabs, and come first as a peek and its lower tab trade
+// places as the active tab, so neither page moves.
+- (void)setPeeks:(NSArray<FiberPeek*>*)peeks;
+// The peek `tabID`, which shows, is closing as the user asked: its card goes
+// as `snapshot`, what its page showed, or nil if it hasn't drawn.
+- (void)willClosePeekWithID:(NSInteger)tabID
+                   snapshot:(nullable NSImage*)snapshot;
 // `tabID` was just opened from `openerTabID`, the active tab, by a link on its
 // page, an extension, or the omnibar: behind it, or in front of it, so that
 // `tabID` is active now. Not called for a New Tab page. Follows the
