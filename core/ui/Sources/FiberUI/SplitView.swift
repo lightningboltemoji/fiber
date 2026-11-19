@@ -97,7 +97,8 @@ final class PagePane: NSView {
     // Chrome hides a page made in the background (a ⌘-clicked link, a restored
     // tab) until its host shows it; hidden, it never draws.
     view.isHidden = false
-    addSubview(view)
+    // Under what the window shows over it.
+    addSubview(view, positioned: .below, relativeTo: nil)
   }
 }
 

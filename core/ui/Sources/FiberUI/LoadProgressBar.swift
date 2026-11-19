@@ -1,9 +1,10 @@
 import AppKit
 
-/// A thin bar along the top of the page for load progress. It shows only once
-/// a load has taken `revealDelay`, so quick ones (the New Tab page, most
-/// pages) never show it.
+/// A thin bar along the top of the page for load progress, hanging from it
+/// with its lower corners rounded. It shows only once a load has taken
+/// `revealDelay`, so quick ones (the New Tab page, most pages) never show it.
 final class LoadProgressBar: NSView {
+  static let height: CGFloat = 3
   private static let revealDelay: Duration = .milliseconds(500)
 
   private enum State {
@@ -24,6 +25,10 @@ final class LoadProgressBar: NSView {
     fill.fillColor = .controlAccentColor
     addSubview(fill)
     wantsLayer = true
+    layer?.masksToBounds = true
+    layer?.cornerRadius = Self.height
+    layer?.cornerCurve = .continuous
+    layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
     alphaValue = 0
   }
 

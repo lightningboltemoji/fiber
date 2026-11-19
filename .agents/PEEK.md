@@ -180,7 +180,8 @@ since a page moved out of the window hides and shows again:
   `orderPageViews(lower:)`). The other holds the lower page across the page
   area, blurred (`ViewBlur`, which the veil uses too), and the backdrop
   darkens it and takes its clicks and scrolls, closing the peek on a click.
-  What the window puts over the active page goes over the card.
+  The load progress and status bubble are part of the active page's pane,
+  so they move with the card; the find bar, notices and prompts go over it.
 - As a peek and its lower tab trade places as the active tab (opening one,
   ⇧⌘T, a tab switch landing on the lower tab), the browser sends the peeks
   before the new active page, so the UI has both pages in its panes first.

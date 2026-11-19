@@ -38,7 +38,6 @@ final class BrowserWindowController: NSObject, FiberWindow {
     titlebarHeight: 2 * (edgeInset + windowControlsPadding.height) + 14)
   /// The window's own corner radius, which the page's corners match.
   static let pageCornerRadius: CGFloat = 16
-  private static let progressBarHeight: CGFloat = 3
 
   var window: NSWindow { browserWindow }
 
@@ -182,8 +181,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
   }
   /// Under the page while it's held.
   private var heldPagePlaceholder: NewTabView?
-  /// Over the page, wherever DevTools puts it, even an emulated device's
-  /// screen.
+  /// What the window shows of the active page, over it in its pane (see
+  /// placeOverPage()).
   private let pageOverlay = PassthroughView()
   private let progressBar = LoadProgressBar()
   private let statusBubble = StatusBubble()
@@ -340,15 +339,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
     }
     pageView.addSubview(peekButtons)
 
-    pageOverlay.frame = content.bounds
+    pageOverlay.frame = activePane.bounds
     pageOverlay.autoresizingMask = [.width, .height]
-    content.addSubview(pageOverlay)
-    progressBar.frame = NSRect(
-      x: 0, y: content.bounds.height - Self.progressBarHeight,
-      width: content.bounds.width, height: Self.progressBarHeight)
+    activePane.addSubview(pageOverlay)
     progressBar.autoresizingMask = [.width, .minYMargin]
     pageOverlay.addSubview(progressBar)
-
     statusBubble.frame = pageOverlay.bounds
     statusBubble.autoresizingMask = [.width, .height]
     pageOverlay.addSubview(statusBubble)
@@ -1267,6 +1262,20 @@ final class BrowserWindowController: NSObject, FiberWindow {
     pageView.layer?.maskedCorners =
       !areControlsVisible || isWindowFullScreen ? [] : corners
     devToolsArea.layer?.maskedCorners = isWindowFullScreen ? [] : corners
+    placeProgressBar()
+  }
+
+  /// Between the rounded top corners of the page it's over: the page area's,
+  /// a split's side or a peek's card.
+  private func placeProgressBar() {
+    let isRounded =
+      isSplitShown || isPeekShown
+      || !(pageView.layer?.maskedCorners.isEmpty ?? true)
+    let inset = isRounded ? Self.pageCornerRadius : 0
+    let bounds = pageOverlay.bounds
+    progressBar.frame = NSRect(
+      x: inset, y: bounds.maxY - LoadProgressBar.height,
+      width: max(bounds.width - 2 * inset, 0), height: LoadProgressBar.height)
   }
 
   // MARK: DevTools
@@ -1371,8 +1380,14 @@ final class BrowserWindowController: NSObject, FiberWindow {
     newTabView.frame = activePane.frame
     sadTabView.frame = activePane.frame
     otherNewTabView.frame = otherPane.frame
-    pageOverlay.frame = frame
-    pageOverlay.autoresizingMask = resizing
+    // Part of the page, so it moves and blurs with it: a peek's card as it
+    // grows, a page swiped between.
+    if pageOverlay.superview !== activePane {
+      activePane.addSubview(pageOverlay)
+    }
+    pageOverlay.frame = activePane.bounds
+    pageOverlay.autoresizingMask = [.width, .height]
+    placeProgressBar()
     if !emulatesDevice {
       controlsView.frame = frame
       controlsView.autoresizingMask = resizing.isEmpty ? [] : [.width, .height]
@@ -1541,15 +1556,15 @@ final class BrowserWindowController: NSObject, FiberWindow {
       width: size.width, height: size.height)
     // The downloads list's spring, quicker for so much larger a piece.
     let grow = CASpringAnimation(perceptualDuration: 0.34, bounce: 0.22)
-    grow.keyPath = "transform"
-    grow.fromValue = PeekLayout.transform(
-      from: frame, to: start, anchor: layer.anchorPoint)
-    grow.toValue = CATransform3DIdentity
     grow.duration = grow.settlingDuration
     let fade = CABasicAnimation(keyPath: "opacity")
     fade.fromValue = 0
     fade.toValue = 1
     fade.duration = 0.12
+    grow.keyPath = "transform"
+    grow.fromValue = PeekLayout.transform(
+      from: frame, to: start, anchor: layer.anchorPoint)
+    grow.toValue = CATransform3DIdentity
     layer.add(grow, forKey: "peek")
     layer.add(fade, forKey: "peekFade")
   }
@@ -1569,11 +1584,11 @@ final class BrowserWindowController: NSObject, FiberWindow {
         from: activePane.frame, to: cardFrame, anchor: layer.anchorPoint)
       grow.toValue = CATransform3DIdentity
       grow.duration = grow.settlingDuration
+      layer.add(grow, forKey: "peek")
       let corners = CABasicAnimation(keyPath: "cornerRadius")
       corners.fromValue = Self.pageCornerRadius
       corners.toValue = layer.cornerRadius
       corners.duration = grow.duration
-      layer.add(grow, forKey: "peek")
       layer.add(corners, forKey: "peekCorners")
     }
     let retiring = retiringLowerView

@@ -213,14 +213,10 @@ private struct PeekButtonsView: View {
         .font(
           .system(
             size: (12 * model.size / PeekLayout.maxButtonSize).rounded(),
-            weight: .semibold)
-        )
-        .frame(width: model.size, height: model.size)
-        .contentShape(Circle())
+            weight: .semibold))
     }
-    .buttonStyle(.plain)
+    .buttonStyle(PeekButtonStyle(size: model.size))
     .foregroundStyle(.primary)
-    .glassEffect(.regular.interactive(), in: Circle())
     .help(label)
     .accessibilityLabel(label)
     .scaleEffect(model.isShown ? 1 : 0.4)
@@ -229,6 +225,45 @@ private struct PeekButtonsView: View {
       .spring(duration: 0.35, bounce: 0.3).delay(model.isShown ? delay : 0)
         .slowMotion,
       value: model.isShown)
+  }
+}
+
+/// Rimmed glass, like the split's spot, whose even rim reads as round over
+/// any page, where plain glass's is lit at the top and bottom only. The
+/// inner circle lights while the pointer's on it, and more while pressed.
+private struct PeekButtonStyle: ButtonStyle {
+  let size: CGFloat
+
+  func makeBody(configuration: Configuration) -> some View {
+    PeekButtonFace(
+      label: configuration.label, isPressed: configuration.isPressed,
+      size: size)
+  }
+}
+
+private struct PeekButtonFace: View {
+  let label: ButtonStyleConfiguration.Label
+  let isPressed: Bool
+  let size: CGFloat
+  @State private var isHovered = false
+
+  var body: some View {
+    // As thick for its size as a glass capsule's.
+    let rim = (GlassCapsule.rimWidth * size / GlassCapsule.height).rounded()
+    ZStack {
+      RimmedGlass(cornerRadius: size / 2, rimWidth: rim)
+      Circle()
+        .inset(by: rim)
+        .fill(Color.primary.opacity(isPressed ? 0.22 : isHovered ? 0.1 : 0))
+      label
+    }
+    .frame(width: size, height: size)
+    .contentShape(Circle())
+    .scaleEffect(isPressed ? 0.92 : 1)
+    .animation(
+      .spring(duration: 0.25, bounce: 0.4).slowMotion, value: isPressed)
+    .animation(.easeInOut(duration: 0.15).slowMotion, value: isHovered)
+    .onHover { isHovered = $0 }
   }
 }
 
