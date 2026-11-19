@@ -1,0 +1,14 @@
+diff --git a/third_party/blink/public/web/web_navigation_policy.h b/third_party/blink/public/web/web_navigation_policy.h
+index a0a6e6d945..a0bdd08a5c 100644
+--- a/third_party/blink/public/web/web_navigation_policy.h
++++ b/third_party/blink/public/web/web_navigation_policy.h
+@@ -47,6 +47,9 @@ enum WebNavigationPolicy {
+ 
+   // The navigation should open in a split view alongside the current tab.
+   kWebNavigationPolicySplitView,
++
++  // Fiber: the navigation should open as a peek over the current tab.
++  kWebNavigationPolicyPeek,
+ };
+ 
+ }  // namespace blink

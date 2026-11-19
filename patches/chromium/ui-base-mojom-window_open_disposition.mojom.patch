@@ -1,0 +1,13 @@
+diff --git a/ui/base/mojom/window_open_disposition.mojom b/ui/base/mojom/window_open_disposition.mojom
+index 68d27940dd..de270703c6 100644
+--- a/ui/base/mojom/window_open_disposition.mojom
++++ b/ui/base/mojom/window_open_disposition.mojom
+@@ -35,6 +35,8 @@ enum WindowOpenDisposition {
+   kNewPictureInPicture = 11,
+   // Opens a link in a split view alongside the current tab.
+   kNewSplitView = 12,
++  // Fiber: opens a link as a peek over the current tab.
++  kNewPeek = 13,
+ };
+ 
+ // Click information needed to determine user's desired window disposition using

@@ -1,0 +1,13 @@
+diff --git a/content/browser/renderer_host/ipc_utils.cc b/content/browser/renderer_host/ipc_utils.cc
+index 06a1a9619c..24ffab8cda 100644
+--- a/content/browser/renderer_host/ipc_utils.cc
++++ b/content/browser/renderer_host/ipc_utils.cc
+@@ -49,6 +49,8 @@ bool IsValidRendererDisposition(WindowOpenDisposition disposition) {
+     case WindowOpenDisposition::kSaveToDisk:
+     case WindowOpenDisposition::kNewPictureInPicture:
+     case WindowOpenDisposition::kNewSplitView:
++    // Fiber: a page's link can open a peek.
++    case WindowOpenDisposition::kNewPeek:
+       return true;
+     default:
+       // Certain dispositions, such as SWITCH_TO_TAB, are only used internally

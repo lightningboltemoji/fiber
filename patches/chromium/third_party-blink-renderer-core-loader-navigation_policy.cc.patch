@@ -1,0 +1,37 @@
+diff --git a/third_party/blink/renderer/core/loader/navigation_policy.cc b/third_party/blink/renderer/core/loader/navigation_policy.cc
+index 6c1436f2ac..a7e45639b1 100644
+--- a/third_party/blink/renderer/core/loader/navigation_policy.cc
++++ b/third_party/blink/renderer/core/loader/navigation_policy.cc
+@@ -61,6 +61,12 @@ NavigationPolicy NavigationPolicyFromEventModifiers(int16_t button,
+   if (new_tab_modifier && alt && !shift) {
+     return kNavigationPolicySplitView;
+   }
++#if BUILDFLAG(IS_MAC)
++  // Fiber: ⌥ alone opens a peek, rather than downloading.
++  if (alt && !new_tab_modifier && !shift) {
++    return kNavigationPolicyPeek;
++  }
++#endif
+   if (!new_tab_modifier && !shift && !alt) {
+     return kNavigationPolicyCurrentTab;
+   } else if (new_tab_modifier) {
+@@ -157,6 +163,12 @@ NavigationPolicy NavigationPolicyFromEvent(const Event* event) {
+     return kNavigationPolicyCurrentTab;
+   }
+ 
++  // Fiber: nor a peek.
++  if (event_policy == kNavigationPolicyPeek &&
++      input_policy != kNavigationPolicyPeek) {
++    return kNavigationPolicyCurrentTab;
++  }
++
+   return event_policy;
+ }
+ 
+@@ -214,5 +226,6 @@ STATIC_ASSERT_ENUM(kWebNavigationPolicyNewPopup, kNavigationPolicyNewPopup);
+ STATIC_ASSERT_ENUM(kWebNavigationPolicyPictureInPicture,
+                    kNavigationPolicyPictureInPicture);
+ STATIC_ASSERT_ENUM(kWebNavigationPolicySplitView, kNavigationPolicySplitView);
++STATIC_ASSERT_ENUM(kWebNavigationPolicyPeek, kNavigationPolicyPeek);
+ 
+ }  // namespace blink

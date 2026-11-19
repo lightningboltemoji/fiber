@@ -1,0 +1,77 @@
+diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
+index d5d5691f0b..03dba75c46 100644
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -109,6 +109,10 @@
+ #include "components/captive_portal/content/captive_portal_tab_helper.h"
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++#include "fiber/browser/hooks/new_contents.h"
++#endif
++
+ using content::GlobalRequestID;
+ using content::NavigationController;
+ using content::WebContents;
+@@ -250,6 +254,8 @@ BrowserWindowCreateParams::ValueSpecified GetOriginSpecified(
+              : BrowserWindowCreateParams::ValueSpecified::kUnspecified;
+ }
+ 
++#if !BUILDFLAG(IS_MAC)
++// Fiber: its split takes no hints from window.open() (see NavigateImpl()).
+ // The range, in percent, to which the "splitsize" window feature is clamped.
+ // This keeps either side of the split from being made too small to use. It
+ // matches the minimum size percentage enforced by MultiContentsView.
+@@ -296,6 +302,7 @@ split_tabs::SplitTabVisualData GetWindowOpenSplitTabVisualData(
+   return split_tabs::SplitTabVisualData(
+       layout, new_tab_first ? new_tab_ratio : 1.0 - new_tab_ratio);
+ }
++#endif
+ 
+ // Returns a Browser and tab index. The browser can host the navigation or
+ // tab addition specified in |params|.  This might just return the same
+@@ -669,6 +676,10 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+   TRACE_EVENT1("navigation", "chrome::Navigate", "disposition",
+                params->disposition);
+   CHECK(params);
++#if BUILDFLAG(IS_MAC)
++  // Fiber: a peek opens as a tab in front, marked one as it's added below.
++  const bool fiber_peek = fiber::TakePeekDisposition(params->disposition);
++#endif
+   BrowserWindowInterface* source_browser = params->browser;
+   if (source_browser) {
+     params->initiating_profile = source_browser->GetProfile();
+@@ -1085,6 +1096,13 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+     }
+ 
+     DCHECK(tab_to_insert);
++#if BUILDFLAG(IS_MAC)
++    // Fiber: see TakePeekDisposition() above.
++    if (fiber_peek) {
++      fiber::WillAddPeekContents(params->browser, params->source_contents,
++                                 tab_to_insert->GetContents());
++    }
++#endif
+     std::optional<tab_groups::TabGroupId> group = params->group;
+     if (!(params->tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
+       if (!group.has_value()) {
+@@ -1101,6 +1119,11 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+     // BrowserWebContentsDelegate::OpenURLFromTab().
+     if (params->disposition == WindowOpenDisposition::kNewSplitView &&
+         contents_to_navigate_or_insert) {
++#if BUILDFLAG(IS_MAC)
++      // Fiber: the window keeps its own split.
++      fiber::DidAddSplitContents(params->browser, params->source_contents,
++                                 contents_to_navigate_or_insert);
++#else
+       TabStripModel* const tab_strip_model =
+           params->browser->GetTabStripModel();
+       tabs::TabInterface* const new_tab =
+@@ -1150,6 +1173,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+         // never be focused instead of the new split tab.
+         tab_strip_model->ActivateTab(new_tab);
+       }
++#endif
+     }
+   }
+ 

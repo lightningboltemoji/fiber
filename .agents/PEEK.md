@@ -11,7 +11,9 @@ fits with the rest of the tabs is in
 ## What it does
 
 - **Which links.** A link the page opens in a new tab (`target=_blank`, or
-  `window.open()` from a click) peeks. A tab the user asks for stays a tab:
+  `window.open()` from a click) peeks, and so does any link ⌥-clicked (or
+  ⌥-Return on one focused), which in Chrome would download it; Save Link
+  As… in the context menu still does. A tab the user asks for stays a tab:
   ⌘-click, a middle click, Open Link in New Tab, the omnibar. So does a popup
   a page sizes (`window.open()` with features, as sign-in flows use), which
   is a window of its own for now. And nothing peeks:
@@ -101,6 +103,19 @@ modified click.
 One case the hook can't tell either: ⇧⌘-click on a `target=_blank` link,
 which the renderer turns into the same foreground tab, peeks. ⇧⌘-click on an
 ordinary link comes through `OpenURLFromTab()` and stays a tab.
+
+⌥-click asks for a peek outright, so it has a disposition of its own, as
+Chrome gives ⌘⌥-click's split (`kNewSplitView`). Blink makes ⌥ alone
+`kNavigationPolicyPeek` in place of a download
+(`NavigationPolicyFromEventModifiers()`), and only from the user's own input,
+so a page can't fake it. It reaches the browser as `kNewPeek`, and through
+either way in, `OpenURLFromTab()` for an ordinary link or `AddNewContents()`
+for `target=_blank`, it comes to `Navigate()`, where the new page is made
+before it's inserted. There, a hook makes it a foreground tab first thing
+(`TakePeekDisposition()`), so nothing else in Chrome sees `kNewPeek`, and
+another marks it a peek just before it's inserted (`WillAddPeekContents()`),
+under the same conditions as above but for the gesture. Where it can't peek,
+it's a tab in front.
 
 ### The pair
 

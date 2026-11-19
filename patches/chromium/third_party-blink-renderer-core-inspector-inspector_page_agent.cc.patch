@@ -1,0 +1,14 @@
+diff --git a/third_party/blink/renderer/core/inspector/inspector_page_agent.cc b/third_party/blink/renderer/core/inspector/inspector_page_agent.cc
+index d65c89aa61..9421ea61f0 100644
+--- a/third_party/blink/renderer/core/inspector/inspector_page_agent.cc
++++ b/third_party/blink/renderer/core/inspector/inspector_page_agent.cc
+@@ -160,6 +160,9 @@ String NavigationPolicyToProtocol(NavigationPolicy policy) {
+       return DispositionEnum::NewWindow;
+     case kNavigationPolicySplitView:
+       return DispositionEnum::NewTab;
++    // Fiber: a peek is a tab in front.
++    case kNavigationPolicyPeek:
++      return DispositionEnum::NewTab;
+   }
+   return DispositionEnum::CurrentTab;
+ }

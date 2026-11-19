@@ -1,0 +1,13 @@
+diff --git a/components/blocked_content/popup_blocker.cc b/components/blocked_content/popup_blocker.cc
+index 4d050eae84..755df912b6 100644
+--- a/components/blocked_content/popup_blocker.cc
++++ b/components/blocked_content/popup_blocker.cc
+@@ -112,6 +112,8 @@ bool ConsiderForPopupBlocking(ui::mojom::WindowOpenDisposition disposition) {
+     case ui::mojom::WindowOpenDisposition::kNewWindow:
+     case ui::mojom::WindowOpenDisposition::kNewPictureInPicture:
+     case ui::mojom::WindowOpenDisposition::kNewSplitView:
++    // Fiber: a peek is a tab in front.
++    case ui::mojom::WindowOpenDisposition::kNewPeek:
+       return true;
+   }
+ }

@@ -1,0 +1,13 @@
+diff --git a/third_party/blink/renderer/core/loader/navigation_policy.h b/third_party/blink/renderer/core/loader/navigation_policy.h
+index e84b84ba25..fda13f91c5 100644
+--- a/third_party/blink/renderer/core/loader/navigation_policy.h
++++ b/third_party/blink/renderer/core/loader/navigation_policy.h
+@@ -47,6 +47,8 @@ enum NavigationPolicy {
+   kNavigationPolicyNewPopup,
+   kNavigationPolicyPictureInPicture,
+   kNavigationPolicySplitView,
++  // Fiber: see WebNavigationPolicy.
++  kNavigationPolicyPeek,
+ };
+ 
+ // Returns a NavigationPolicy to use for starting a navigation

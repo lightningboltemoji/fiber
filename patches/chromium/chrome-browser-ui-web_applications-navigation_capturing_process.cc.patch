@@ -1,0 +1,22 @@
+diff --git a/chrome/browser/ui/web_applications/navigation_capturing_process.cc b/chrome/browser/ui/web_applications/navigation_capturing_process.cc
+index 67afb00462..f2b607cceb 100644
+--- a/chrome/browser/ui/web_applications/navigation_capturing_process.cc
++++ b/chrome/browser/ui/web_applications/navigation_capturing_process.cc
+@@ -85,6 +85,8 @@ bool IsDispositionValidForNavigationCapturing(
+     case WindowOpenDisposition::kSwitchToTab:
+     case WindowOpenDisposition::kNewPictureInPicture:
+     case WindowOpenDisposition::kNewSplitView:
++    // Fiber: Navigate() makes a peek a tab in front first.
++    case WindowOpenDisposition::kNewPeek:
+       return false;
+   }
+ }
+@@ -963,6 +965,8 @@ NavigationCapturingProcess::HandleIsolatedWebAppNavigation(
+       case WindowOpenDisposition::kIgnoreAction:
+       case WindowOpenDisposition::kSwitchToTab:
+       case WindowOpenDisposition::kNewSplitView:
++      // Fiber: see IsDispositionValidForNavigationCapturing().
++      case WindowOpenDisposition::kNewPeek:
+         // These are not supposed to be reachable with IWA URLs.
+         return true;
+     }

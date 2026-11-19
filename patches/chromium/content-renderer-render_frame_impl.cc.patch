@@ -1,0 +1,25 @@
+diff --git a/content/renderer/render_frame_impl.cc b/content/renderer/render_frame_impl.cc
+index 4d740159bb..e6b1ef14e4 100644
+--- a/content/renderer/render_frame_impl.cc
++++ b/content/renderer/render_frame_impl.cc
+@@ -1303,6 +1303,9 @@ WindowOpenDisposition NavigationPolicyToDisposition(
+       return WindowOpenDisposition::kNewPictureInPicture;
+     case blink::kWebNavigationPolicySplitView:
+       return WindowOpenDisposition::kNewSplitView;
++    // Fiber: a peek over the current tab.
++    case blink::kWebNavigationPolicyPeek:
++      return WindowOpenDisposition::kNewPeek;
+   }
+   NOTREACHED() << "Unexpected WebNavigationPolicy";
+ }
+@@ -6178,7 +6181,9 @@ void RenderFrameImpl::OpenURL(std::unique_ptr<blink::WebNavigationInfo> info) {
+        policy == blink::kWebNavigationPolicyNewWindow ||
+        policy == blink::kWebNavigationPolicyNewPopup ||
+        policy == blink::kWebNavigationPolicyPictureInPicture ||
+-       policy == blink::kWebNavigationPolicySplitView)) {
++       policy == blink::kWebNavigationPolicySplitView ||
++       // Fiber: a peek is a new tab too.
++       policy == blink::kWebNavigationPolicyPeek)) {
+     frame_->ConsumeTransientUserActivation();
+   }
+ 

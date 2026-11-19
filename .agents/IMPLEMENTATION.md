@@ -286,7 +286,11 @@ everything below holds for it too (see [SHELVES.md](SHELVES.md)).
   it, the user separating them) goes back among the ordinary tabs. Fiber
   makes its splits
   with `RestoreSplit()`, which keeps a split's ID as its left tab changes and
-  skips Chrome's views-only promo. Putting a tab on the left moves the right
+  skips Chrome's views-only promo. A link opened in a split (⌘⌥-click) is one
+  of them too: `Navigate()` hands it to Fiber (`DidAddSplitContents()`) in
+  place of Chrome's `AddToNewSplit()`, which would pin it beside a pin's tab
+  unmarked, for `PinnedTabs` to adopt as a second pin in the same split.
+  Putting a tab on the left moves the right
   tab beside it, which the tab overlay doesn't list, so the list keeps the
   order the user gave it.
 - Chrome's split is two particular tabs, which hides as another tab becomes

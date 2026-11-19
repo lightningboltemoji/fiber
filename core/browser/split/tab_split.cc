@@ -3,12 +3,14 @@
 #include <algorithm>
 #include <vector>
 
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
+#include "fiber/browser/hooks/new_contents.h"
 #include "fiber/browser/pins/pinned_tab_data.h"
 
 namespace fiber {
@@ -238,6 +240,26 @@ void Split(TabStripModel* model,
   if (active != left && active != right) {
     model->ActivateTabAt(model->GetIndexOfTab(left));
   }
+}
+
+void DidAddSplitContents(BrowserWindowInterface* browser,
+                         content::WebContents* source,
+                         content::WebContents* new_contents) {
+  TabStripModel* model = browser->GetTabStripModel();
+  tabs::TabInterface* tab =
+      tabs::TabInterface::MaybeGetFromContents(new_contents);
+  if (!Contains(*model, tab)) {
+    return;
+  }
+  // Only where Chrome's own would split them.
+  tabs::TabInterface* active = model->GetActiveTab();
+  tabs::TabInterface* source_tab =
+      source ? tabs::TabInterface::MaybeGetFromContents(source) : nullptr;
+  if (active && active != tab && !active->IsSplit() &&
+      !(source_tab && source_tab->IsSplit())) {
+    Split(model, active, tab);
+  }
+  model->ActivateTabAt(model->GetIndexOfTab(tab));
 }
 
 void EndSplit(TabStripModel* model) {

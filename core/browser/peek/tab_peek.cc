@@ -256,26 +256,56 @@ void RestorePeekExtraData(
   data.lower_token = lower != extra_data.end() ? lower->second : std::string();
 }
 
+namespace {
+
+bool CanPeekOver(BrowserWindowInterface* browser,
+                 content::WebContents* source) {
+  if (!browser || !source ||
+      browser->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL) {
+    return false;
+  }
+  TabStripModel* model = browser->GetTabStripModel();
+  tabs::TabInterface* tab = model->GetActiveTab();
+  return tab && tab->GetContents() == source && !ShownSplit(*model) &&
+         !LowerTabOf(*model, tab) && !PeekOf(*model, tab);
+}
+
+void MarkPeek(content::WebContents* source,
+              content::WebContents* new_contents) {
+  std::string token = base::Uuid::GenerateRandomV4().AsLowercaseString();
+  SetLowerToken(source, token);
+  // Saved once it's in the window (see SavePeekData()).
+  DataFor(new_contents).peek_token = std::move(token);
+}
+
+}  // namespace
+
 void WillAddNewContents(BrowserWindowInterface* browser,
                         content::WebContents* source,
                         content::WebContents* new_contents,
                         WindowOpenDisposition disposition,
                         bool user_gesture) {
-  if (!browser || !source || !new_contents || !user_gesture ||
-      disposition != WindowOpenDisposition::kNewForegroundTab ||
-      browser->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL) {
-    return;
+  if (new_contents && user_gesture &&
+      disposition == WindowOpenDisposition::kNewForegroundTab &&
+      CanPeekOver(browser, source)) {
+    MarkPeek(source, new_contents);
   }
-  TabStripModel* model = browser->GetTabStripModel();
-  tabs::TabInterface* tab = model->GetActiveTab();
-  if (!tab || tab->GetContents() != source || ShownSplit(*model) ||
-      LowerTabOf(*model, tab) || PeekOf(*model, tab)) {
-    return;
+}
+
+bool TakePeekDisposition(WindowOpenDisposition& disposition) {
+  if (disposition != WindowOpenDisposition::kNewPeek) {
+    return false;
   }
-  std::string token = base::Uuid::GenerateRandomV4().AsLowercaseString();
-  SetLowerToken(source, token);
-  // Saved once it's in the window (see SavePeekData()).
-  DataFor(new_contents).peek_token = std::move(token);
+  disposition = WindowOpenDisposition::kNewForegroundTab;
+  return true;
+}
+
+void WillAddPeekContents(BrowserWindowInterface* browser,
+                         content::WebContents* source,
+                         content::WebContents* new_contents) {
+  if (new_contents && CanPeekOver(browser, source)) {
+    MarkPeek(source, new_contents);
+  }
 }
 
 std::optional<int> TabToReturnToAfterClosing(const TabStripModel& model,
