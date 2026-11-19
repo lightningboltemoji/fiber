@@ -20,28 +20,60 @@ import SwiftUI
 
 /// Where a peek's card and its buttons go in the page area.
 enum PeekLayout {
-  static let buttonSize: CGFloat = 32
-  /// Between the buttons, and between them and the card.
-  static let buttonSpacing: CGFloat = 8
+  /// The buttons' size in a margin with room around them, down to the size
+  /// in the narrowest margin, where they're over the card's edge by about 5pt.
+  static let maxButtonSize: CGFloat = 32
+  static let minButtonSize: CGFloat = 22
+  private static let insetForMaxButtonSize: CGFloat = 40
+  /// Between the buttons, at their largest.
+  private static let maxButtonSpacing: CGFloat = 8
+  /// The least between the buttons and the page area's edge.
+  static let minButtonEdgeInset: CGFloat = 3
+  /// The margin around the card, all round, from the least, in a page area
+  /// whose shorter side is as narrow as a window gets, to the most.
+  static let maxInset: CGFloat = 50
+  static let minInset: CGFloat = 20
+  private static let roomForMaxInset: CGFloat = 1000
+  private static let roomForMinInset: CGFloat = 480
   /// The lower page's blur, and the opacity of the black over it.
   static let blurRadius: CGFloat = 20
   static let dimOpacity: Float = 0.2
 
-  /// Inset from the page area, with room in the side margins for the buttons.
+  static func inset(in bounds: CGRect) -> CGFloat {
+    let room = min(bounds.width, bounds.height)
+    let progress =
+      (room - roomForMinInset) / (roomForMaxInset - roomForMinInset)
+    return (minInset + min(max(progress, 0), 1) * (maxInset - minInset))
+      .rounded()
+  }
+
   static func cardFrame(in bounds: CGRect) -> CGRect {
-    let side = max(
-      buttonSize + 2 * buttonSpacing, (bounds.width * 0.06).rounded())
-    let top = max(2 * buttonSpacing, (bounds.height * 0.04).rounded())
-    let frame = bounds.insetBy(dx: side, dy: top)
+    let inset = inset(in: bounds)
+    let frame = bounds.insetBy(dx: inset, dy: inset)
     return frame.isNull ? bounds : frame
   }
 
-  /// Close above Expand, in the margin beside the card's top-right corner.
-  static func buttonsFrame(beside card: CGRect) -> CGRect {
-    CGRect(
-      x: card.maxX + buttonSpacing,
-      y: card.maxY - 2 * buttonSize - buttonSpacing, width: buttonSize,
-      height: 2 * buttonSize + buttonSpacing)
+  static func buttonSize(inMargin margin: CGFloat) -> CGFloat {
+    let progress = (margin - minInset) / (insetForMaxButtonSize - minInset)
+    return (minButtonSize
+      + min(max(progress, 0), 1) * (maxButtonSize - minButtonSize)).rounded()
+  }
+
+  static func buttonSpacing(forSize size: CGFloat) -> CGFloat {
+    (maxButtonSpacing * size / maxButtonSize).rounded()
+  }
+
+  /// Close above Expand, beside the card's top-right corner, centered in the
+  /// margin, or over the card's edge where the margin's too narrow for them.
+  static func buttonsFrame(beside card: CGRect, in bounds: CGRect) -> CGRect {
+    let margin = bounds.maxX - card.maxX
+    let size = buttonSize(inMargin: margin)
+    let spacing = buttonSpacing(forSize: size)
+    let x = min(
+      card.maxX + (margin - size) / 2, bounds.maxX - minButtonEdgeInset - size)
+    return CGRect(
+      x: x.rounded(), y: card.maxY - 2 * size - spacing, width: size,
+      height: 2 * size + spacing)
   }
 
   /// What maps a layer laid out at `frame` onto `rect`, both in its
@@ -70,12 +102,19 @@ final class PeekBackdrop: DimView {
   /// Off as it fades out, letting the page have its clicks again.
   var takesClicks = false
 
+  // DimView passes every click through.
   override func hitTest(_ point: NSPoint) -> NSView? {
-    takesClicks ? super.hitTest(point) : nil
+    takesClicks && frame.contains(point) ? self : nil
   }
 
+  // Under the title bar too, where a click would otherwise move the window.
+  override var mouseDownCanMoveWindow: Bool { false }
+
+  // AppKit passes on a click the card's page leaves to the view under it.
   override func mouseDown(with event: NSEvent) {
-    onClick()
+    if window?.contentView?.hitTest(event.locationInWindow) === self {
+      onClick()
+    }
   }
 
   override func rightMouseDown(with event: NSEvent) {}
@@ -120,6 +159,14 @@ final class PeekButtons: NSView {
     model.isShown ? super.hitTest(point) : nil
   }
 
+  /// As wide as each button (see PeekLayout.buttonsFrame(beside:in:)).
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+    if model.size != newSize.width {
+      model.size = newSize.width
+    }
+  }
+
   func setShown(_ shown: Bool, animated: Bool) {
     guard shown != model.isShown else {
       return
@@ -137,6 +184,7 @@ final class PeekButtons: NSView {
 @Observable
 private final class PeekButtonsModel {
   var isShown = false
+  var size = PeekLayout.maxButtonSize
 }
 
 private struct PeekButtonsView: View {
@@ -147,7 +195,7 @@ private struct PeekButtonsView: View {
   var body: some View {
     // Apart, not in a container, which would draw their symbols over its
     // glass whatever their opacity.
-    VStack(spacing: PeekLayout.buttonSpacing) {
+    VStack(spacing: PeekLayout.buttonSpacing(forSize: model.size)) {
       button("xmark", label: "Close", delay: 0, action: onClose)
       button(
         "arrow.up.left.and.arrow.down.right", label: "Expand", delay: 0.04,
@@ -162,8 +210,12 @@ private struct PeekButtonsView: View {
   ) -> some View {
     Button(action: action) {
       Image(systemName: symbol)
-        .font(.system(size: 12, weight: .semibold))
-        .frame(width: PeekLayout.buttonSize, height: PeekLayout.buttonSize)
+        .font(
+          .system(
+            size: (12 * model.size / PeekLayout.maxButtonSize).rounded(),
+            weight: .semibold)
+        )
+        .frame(width: model.size, height: model.size)
         .contentShape(Circle())
     }
     .buttonStyle(.plain)

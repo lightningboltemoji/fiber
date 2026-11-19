@@ -89,6 +89,7 @@
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/color/color_provider_manager.h"
 #include "ui/color/color_provider_utils.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/mac/coordinate_conversion.h"
 #include "ui/native_theme/native_theme.h"
 
@@ -1393,8 +1394,23 @@ bool FiberBrowserWindow::HandleKeyboardEvent(
     return false;
   }
   NSEvent* ns_event = event.os_event.Get();
-  return ns_event.type == NSEventTypeKeyDown &&
-         [NSApp.mainMenu performKeyEquivalent:ns_event];
+  if (ns_event.type != NSEventTypeKeyDown) {
+    return false;
+  }
+  // Escape the page didn't use closes the peek (see peek/tab_peek.h), but for
+  // one with key passthrough, which holding Escape ends.
+  TabStripModel* model = browser_->GetTabStripModel();
+  tabs::TabInterface* active = model->GetActiveTab();
+  if (event.windows_key_code == ui::VKEY_ESCAPE && !ns_event.ARepeat &&
+      !(ns_event.modifierFlags &
+        (NSEventModifierFlagCommand | NSEventModifierFlagOption |
+         NSEventModifierFlagControl | NSEventModifierFlagShift)) &&
+      LowerTabOf(*model, active) &&
+      !HasKeyPassthrough(active->GetContents())) {
+    ClosePeek(active);
+    return true;
+  }
+  return [NSApp.mainMenu performKeyEquivalent:ns_event];
 }
 
 std::unique_ptr<FindBar> FiberBrowserWindow::CreateFindBar() {

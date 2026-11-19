@@ -1326,7 +1326,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
       peekCardFrame = cardFrame
       activeFrame = peekPanes.card === activePane ? cardFrame : bounds
       otherFrame = peekPanes.card === activePane ? bounds : cardFrame
-      peekButtons.frame = PeekLayout.buttonsFrame(beside: cardFrame)
+      peekButtons.frame = PeekLayout.buttonsFrame(
+        beside: cardFrame, in: bounds)
       orderPageViews(lower: peekPanes.lower)
     }
     // An expanded peek's lower page, under the card growing over it.
@@ -1538,7 +1539,8 @@ final class BrowserWindowController: NSObject, FiberWindow {
     let start = NSRect(
       x: point.x - size.width / 2, y: point.y - size.height / 2,
       width: size.width, height: size.height)
-    let grow = CASpringAnimation(perceptualDuration: 0.45, bounce: 0.12)
+    // The downloads list's spring, quicker for so much larger a piece.
+    let grow = CASpringAnimation(perceptualDuration: 0.34, bounce: 0.22)
     grow.keyPath = "transform"
     grow.fromValue = PeekLayout.transform(
       from: frame, to: start, anchor: layer.anchorPoint)

@@ -156,6 +156,18 @@ final class MockPageView: NSView {
   override var mouseDownCanMoveWindow: Bool { false }
   override var acceptsFirstResponder: Bool { true }
 
+  /// Uses no keys, as a page may not: Escape goes back to the browser, as in
+  /// Fiber.
+  override func keyDown(with event: NSEvent) {
+    if event.keyCode == 0x35, !event.isARepeat,
+      event.modifierFlags.isDisjoint(with: [.command, .option, .control, .shift])
+    {
+      browser?.pageDidNotUseEscape()
+      return
+    }
+    super.keyDown(with: event)
+  }
+
   /// Clicked, as Fiber tells: switching tabs focuses pages too.
   override func becomeFirstResponder() -> Bool {
     if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(

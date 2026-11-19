@@ -182,6 +182,14 @@ final class MockBrowser: NSObject, FiberWindowActions {
     openTab(url, activate: true, over: lower)
   }
 
+  /// Like Fiber, Escape the page didn't use closes its peek, unless it has
+  /// key passthrough.
+  func pageDidNotUseEscape() {
+    if lower(of: activeTab) != nil, activeTab.keyPassthroughHost == nil {
+      closeTab(withID: activeTab.id)
+    }
+  }
+
   func expandPeek(withTabID tabID: Int) {
     guard let tab = tabs.first(where: { $0.id == tabID }),
       let lower = lower(of: tab)

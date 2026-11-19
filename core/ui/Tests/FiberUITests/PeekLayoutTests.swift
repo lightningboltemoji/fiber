@@ -9,23 +9,58 @@ import Testing
 struct PeekLayoutTests {
   private let bounds = CGRect(x: 0, y: 0, width: 1280, height: 820)
 
-  @Test func insetsTheCardEvenlyWithinThePageArea() {
-    let card = PeekLayout.cardFrame(in: bounds)
-    #expect(bounds.contains(card))
-    #expect(card.minX - bounds.minX == bounds.maxX - card.maxX)
-    #expect(card.minY - bounds.minY == bounds.maxY - card.maxY)
+  @Test func insetsTheCardEvenlyAllRound() {
+    for size in [
+      bounds.size, CGSize(width: 480, height: 320),
+      CGSize(width: 1600, height: 420),
+    ] {
+      let area = CGRect(origin: .zero, size: size)
+      let card = PeekLayout.cardFrame(in: area)
+      let inset = PeekLayout.inset(in: area)
+      #expect(card == area.insetBy(dx: inset, dy: inset))
+    }
+  }
+
+  @Test func narrowsTheMarginInASmallPageArea() {
+    let large = CGRect(x: 0, y: 0, width: 1700, height: 1060)
+    #expect(PeekLayout.inset(in: large) == PeekLayout.maxInset)
+    // As narrow as a window gets.
+    let narrow = CGRect(x: 0, y: 0, width: 480, height: 900)
+    #expect(PeekLayout.inset(in: narrow) == PeekLayout.minInset)
+    // And steadily between.
+    let insets = stride(from: 480, through: 1000, by: 104).map {
+      PeekLayout.inset(in: CGRect(x: 0, y: 0, width: $0, height: 1100))
+    }
+    #expect(insets == insets.sorted())
+    #expect(Set(insets).count == insets.count)
   }
 
   @Test func putsTheButtonsInTheMarginBesideTheCardsTopRight() {
     for size in [bounds.size, CGSize(width: 480, height: 320)] {
       let area = CGRect(origin: .zero, size: size)
       let card = PeekLayout.cardFrame(in: area)
-      let buttons = PeekLayout.buttonsFrame(beside: card)
-      #expect(area.contains(buttons))
-      #expect(!buttons.intersects(card))
+      let buttons = PeekLayout.buttonsFrame(beside: card, in: area)
+      #expect(area.maxX - buttons.maxX >= PeekLayout.minButtonEdgeInset)
       #expect(buttons.maxY == card.maxY)
-      #expect(buttons.minX - card.maxX == PeekLayout.buttonSpacing)
     }
+    // Centered, at their largest, in a margin with room for them.
+    let card = PeekLayout.cardFrame(in: bounds)
+    let buttons = PeekLayout.buttonsFrame(beside: card, in: bounds)
+    #expect(buttons.width == PeekLayout.maxButtonSize)
+    #expect(!buttons.intersects(card))
+    #expect(abs((buttons.minX - card.maxX) - (bounds.maxX - buttons.maxX)) <= 1)
+  }
+
+  @Test func shrinksTheButtonsLessThanTheMargin() {
+    let narrow = CGRect(x: 0, y: 0, width: 480, height: 900)
+    let card = PeekLayout.cardFrame(in: narrow)
+    let buttons = PeekLayout.buttonsFrame(beside: card, in: narrow)
+    #expect(buttons.width == PeekLayout.minButtonSize)
+    #expect(card.maxX - buttons.minX <= 5)
+    let sizes = stride(from: PeekLayout.minInset, through: 40, by: 4).map {
+      PeekLayout.buttonSize(inMargin: $0)
+    }
+    #expect(sizes == sizes.sorted())
   }
 
   @Test func mapsTheLayersFrameOntoTheRect() {

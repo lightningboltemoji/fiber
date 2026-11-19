@@ -20,15 +20,15 @@ fits with the rest of the tabs is in
   - while the window has a split, whose right page shows beside every tab:
     a peek would put three pages on screen.
 - **How it looks.** The peek's page fills a card inset from the page area,
-  rounded like the page, over the page it came from, which fills the page
+  as much on every side, rounded like the page, over the page it came from, which fills the page
   area behind it, blurred and a little darkened, so its edges bleed in around
   the card. Two round glass buttons, Close and Expand, sit at the card's
   top-right, in the margin beside it, clear of what the window puts over the
   active page (the load progress, find bar and notices, which go over the
-  card, as they go over a split's side). The card grows from the pointer as
-  the page behind blurs.
-- **Closing it** (Close, a click on the page behind, ⌘W, the page closing
-  itself) closes its tab, and the page it came from is back as it was, with
+  card, as they go over a split's side). The card grows from the pointer, on
+  a spring like the downloads list's, as the page behind blurs.
+- **Closing it** (Close, a click on the page behind, ⌘W, Escape the page
+  doesn't use, the page closing itself) closes its tab, and the page it came from is back as it was, with
   the keyboard, as the card goes, a snapshot of its page shrinking a little
   and fading. ⇧⌘T brings the peek back, as a peek.
 - **Expanding it** makes it an ordinary tab, still active, right after the
@@ -207,18 +207,23 @@ lower tab closes its peek too. The harness's `MockBrowser` has peeks (its
   [Keyboard shortcuts](IMPLEMENTATION.md#keyboard-shortcuts)), so it can't be
   one they use, like ⌘Return (send in Slack, Gmail and GitHub). Maybe none,
   with Expand Peek in the Tab menu.
-- **Escape** goes to the page, as everywhere else in Fiber, so it doesn't close
-  a peek. Pages use it for their own dialogs, and rarely say when they have.
 - **Back on a peek's first page** (⌘[, or a swipe) could close it, the swipe
   sliding the card away to show the page behind as if it were the page
   before. Safari closes a tab opened from a link the same way.
 - **The address in the tab overlay** is the peek's, since the omnibar acts on
   the peek, while the selected row is the lower tab's. The alternative is to
   show the lower tab's address, with the omnibar still acting on the peek.
-- **How the card sits:** for now, inset 6% of the page area's width at the
-  sides (at least room for the buttons) and 4% of its height at the top and
-  bottom (`PeekLayout`), with the buttons in the right margin and the traffic
-  lights over the card's corner. Easiest to tune in the harness.
+- **How the card sits:** for now, inset 50pt all round, narrowing to 20pt as
+  the page area's shorter side goes from 1000pt to 480pt, as narrow as a
+  window gets (`PeekLayout`), with
+  the buttons centered in the right margin, shrinking from 32pt to 22pt as it
+  narrows below 40pt, which leaves them about 5pt over the card's edge in the
+  narrowest, and the traffic lights over the card's corner. Easiest to tune
+  in the harness.
+- **Escape** closes a peek once its page has had the key and not used it
+  (`preventDefault()`, in `FiberBrowserWindow::HandleKeyboardEvent()`), but
+  not one with key passthrough, which holding Escape ends. A page that closes
+  a dialog of its own on Escape without saying so closes its peek too.
 - **⇧⌘T after closing the pair's row** takes two presses, the tab and then
   its peek. One press for both would need closed-tab history to keep them as
   one entry, as it does a split.
